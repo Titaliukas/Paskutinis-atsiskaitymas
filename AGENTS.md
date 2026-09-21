@@ -11,5 +11,5 @@
 - Do not add Spring, JavaFX, Lombok, DI frameworks, ECS/game frameworks or a database. Add design patterns only for concrete requirements.
 - Keep shared VS Code files portable: no personal settings, absolute paths, or configured JDK installation paths.
 - Dockerize only the server. Preserve direct runnable JARs, configurable addresses/ports, non-root/headless execution, graceful cleanup and ARM64/AMD64 portability.
-- This slice is a skeleton: do not add gameplay, predefined arenas or world creation on connect unless a later task explicitly requests it.
+- Preserve the first playable slice: one arena and ground platform, at most two players, horizontal movement, jumping, gravity, collision, and authoritative snapshots. Do not add combat, enemies, items, scoring, persistence, authentication, multiple arenas, or other gameplay without an explicit task.
 - Keep documentation aligned. Tests must stop all servers, clients and workers. Do not commit, push or open a PR unless explicitly asked.

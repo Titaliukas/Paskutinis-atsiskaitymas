@@ -1,11 +1,9 @@
 # Architecture
 
-The project is a Java 25 multi-module Maven build with two independently runnable processes: one headless,
-authoritative server and one Swing desktop client per player. Docker is only a server deployment boundary.
+The project is a Java 25 multi-module Maven build with one headless authoritative server and one Swing desktop
+process per player. Docker is only a server deployment boundary.
 
 ## Module boundaries
-
-Arrows represent compile/runtime project dependencies:
 
 ```text
 game-client ──────────────────────────────> game-protocol
@@ -14,75 +12,97 @@ game-server ───> game-protocol
             └────────────────────────> game-domain
 ```
 
-- `game-domain` contains immutable model declarations. It has no infrastructure dependency.
-- `game-application` contains future use-case boundaries and depends only on domain.
-- `game-protocol` contains explicit JSON wire DTOs and serialization, with no rules or domain entities.
-- `game-server` owns WebSocket transport, connection state, routing, configuration, and startup.
-- `game-client` owns Swing UI and asynchronous JDK WebSocket communication. It never owns authoritative rules.
+- `game-domain` owns arena geometry, player bodies, movement, gravity, and collision rules.
+- `game-application` owns validated commands, retained input state, the bounded queue, and fixed-step loop.
+- `game-protocol` owns explicit JSON DTOs only. It contains no domain entities or rules.
+- `game-server` owns connections, two slot reservations, DTO/command translation, scheduling, and snapshots.
+- `game-client` owns connection UI, keyboard state, Java2D rendering, and asynchronous network I/O.
 
-Maven Enforcer checks project dependencies. Checkstyle checks production imports: domain and application exclude
-AWT, networking, SQL, WebSocket, and Jackson; protocol/client cannot import inward game layers; server cannot
-import client or desktop UI code. These rules must not be bypassed with reflection or fully qualified references.
+Maven Enforcer checks project dependencies. Checkstyle rejects infrastructure imports in domain/application,
+inward game-layer imports from protocol/client, and desktop imports from the server. Live domain entities are never
+serialized; the server maps loop-owned state into detached protocol records.
 
-## Current domain and protocol
-
-The UML-oriented domain records declare `GameSession`, `Player`, `GameCharacter`, `Arena`, `Platform`, `Enemy`,
-`Attack`, `Projectile`, `Item`, and finite immutable `Position` coordinates. Constructors enforce structural
-validity and copy collections, but implement no gameplay. Coordinate units, geometry, and lifecycle rules remain
-open for the next development stage.
-
-The sealed protocol vocabulary is `HELLO`, `WELCOME`, `PING`, `PONG`, and `ERROR`. DTOs contain no domain types.
-`JsonMessageCodec` uses explicit message names and rejects unknown types/properties, duplicate keys, trailing
-JSON, nulls, malformed fields, and oversized input. Binary messages and WebSocket paths other than `/game` are
-rejected.
-
-`WELCOME` acknowledges a transport connection only. Its UUID is not a player ID, and a nickname is neither an
-authenticated identity nor a domain player. Connecting never constructs a world object.
-
-## Runtime and threading
+## Authoritative command and snapshot flow
 
 ```text
-WebSocket callback → JsonMessageCodec → MessageRouter → connection response
-                                            │
-                                            └─ future: application command → CommandQueue
-                                                                                  │
-                                                                   GameLoop → MatchController
+Swing key press/release
+        │
+        ▼
+complete INPUT state ──WebSocket──> MessageRouter
+                                        │ validate direction, identity, sequence
+                                        ▼
+                              BoundedCommandQueue (512)
+                                        │
+                              one 60 Hz loop thread
+                                        │ drain ≤128 commands/tick
+                                        ▼
+                                MatchController
+                                        │ retained left/right + jump edge
+                                        ▼
+                                  GameSession
+                                        │ movement, gravity, collision
+                                        ▼
+                     SnapshotMapper → WORLD_SNAPSHOT at 20 Hz
+                                        │
+                             WebSocket broadcast
+                                        ▼
+                       EDT update → GamePanel repaint
 ```
 
-The server binds `0.0.0.0` and keeps only synchronized per-connection handshake state today. It logs connections
-and disconnections, waits for binding to complete, and closes clients/workers through its shutdown hook.
+WebSocket callbacks may reserve/release transport slots and enqueue application commands. They never mutate the
+world. `AuthoritativeGameLoop` is scheduled by one `authoritative-game-loop` executor. It drains commands before
+advancing a fixed `1/60` second simulation step. Client sequence numbers discard delayed input, and a jump occurs
+only on a false-to-true input transition while the character is grounded.
 
-Client networking uses the JDK's asynchronous WebSocket client. `ClientMessageRouter` dispatches typed server
-messages; Swing state changes are scheduled on the event dispatch thread. Timeouts bound connection and handshake
-attempts, fragmented input is size-limited, and late callbacks from prior connections are ignored. Network waits
-never run on the Swing event dispatch thread.
+The server reserves at most two slots. `HELLO` becomes `JoinPlayerCommand`; accepted clients receive their server
+assigned player UUID and slot in `WELCOME`. `INPUT` becomes `InputCommand`; clients cannot send coordinates,
+velocity, or collision results. Disconnect becomes `LeavePlayerCommand`, freeing the slot for reconnection.
+Additional join requests receive `SERVER_FULL` without affecting the match.
 
-When gameplay arrives, WebSocket callbacks may translate DTOs into application-owned commands and offer them to
-a bounded, thread-safe `CommandQueue`. Only a single-owner `GameLoop` may drain commands and mutate authoritative
-state through `MatchController`. Callbacks must never invoke gameplay behavior directly.
+Snapshots are immutable `ArenaSnapshot`, `PlatformSnapshot`, and `PlayerSnapshot` records. The client holds only
+the latest snapshot and renders it directly. Networking remains asynchronous, and all Swing changes occur on the
+event dispatch thread.
 
-## Planned extension points
+## World and collision model
 
-1. Define arena geometry and coordinate conventions in the domain.
-2. Add concrete application commands and a bounded queue when the first use case requires them.
-3. Implement scheduling and `GameLoop.tick()` on one authoritative owner thread.
-4. Map application results into versioned snapshot DTOs instead of serializing live domain aggregates.
-5. Add a Java2D rendering panel and separate input adapter in the client.
-6. Add gameplay rules and design patterns only in response to concrete requirements.
+World origin `(0,0)` is the arena's top-left. X increases rightward and Y downward. Constants live in
+`GameConstants`:
 
-No empty simulation, speculative hierarchy, predefined arena, or world creation is wired into the handshake.
+- Arena: `960 × 540` world units
+- Ground: `(0,480)`, size `960 × 60`
+- Player: `42 × 64`
+- Fixed simulation: 60 ticks/second; snapshots: 20/second
+- Horizontal speed: 260 units/second
+- Jump speed: 600 units/second upward
+- Gravity: 1500 units/second² downward
 
-## Build and deployment
+Each tick derives horizontal velocity from retained left/right state, applies a grounded jump edge, integrates
+gravity, clamps horizontal and vertical arena boundaries, and resolves downward crossing of the platform top.
+There is no client prediction or interpolation in this prototype.
 
-The Maven Wrapper pins Maven 3.9.11 and verifies its distribution checksum. Java compiler release and Enforcer,
-GitHub Actions, Docker build/runtime images, VS Code instructions, and team documentation all target Java 25.
-Executable client and server JARs include their runtime dependencies.
+## Protocol and validation
 
-The multi-stage Dockerfile verifies the full reactor, then copies only the server JAR into a non-root,
-headless Java 25 runtime image. It remains portable across ARM64 and AMD64 and contains no host paths. Compose uses
-the fixed project name `paskutinis-atsiskaitymas`, service `game-server`, image
-`paskutinis-atsiskaitymas-server:local`, and a configurable published host port mapped to container port 8080.
+The sealed message vocabulary uses stable names: `HELLO`, `WELCOME`, `INPUT`, `WORLD_SNAPSHOT`, `PING`, `PONG`,
+and `ERROR`. Jackson uses an explicit subtype allowlist rather than Java class names. The codec rejects unknown
+types/properties, duplicate keys, trailing JSON, malformed records, null messages, and oversized text.
 
-`./mvnw -B -ntp clean verify` checks dependency/import boundaries, JSON round trips and invalid input, message
-direction, configuration, simultaneous real WebSocket handshakes, fragmentation, reconnection, rejected paths and
-binary frames, and clean shutdown. Tests bind ephemeral ports and release their clients and workers.
+Nicknames are bounded display labels, not authentication. IDs and slots are server assigned. Binary messages and
+paths other than `/game` are rejected. Protocol errors are bounded DTOs and never expose exceptions or domain
+objects.
+
+## Lifecycle and deployment
+
+The server binds `0.0.0.0`. Its shutdown hook closes WebSocket connections and then terminates the scheduler;
+tests verify the loop worker does not remain alive. Client disconnect cancels pending work, clears input/UI state,
+and shuts down its HTTP client when the window closes.
+
+The Maven Wrapper pins Maven 3.9.11. Compiler release, Enforcer, CI, Docker, VS Code, and documentation use Java
+25. The multi-stage Dockerfile runs the full reactor verification and copies only the shaded server JAR into a
+non-root Java 25 runtime. Compose uses project `paskutinis-atsiskaitymas`, service `game-server`, image
+`paskutinis-atsiskaitymas-server:local`, and host `SERVER_PORT` mapped to container port 8080.
+
+## Extension points
+
+Future slices can add more platform geometry to `Arena`, new application commands, versioned snapshot fields,
+and client interpolation without changing transport ownership. Combat, enemies, items, health, scoring, multiple
+arenas, persistence, authentication, match results, and additional design patterns remain deliberately absent.

@@ -8,8 +8,8 @@ import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 import lt.ktu.paskutinisatsiskaitymas.protocol.Hello;
+import lt.ktu.paskutinisatsiskaitymas.protocol.InputState;
 import lt.ktu.paskutinisatsiskaitymas.protocol.JsonMessageCodec;
 import lt.ktu.paskutinisatsiskaitymas.protocol.ProtocolException;
 import lt.ktu.paskutinisatsiskaitymas.protocol.Welcome;
@@ -19,14 +19,15 @@ public final class ClientConnection implements AutoCloseable {
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
     private final JsonMessageCodec codec = new JsonMessageCodec();
     private final ClientMessageRouter router = new ClientMessageRouter();
-    private final Consumer<ConnectionStatus> observer;
+    private final ClientEvents observer;
     private CompletableFuture<WebSocket> pending;
     private CompletableFuture<Welcome> handshake;
     private WebSocket socket;
     private long generation;
+    private long inputSequence;
     private boolean closed;
 
-    public ClientConnection(Consumer<ConnectionStatus> observer) {
+    public ClientConnection(ClientEvents observer) {
         this.observer = java.util.Objects.requireNonNull(observer);
     }
 
@@ -46,6 +47,7 @@ public final class ClientConnection implements AutoCloseable {
         }
         disconnect();
         long attempt = generation;
+        inputSequence = 0;
         emit(ConnectionStatus.State.CONNECTING, "Connecting to " + address);
         handshake = new CompletableFuture<>();
         handshake.orTimeout(8, TimeUnit.SECONDS).whenComplete((welcome, error) -> {
@@ -81,6 +83,26 @@ public final class ClientConnection implements AutoCloseable {
         emit(ConnectionStatus.State.DISCONNECTED, "Disconnected");
     }
 
+    public synchronized void sendInput(boolean left, boolean right, boolean jump) {
+        if (socket == null || handshake == null || !handshake.isDone()
+                || handshake.isCompletedExceptionally() || handshake.isCancelled()) {
+            return;
+        }
+        final String json;
+        try {
+            json = codec.encode(new InputState(inputSequence++, left, right, jump));
+        } catch (ProtocolException exception) {
+            fail(generation, "Cannot encode input");
+            return;
+        }
+        long attempt = generation;
+        socket.sendText(json, true).whenComplete((ignored, error) -> {
+            if (error != null) {
+                fail(attempt, "Failed to send input");
+            }
+        });
+    }
+
     private synchronized void fail(long attempt, String detail) {
         if (attempt == generation) {
             disconnect();
@@ -89,7 +111,7 @@ public final class ClientConnection implements AutoCloseable {
     }
 
     private void emit(ConnectionStatus.State state, String detail) {
-        observer.accept(new ConnectionStatus(state, detail));
+        observer.onConnectionStatus(new ConnectionStatus(state, detail));
     }
 
     @Override
@@ -142,12 +164,15 @@ public final class ClientConnection implements AutoCloseable {
                 if (last) {
                     try {
                         router.route(codec.decode(fragments.toString()), welcome -> {
-                            if (handshake.complete(welcome)) {
+                            CompletableFuture<Welcome> activeHandshake = handshake;
+                            if (activeHandshake != null && activeHandshake.complete(welcome)) {
+                                observer.onJoined(welcome);
                                 emit(ConnectionStatus.State.CONNECTED, "Connected as " + welcome.nickname());
                             } else {
                                 fail(attempt, "Unexpected duplicate WELCOME");
                             }
-                        }, error -> fail(attempt, error.code() + ": " + error.message()));
+                        }, observer::onSnapshot,
+                                error -> fail(attempt, error.code() + ": " + error.message()));
                     } catch (ProtocolException exception) {
                         fail(attempt, "Invalid server message");
                     } finally {

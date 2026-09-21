@@ -13,6 +13,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 import lt.ktu.paskutinisatsiskaitymas.protocol.*;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,56 +52,73 @@ class GameWebSocketServerTest {
     }
 
     @Test
-    void multipleClientsHandshakePingAndReconnectIndependently() throws Exception {
+    void twoPlayersReceiveSnapshotsAndMoveIndependently() throws Exception {
         Peer first = connect("/game");
         Peer second = connect("/game");
         first.send(new Hello("First"));
         second.send(new Hello("Second"));
-        Welcome a = assertInstanceOf(Welcome.class, first.receive());
-        Welcome b = assertInstanceOf(Welcome.class, second.receive());
-        assertEquals("First", a.nickname());
-        assertEquals("Second", b.nickname());
-        assertNotEquals(a.connectionId(), b.connectionId());
+        Welcome a = first.receive(Welcome.class, value -> value.nickname().equals("First"));
+        Welcome b = second.receive(Welcome.class, value -> value.nickname().equals("Second"));
+        assertNotEquals(a.playerId(), b.playerId());
+        assertNotEquals(a.slot(), b.slot());
+
+        WorldSnapshot initial = first.receive(WorldSnapshot.class, value -> value.players().size() == 2);
+        double firstX = player(initial, a).x();
+        double secondX = player(initial, b).x();
+        first.send(new InputState(0, false, true, false));
+        WorldSnapshot moved = first.receive(WorldSnapshot.class,
+                value -> value.players().size() == 2 && player(value, a).x() > firstX);
+        assertEquals(secondX, player(moved, b).x(), 0.000_001);
+
+        first.send(new InputState(1, false, false, false));
         first.send(new Ping("one"));
-        second.send(new Ping("two"));
-        assertEquals(new Pong("one"), first.receive());
-        assertEquals(new Pong("two"), second.receive());
+        assertEquals(new Pong("one"), first.receive(Pong.class, value -> value.requestId().equals("one")));
+    }
+
+    @Test
+    void rejectsThirdPlayerThenAllowsReconnectAfterDisconnect() throws Exception {
+        Peer first = joined("First");
+        Peer second = joined("Second");
+        assertNotNull(second);
+        Peer third = connect("/game");
+        third.send(new Hello("Third"));
+        assertEquals("SERVER_FULL", third.receive(ErrorMessage.class,
+                value -> value.code().equals("SERVER_FULL")).code());
+
         first.socket.sendClose(1000, "done").get(5, TimeUnit.SECONDS);
         assertEquals(1000, first.closed.get(5, TimeUnit.SECONDS));
-        second.send(new Ping("still-here"));
-        assertEquals(new Pong("still-here"), second.receive());
         Peer reconnect = connect("/game");
-        reconnect.send(new Hello("First"));
-        assertNotEquals(a.connectionId(), assertInstanceOf(Welcome.class, reconnect.receive()).connectionId());
+        reconnect.send(new Hello("Replacement"));
+        assertEquals("Replacement", reconnect.receive(Welcome.class,
+                value -> value.nickname().equals("Replacement")).nickname());
     }
 
     @Test
-    void rejectsInvalidMessagesWithoutCorruptingHandshakeState() throws Exception {
+    void validatesDirectionAndMalformedMessagesWithoutLosingConnection() throws Exception {
         Peer peer = connect("/game");
-        peer.send(new Ping("early"));
-        assertEquals("HANDSHAKE_REQUIRED", assertInstanceOf(ErrorMessage.class, peer.receive()).code());
+        peer.send(new InputState(0, false, true, false));
+        assertEquals("HANDSHAKE_REQUIRED", peer.receive(ErrorMessage.class,
+                value -> value.code().equals("HANDSHAKE_REQUIRED")).code());
         peer.socket.sendText("not-json", true).get(5, TimeUnit.SECONDS);
-        assertEquals("INVALID_MESSAGE", assertInstanceOf(ErrorMessage.class, peer.receive()).code());
+        assertEquals("INVALID_MESSAGE", peer.receive(ErrorMessage.class,
+                value -> value.code().equals("INVALID_MESSAGE")).code());
         peer.send(new Hello("Player"));
-        assertInstanceOf(Welcome.class, peer.receive());
+        peer.receive(Welcome.class, value -> true);
         peer.send(new Hello("Replacement"));
-        assertEquals("ALREADY_CONNECTED", assertInstanceOf(ErrorMessage.class, peer.receive()).code());
-        peer.send(new Pong("wrong-direction"));
-        assertEquals("UNEXPECTED_MESSAGE", assertInstanceOf(ErrorMessage.class, peer.receive()).code());
-        peer.send(new Ping("valid"));
-        assertEquals(new Pong("valid"), peer.receive());
+        assertEquals("ALREADY_CONNECTED", peer.receive(ErrorMessage.class,
+                value -> value.code().equals("ALREADY_CONNECTED")).code());
+        peer.send(new WorldSnapshot(0, new ArenaSnapshot(1, 1, List.of()), List.of()));
+        assertEquals("UNEXPECTED_MESSAGE", peer.receive(ErrorMessage.class,
+                value -> value.code().equals("UNEXPECTED_MESSAGE")).code());
     }
 
     @Test
-    void reassemblesFragmentedJson() throws Exception {
-        Peer peer = connect("/game");
-        peer.socket.sendText("{\"type\":\"HELLO\",", false).get(5, TimeUnit.SECONDS);
-        peer.socket.sendText("\"nickname\":\"Fragmented\"}", true).get(5, TimeUnit.SECONDS);
-        assertEquals("Fragmented", assertInstanceOf(Welcome.class, peer.receive()).nickname());
-    }
+    void reassemblesFragmentedJoinAndRejectsWrongPathAndBinary() throws Exception {
+        Peer fragmented = connect("/game");
+        fragmented.socket.sendText("{\"type\":\"HELLO\",", false).get(5, TimeUnit.SECONDS);
+        fragmented.socket.sendText("\"nickname\":\"Fragmented\"}", true).get(5, TimeUnit.SECONDS);
+        assertEquals("Fragmented", fragmented.receive(Welcome.class, value -> true).nickname());
 
-    @Test
-    void closesWrongPathAndBinaryMessages() throws Exception {
         Peer wrongPath = connect("/other");
         assertEquals(1008, wrongPath.closed.get(5, TimeUnit.SECONDS));
         Peer binary = connect("/game");
@@ -109,12 +127,21 @@ class GameWebSocketServerTest {
     }
 
     @Test
-    void serverShutdownClosesConnectedClients() throws Exception {
-        Peer peer = connect("/game");
-        peer.send(new Hello("Player"));
-        assertInstanceOf(Welcome.class, peer.receive());
+    void cleanShutdownClosesClientsAndTerminatesGameLoop() throws Exception {
+        Peer peer = joined("Player");
         server.close();
         assertEquals(1001, peer.closed.get(5, TimeUnit.SECONDS));
+        assertTrue(server.isGameLoopTerminated());
+        server = null;
+        assertTrue(Thread.getAllStackTraces().keySet().stream()
+                .noneMatch(thread -> thread.isAlive() && thread.getName().equals("authoritative-game-loop")));
+    }
+
+    private Peer joined(String nickname) throws Exception {
+        Peer peer = connect("/game");
+        peer.send(new Hello(nickname));
+        peer.receive(Welcome.class, value -> value.nickname().equals(nickname));
+        return peer;
     }
 
     private Peer connect(String path) throws Exception {
@@ -123,6 +150,12 @@ class GameWebSocketServerTest {
         peer.socket = http.newWebSocketBuilder().connectTimeout(Duration.ofSeconds(5))
                 .buildAsync(URI.create("ws://127.0.0.1:" + server.getPort() + path), peer).get(5, TimeUnit.SECONDS);
         return peer;
+    }
+
+    private static PlayerSnapshot player(WorldSnapshot snapshot, Welcome welcome) {
+        return snapshot.players().stream()
+                .filter(player -> player.playerId().equals(welcome.playerId()))
+                .findFirst().orElseThrow();
     }
 
     private final class Peer implements WebSocket.Listener {
@@ -135,10 +168,23 @@ class GameWebSocketServerTest {
             socket.sendText(codec.encode(message), true).get(5, TimeUnit.SECONDS);
         }
 
-        Message receive() throws Exception {
-            String json = inbox.poll(5, TimeUnit.SECONDS);
-            assertNotNull(json, "Timed out waiting for server response");
-            return codec.decode(json);
+        <T extends Message> T receive(Class<T> type, Predicate<T> predicate) throws Exception {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            while (System.nanoTime() < deadline) {
+                String json = inbox.poll(100, TimeUnit.MILLISECONDS);
+                if (json == null) {
+                    continue;
+                }
+                Message message = codec.decode(json);
+                if (type.isInstance(message)) {
+                    T value = type.cast(message);
+                    if (predicate.test(value)) {
+                        return value;
+                    }
+                }
+            }
+            fail("Timed out waiting for " + type.getSimpleName());
+            throw new AssertionError();
         }
 
         @Override

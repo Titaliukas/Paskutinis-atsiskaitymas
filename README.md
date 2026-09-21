@@ -1,16 +1,20 @@
 # Paskutinis atsiskaitymas
 
-Java 25 multiplayer 2D game prototype skeleton for a university Object-Oriented Programming Patterns project.
-The repository currently provides module boundaries, a Swing connection window, and a typed JSON WebSocket
-handshake. Connecting does not create a game session, player, character, arena, or other gameplay entity.
+A small playable two-player platform prototype for a university Object-Oriented Programming Patterns project.
+The Java 25 server owns movement and collision state; Swing clients send keyboard intent and render authoritative
+JSON snapshots with Java2D primitive shapes.
 
-## Technology and architecture
+The implemented scope is intentionally narrow: one 960×540 arena, one ground platform, two colored player
+rectangles, separate spawn positions, horizontal movement, jumping, gravity, arena/ground collision, and safe
+disconnect/reconnect. There is no combat, scoring, enemies, items, persistence, authentication, or match result.
+
+## Stack and architecture
 
 - Java 25 and Maven Wrapper
-- Swing and Java2D for the desktop client
-- Java-WebSocket for the server and the JDK WebSocket client for the desktop
-- Jackson JSON messages and JUnit 5 tests
-- Docker for the headless server only
+- Swing/Java2D desktop client
+- Java-WebSocket server and the JDK WebSocket client
+- Jackson JSON DTOs and JUnit 5
+- Server-only Docker image
 
 ```text
 game-client ──────────────────────────────> game-protocol
@@ -21,39 +25,36 @@ game-server ───> game-protocol
 
 | Module | Responsibility |
 | --- | --- |
-| `game-domain` | Immutable game-model declarations with no infrastructure dependencies |
-| `game-application` | Future game-loop, command-queue, and match-use-case boundaries |
-| `game-protocol` | Transport DTOs and JSON serialization; no game rules or domain entities |
-| `game-server` | Headless WebSocket endpoint, connection routing, configuration, and server entry point |
-| `game-client` | Swing connection UI, asynchronous networking, and client entry point |
+| `game-domain` | Arena, characters, centralized constants, movement, gravity, and collision |
+| `game-application` | Commands, retained input, bounded queue, match controller, and fixed-step loop |
+| `game-protocol` | Validated transport DTOs and JSON codec; no domain entities |
+| `game-server` | Connections, two player slots, command translation, scheduling, and snapshots |
+| `game-client` | Connection form, keyboard state, asynchronous networking, and Java2D rendering |
 
-Server and client are separate programs because a headless server owns authoritative state while each player
-runs an independent desktop UI. Keeping them in one repository gives both programs one protocol definition and
-one verified build without coupling the client to server or domain implementation. See
-[docs/architecture.md](docs/architecture.md) for the full boundary and threading rules.
+The server and clients are separate programs because the headless server owns authoritative state while every
+player needs an independent desktop UI. They remain in one repository so both processes use the same versioned
+protocol and verification build. See [docs/architecture.md](docs/architecture.md) for threading and message flow.
 
-## Prerequisites
+## Prerequisites and Java 25 setup
 
-For source builds and direct JAR execution:
+Source builds and Swing clients require a standalone JDK 25, preferably Eclipse Temurin. Install the JDK variant
+for the operating system and CPU architecture, reopen the terminal, and verify:
 
-- A standalone JDK 25, preferably Eclipse Temurin. Confirm both `java --version` and `javac --version` report 25.
-- Internet access on the first build so the wrapper can download Maven and project dependencies.
-- On macOS/Linux, `unzip` and either `curl` or `wget` for the Maven Wrapper.
-- A desktop environment for the Swing client. The direct server is headless.
+```sh
+java --version
+javac --version
+```
 
-Docker server deployment requires Docker with Compose but does not require Java on the host. Docker is optional
-for developers who run the server JAR directly. The project supports macOS, Windows, ARM64 Raspberry Pi OS, and
-ordinary AMD64 Linux/cloud hosts. It does not require a particular IDE, package manager, or system Maven.
+Both commands must report version 25. On macOS/Linux, the Maven Wrapper also needs `unzip` and either `curl` or
+`wget` on its first run. On Windows, use `mvnw.cmd` instead of `./mvnw`. A separate Maven installation is neither
+needed nor supported.
 
-### VS Code
+In VS Code, install the recommended Microsoft Extension Pack for Java, run **Java: Configure Java Runtime**, and
+select the standalone JDK 25 for this workspace. The Docker extension is optional. Shared tasks verify/package the
+project and manage Compose; launch configurations start the server, Alice, Bob, or all three processes.
 
-Open the repository root and install the recommended Microsoft Extension Pack for Java. The Docker extension is
-recommended only for developers using Docker. Run **Java: Configure Java Runtime** from the Command Palette and
-select a standalone JDK 25 for this workspace. Do not commit a local JDK path.
-
-Shared tasks provide Maven verification, server packaging, and Docker Compose start/log/stop commands. Launch
-configurations run the server, Alice, or Bob; the **Server + Alice + Bob** compound starts all three JVMs. Wait for
-the server to report that it is listening before clicking **Connect** in either client window.
+Docker server deployment requires Docker with Compose but does not require Java on the Docker host. Swing clients
+always require Java 25 and a desktop environment.
 
 ## Fresh clone and build
 
@@ -66,40 +67,38 @@ javac --version
 ./mvnw -B -ntp clean verify
 ```
 
-On Windows, replace `./mvnw` with `mvnw.cmd`. The wrapper downloads its pinned Maven version, so do not install or
-invoke a separate Maven. A successful verification checks the module dependency/import rules, compiles all five
-modules, runs the JSON and WebSocket tests, and creates these self-contained executables:
+The build checks module/import boundaries, runs all physics, application, protocol, WebSocket, capacity,
+reconnection, and shutdown tests, then produces:
 
 - `game-server/target/game-server.jar`
 - `game-client/target/game-client.jar`
 
-To package only the server and its required modules:
+## Start a local game directly
 
-```sh
-./mvnw -B -ntp -pl game-server -am package
-```
+Open three terminals in the repository root after building.
 
-## Run directly with Java 25
-
-Start the server from the repository root:
+Terminal 1 — server:
 
 ```sh
 java -jar game-server/target/game-server.jar
 ```
 
-The server binds to `0.0.0.0` and listens on port 8080 by default. Stop it with `Ctrl+C`.
-
-Start one or more clients in separate terminals:
+Terminal 2 — first client:
 
 ```sh
 java -jar game-client/target/game-client.jar ws://localhost:8080/game Alice
+```
+
+Terminal 3 — second client:
+
+```sh
 java -jar game-client/target/game-client.jar ws://localhost:8080/game Bob
 ```
 
-The arguments prefill the connection form; click **Connect** in each window. The fields can also be edited before
-connecting. Closing a window releases that client's network resources.
+Click **Connect** in both windows. The blue and red rectangles should appear at separate spawn positions. Each
+client marks its own rectangle with a white outline and `(you)`. Stop the direct server with `Ctrl+C`.
 
-## Run the server with Docker Compose
+## Start the server with Docker Compose
 
 ```sh
 cp .env.example .env
@@ -107,49 +106,82 @@ docker compose up --build -d game-server
 docker compose logs -f game-server
 ```
 
-Press `Ctrl+C` to stop following logs. Run Swing clients on the host using Java 25; the client is not included in
-the image. Stop and remove this project's Compose resources with:
+Press `Ctrl+C` to stop following logs, then start the two Swing clients with the commands above. Compose uses
+project `paskutinis-atsiskaitymas`, service `game-server`, and image
+`paskutinis-atsiskaitymas-server:local`. The container runs headlessly as a non-root user and contains only the
+server JAR and Java 25 runtime.
+
+Stop and remove this project's server container and network with:
 
 ```sh
 docker compose down
 ```
 
-Compose uses project `paskutinis-atsiskaitymas`, service `game-server`, and image
-`paskutinis-atsiskaitymas-server:local`. It does not use a fixed container name, so Compose manages the instance.
-The image runs headlessly as a non-root user and contains only the server JAR and Java 25 runtime.
+## Controls
 
-## LAN and remote deployment
+| Action | Keys |
+| --- | --- |
+| Move left | `A` |
+| Move right | `D` |
+| Jump | `Space` or `W` |
 
-Local clients connect to `ws://localhost:8080/game`. For another computer on the same LAN:
+The client tracks both press and release, so movement does not depend on operating-system key repeat. Click the
+game area if keys do not respond. Releasing every movement key stops the character. Holding both left and right
+produces no horizontal movement.
 
-1. Start the server on the host computer.
-2. Find that host's LAN address using its operating-system network settings.
-3. Allow inbound TCP port 8080 through the host firewall.
-4. On a Java 25 desktop computer, run the client with the host address:
+## Manual playable test
+
+1. Start one server and Alice and Bob clients, then click **Connect** in both.
+2. Confirm both windows display the same arena, platform, and two named rectangles.
+3. Focus Alice's game panel. Hold `D`, release it, then press `Space`. Confirm only Alice moves and jumps in both
+   windows, stops on release, lands on the platform, and cannot leave the arena.
+4. Focus Bob's panel and repeat using `A` and `W`. Confirm Bob moves independently in both windows.
+5. Start a third client and click **Connect**. Confirm it reports `SERVER_FULL` while Alice and Bob remain active.
+6. Disconnect or close Alice. Confirm Alice disappears without stopping Bob.
+7. Connect the third client again. Confirm it receives the freed slot, appears at that slot's spawn, and can move.
+8. Stop the server. Confirm clients report disconnection instead of freezing or crashing.
+
+## Play over a LAN
+
+The server binds to `0.0.0.0`. Local clients use `ws://localhost:8080/game`; a different computer must use:
+
+```text
+ws://<SERVER_LAN_IP>:8080/game
+```
+
+To set up LAN play:
+
+1. Put the server and client computers on the same network.
+2. Find the server host's active LAN address:
+   - Windows: run `ipconfig` and locate the active adapter's IPv4 address.
+   - macOS: check Network settings or run `ipconfig getifaddr en0` for a typical Wi-Fi interface.
+   - Linux/Raspberry Pi OS: run `hostname -I` and use the address for the active LAN interface.
+3. Allow inbound TCP port 8080 in the server host's firewall.
+4. Start the server directly or with Compose.
+5. On the other Java 25 desktop computer, run:
 
    ```sh
    java -jar game-client.jar ws://<SERVER_LAN_IP>:8080/game Bob
    ```
 
-`localhost` always means the computer running the client, so LAN clients must use `<SERVER_LAN_IP>`.
+6. Click **Connect**. Do not use `localhost` from the second computer because it refers to that computer itself.
 
-The same server container can run on ARM64 Raspberry Pi OS or an AMD64 Linux/cloud host. Build or pull the image
-for the host architecture, publish TCP port 8080, and retain the container's `SERVER_PORT=8080`. Raspberry Pi uses
-the ARM64 image variant; typical cloud/Linux hosts use AMD64. No platform is hard-coded in the Dockerfile or
-Compose file. Direct JAR deployment instead requires Java 25 on the host.
+The server image works on ARM64 Raspberry Pi OS and AMD64 Linux/cloud hosts without a hard-coded platform.
+Raspberry Pi uses the ARM64 image variant; typical cloud hosts use AMD64. Direct JAR deployment needs Java 25 on
+the host, while Docker deployment needs Docker but no host Java installation.
 
-Public Internet deployment is not production-ready. Add TLS, authentication, firewall policy, and a reverse
-proxy before exposing the service outside a trusted network.
+Public Internet deployment is not production-ready. TLS, authentication, restrictive firewall rules, and a
+reverse proxy are required before exposing the server outside a trusted network.
 
 ## Configuration
 
 | Setting | Applies to | Default | Purpose |
 | --- | --- | --- | --- |
 | `-Dgame.server.port=<PORT>` | Direct server JVM | unset | Highest-precedence listening port |
-| `SERVER_PORT` environment variable | Direct server JVM | `8080` | Listening port when no JVM property is set |
-| `SERVER_PORT` in `.env` | Docker Compose host | `8080` | Published host port mapped to container port 8080 |
-| Client address field/first argument | Client | `ws://localhost:8080/game` | WebSocket server URL |
-| Client nickname field/second argument | Client | `Player` | Nonblank display label, maximum 32 characters |
+| `SERVER_PORT` environment variable | Direct server JVM | `8080` | Listening port without the JVM property |
+| `SERVER_PORT` in `.env` | Compose host | `8080` | Host port mapped to container port 8080 |
+| Client address/first argument | Client | `ws://localhost:8080/game` | Configurable WebSocket endpoint |
+| Nickname/second argument | Client | `Player` | Display label, 1–32 characters |
 
 For a direct server on port 9090:
 
@@ -159,48 +191,38 @@ java -jar game-client/target/game-client.jar ws://localhost:9090/game Alice
 ```
 
 Alternatively use `java -Dgame.server.port=9090 -jar game-server/target/game-server.jar`. Direct Java execution
-does not read `.env`; that file configures Compose's published host port.
+does not read `.env`; `.env` controls Compose's published host port.
 
-## Current protocol
+## Protocol summary
 
-The endpoint is `/game`, and every application message is one JSON WebSocket text message. A client first sends:
+The `/game` endpoint accepts JSON text messages with explicit stable types:
 
-```json
-{"type":"HELLO","nickname":"Alice"}
-```
+- `HELLO`: requests one of two slots with a nickname.
+- `WELCOME`: returns connection UUID, server-assigned player UUID, slot, and nickname.
+- `INPUT`: sends a monotonically sequenced complete left/right/jump state, never position or velocity.
+- `WORLD_SNAPSHOT`: broadcasts arena/platform geometry and both authoritative player rectangles at 20 Hz.
+- `PING`/`PONG`: application-level liveness round trip.
+- `ERROR`: reports malformed input, wrong direction, missing handshake, capacity, or queue pressure.
 
-The server replies with a transport-only connection identifier:
-
-```json
-{"type":"WELCOME","connectionId":"4d696088-fdd8-4264-9cbe-ffce4ab038cb","nickname":"Alice"}
-```
-
-After the handshake, `PING` receives a matching `PONG`. Malformed or unknown messages receive
-`INVALID_MESSAGE`; premature messages receive `HANDSHAKE_REQUIRED`; repeated `HELLO` receives
-`ALREADY_CONNECTED`; client-sent server DTOs receive `UNEXPECTED_MESSAGE`. Binary messages and paths other than
-`/game` are rejected. Nicknames are not authenticated and do not create domain players.
-
-## Limitations and next stage
-
-There is no arena rendering, movement, physics, collision, combat, spawning, items, NPC behavior, persistence,
-authentication, victory/reset logic, or active game loop. The next intended stage is to define arena coordinates
-and geometry, then introduce application-owned commands, a bounded queue, and a single-owner authoritative loop
-before adding snapshot DTOs and Java2D rendering.
+Unknown JSON, duplicate fields, trailing values, invalid fields, oversized messages, binary frames, and URL paths
+other than `/game` are rejected. A third join receives `SERVER_FULL`. Nicknames are display labels rather than
+authenticated identities.
 
 ## Troubleshooting
 
-- **Wrong Java version:** if `java --version`, `javac --version`, or `./mvnw -version` does not report Java 25,
-  select/install a standalone JDK 25 and update the shell `PATH` or VS Code's configured runtime. Do not use an
-  IDE-bundled JRE as the project toolchain.
-- **Port 8080 is occupied:** stop the other process or select another host port. For direct Java, set
-  `SERVER_PORT`; for Compose, change `SERVER_PORT` in `.env`. Use the same port in the client URL.
-- **LAN connection fails:** confirm the client uses the server host's LAN address, both machines can reach each
-  other, the server is listening, and the firewall allows inbound TCP on the published port.
-- **Docker fails:** confirm the Docker engine is running, then inspect `docker compose ps` and
-  `docker compose logs game-server`. Rebuild with `docker compose build --no-cache game-server` if necessary.
-- **Client remains disconnected:** confirm the address starts with `ws://` or `wss://`, includes `/game`, and
-  points to the configured port. Check server logs for rejected paths or protocol errors.
+- **Wrong Java:** ensure `java --version`, `javac --version`, and `./mvnw -version` all report Java 25. In VS Code,
+  select the same JDK with **Java: Configure Java Runtime**.
+- **Port occupied:** stop the other listener or configure another port. Use that same port in every client URL.
+- **Connection refused:** confirm the server says it is listening, the URL includes `/game`, and `ws://` is used
+  for this local prototype.
+- **LAN connection fails:** use the server's LAN address, check both machines can reach each other, and allow the
+  published TCP port through the server firewall.
+- **Keys do nothing:** click inside the game panel. Reconnect if the status is not `Connected`.
+- **A character keeps moving:** return focus to the game window and press/release that direction once. Normal
+  focus loss sends a neutral input state automatically.
+- **Third client rejected:** only two slots exist. Disconnect one active client and retry.
+- **Docker problem:** run `docker compose ps` and `docker compose logs game-server`; rebuild with
+  `docker compose build --no-cache game-server` if necessary.
 
-Dependency and tool references: [Maven Wrapper](https://maven.apache.org/tools/wrapper/),
-[Java-WebSocket](https://github.com/TooTallNate/Java-WebSocket), and
-[Jackson releases](https://github.com/FasterXML/jackson/wiki/Jackson-Releases).
+Current limitations: direct snapshot rendering may look less smooth on slow networks; there is no prediction,
+interpolation, animation art, sound, menu, match lifecycle, or Internet security layer.

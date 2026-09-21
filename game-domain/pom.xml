@@ -10,7 +10,13 @@
   <properties>
     <forbidden.imports>^(?!java\.|lt\.ktu\.paskutinisatsiskaitymas\.domain(?:\.|$)).*,^java\.(awt|net|sql)\..*</forbidden.imports>
   </properties>
-  <dependencies/>
+  <dependencies>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
   <build>
     <finalName>game-domain</finalName>
     <plugins>
