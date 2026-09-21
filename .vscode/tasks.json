@@ -1,0 +1,52 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Maven: verify all modules",
+      "type": "process",
+      "command": "${workspaceFolder}/mvnw",
+      "windows": {
+        "command": "${workspaceFolder}\\mvnw.cmd"
+      },
+      "args": ["-B", "-ntp", "clean", "verify"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Maven: package server",
+      "type": "process",
+      "command": "${workspaceFolder}/mvnw",
+      "windows": {
+        "command": "${workspaceFolder}\\mvnw.cmd"
+      },
+      "args": ["-B", "-ntp", "-pl", "game-server", "-am", "package"],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker Compose: start server",
+      "type": "process",
+      "command": "docker",
+      "args": ["compose", "up", "--build", "-d", "game-server"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker Compose: follow server logs",
+      "type": "process",
+      "command": "docker",
+      "args": ["compose", "logs", "-f", "game-server"],
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker Compose: stop server",
+      "type": "process",
+      "command": "docker",
+      "args": ["compose", "down"],
+      "problemMatcher": []
+    }
+  ]
+}

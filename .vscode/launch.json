@@ -1,0 +1,43 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "name": "Game server",
+      "request": "launch",
+      "mainClass": "lt.ktu.paskutinisatsiskaitymas.server.GameServerMain",
+      "projectName": "game-server",
+      "cwd": "${workspaceFolder}",
+      "vmArgs": "-Dgame.server.port=8080"
+    },
+    {
+      "type": "java",
+      "name": "Game client: Alice",
+      "request": "launch",
+      "mainClass": "lt.ktu.paskutinisatsiskaitymas.client.GameClientMain",
+      "projectName": "game-client",
+      "cwd": "${workspaceFolder}",
+      "args": "ws://localhost:8080/game Alice"
+    },
+    {
+      "type": "java",
+      "name": "Game client: Bob",
+      "request": "launch",
+      "mainClass": "lt.ktu.paskutinisatsiskaitymas.client.GameClientMain",
+      "projectName": "game-client",
+      "cwd": "${workspaceFolder}",
+      "args": "ws://localhost:8080/game Bob"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Server + Alice + Bob",
+      "configurations": [
+        "Game server",
+        "Game client: Alice",
+        "Game client: Bob"
+      ],
+      "stopAll": true
+    }
+  ]
+}
