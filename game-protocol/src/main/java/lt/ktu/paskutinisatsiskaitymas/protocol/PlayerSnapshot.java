@@ -12,7 +12,9 @@ public record PlayerSnapshot(
         double y,
         double width,
         double height,
-        boolean grounded) {
+        boolean grounded,
+        boolean shielded,
+        double velocityX) {
     public PlayerSnapshot {
         Objects.requireNonNull(playerId, "playerId");
         if (slot < 0 || slot > 1) {
@@ -23,5 +25,6 @@ public record PlayerSnapshot(
         WireNumbers.finite(y, "y");
         WireNumbers.positive(width, "width");
         WireNumbers.positive(height, "height");
+        WireNumbers.finite(velocityX, "velocityX");
     }
 }

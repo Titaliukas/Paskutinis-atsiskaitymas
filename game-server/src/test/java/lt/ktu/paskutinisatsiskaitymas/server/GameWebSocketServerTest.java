@@ -107,7 +107,7 @@ class GameWebSocketServerTest {
         peer.send(new Hello("Replacement"));
         assertEquals("ALREADY_CONNECTED", peer.receive(ErrorMessage.class,
                 value -> value.code().equals("ALREADY_CONNECTED")).code());
-        peer.send(new WorldSnapshot(0, new ArenaSnapshot(1, 1, List.of()), List.of()));
+        peer.send(new WorldSnapshot(0, new ArenaSnapshot(1, 1, List.of()), List.of(), List.of()));
         assertEquals("UNEXPECTED_MESSAGE", peer.receive(ErrorMessage.class,
                 value -> value.code().equals("UNEXPECTED_MESSAGE")).code());
     }

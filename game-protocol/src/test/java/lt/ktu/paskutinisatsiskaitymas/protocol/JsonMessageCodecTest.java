@@ -22,7 +22,8 @@ class JsonMessageCodecTest {
                 new InputState(7, true, false, true),
                 new WorldSnapshot(42,
                         new ArenaSnapshot(960, 540, List.of(new PlatformSnapshot(0, 480, 960, 60))),
-                        List.of(new PlayerSnapshot(PLAYER_ID, 0, "Player", 180, 416, 42, 64, true))),
+                        List.of(new PlayerSnapshot(PLAYER_ID, 0, "Player", 180, 416, 42, 64, true, false, 0)),
+                        List.of(new ItemSnapshot(PLAYER_ID, "SPEED_BOOST", 300, 400))),
                 new ErrorMessage("INVALID_MESSAGE", "Invalid message"));
     }
 
@@ -64,7 +65,7 @@ class JsonMessageCodecTest {
         assertThrows(IllegalArgumentException.class, () -> new Hello("x".repeat(33)));
         assertThrows(IllegalArgumentException.class, () -> new Welcome(CONNECTION_ID, PLAYER_ID, 2, "Player"));
         assertThrows(IllegalArgumentException.class, () -> new PlayerSnapshot(
-                PLAYER_ID, 0, "Player", 0, 0, -1, 64, false));
+                PLAYER_ID, 0, "Player", 0, 0, -1, 64, false, false, 0));
         assertThrows(ProtocolException.class, () -> codec.encode(null));
     }
 }

@@ -18,7 +18,12 @@ public final class GameConstants {
     public static final double GRAVITY = 1_500.0;
     public static final double FIRST_SPAWN_X = 180.0;
     public static final double SECOND_SPAWN_X = 738.0;
-
+    public static final double ITEM_DURATION_SECONDS = 8.0;
+    public static final double SPEED_BOOST_MULTIPLIER = 1.6;
+    public static final double JUMP_BOOST_MULTIPLIER = 2.0;
+    public static final double ITEM_RADIUS = 16.0;
+    public static final double ITEM_SPAWN_INTERVAL_SECONDS = 6.0;
+    public static final int ITEM_MAX_ACTIVE = 3;
     private GameConstants() { }
 
     public static double spawnX(int slot) {

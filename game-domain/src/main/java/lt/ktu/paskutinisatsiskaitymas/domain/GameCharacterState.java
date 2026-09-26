@@ -12,7 +12,8 @@ public record GameCharacterState(
         double y,
         double velocityX,
         double velocityY,
-        boolean grounded) {
+        boolean grounded,
+        boolean shielded) {
     public GameCharacterState {
         Objects.requireNonNull(playerId, "playerId");
         Objects.requireNonNull(nickname, "nickname");

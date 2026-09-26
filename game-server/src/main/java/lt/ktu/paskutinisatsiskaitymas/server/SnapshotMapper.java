@@ -6,6 +6,7 @@ import lt.ktu.paskutinisatsiskaitymas.protocol.ArenaSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.PlatformSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.PlayerSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.WorldSnapshot;
+import lt.ktu.paskutinisatsiskaitymas.protocol.ItemSnapshot;
 
 /** Maps loop-owned domain state into detached transport DTOs. */
 final class SnapshotMapper {
@@ -20,8 +21,12 @@ final class SnapshotMapper {
         var players = session.characters().stream()
                 .map(character -> new PlayerSnapshot(character.playerId(), character.slot(), character.nickname(),
                         character.x(), character.y(), GameConstants.PLAYER_WIDTH,
-                        GameConstants.PLAYER_HEIGHT, character.grounded()))
+                        GameConstants.PLAYER_HEIGHT, character.grounded(), character.shielded(), character.velocityX()))
                 .toList();
-        return new WorldSnapshot(tick, arena, players);
+        var items = session.activeItems().stream()
+                .map(item -> new ItemSnapshot(item.id(), item.type().name(),
+                        item.position().x(), item.position().y()))
+                .toList();
+        return new WorldSnapshot(tick, arena, players, items);
     }
 }

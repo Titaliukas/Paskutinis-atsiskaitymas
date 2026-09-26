@@ -14,6 +14,12 @@ public final class GameCharacter {
     private double velocityX;
     private double velocityY;
     private boolean grounded;
+    private double speedMultiplier = 1.0;
+    private double speedMultiplierRemaining;
+    private double jumpMultiplier = 1.0;
+    private double jumpMultiplierRemaining;
+    private boolean shielded;
+    private double shieldRemaining;
 
     GameCharacter(UUID id, Player player, int slot, Position spawn, boolean grounded) {
         this.id = Objects.requireNonNull(id, "id");
@@ -31,10 +37,12 @@ public final class GameCharacter {
             throw new IllegalArgumentException("Tick duration must be finite and positive");
         }
 
+        decayItemEffects(seconds);
+
         int direction = (input.right() ? 1 : 0) - (input.left() ? 1 : 0);
-        velocityX = direction * GameConstants.MOVE_SPEED;
+        velocityX = direction * GameConstants.MOVE_SPEED * speedMultiplier;
         if (input.jumpRequested() && grounded) {
-            velocityY = -GameConstants.JUMP_SPEED;
+            velocityY = -GameConstants.JUMP_SPEED * Math.sqrt(jumpMultiplier);
             grounded = false;
         }
 
@@ -73,9 +81,67 @@ public final class GameCharacter {
         y = nextY;
     }
 
+    void applySpeedMultiplier(double multiplier, double seconds) {
+        speedMultiplier = multiplier;
+        speedMultiplierRemaining = seconds;
+    }
+
+    void applyJumpMultiplier(double multiplier, double seconds) {
+        jumpMultiplier = multiplier;
+        jumpMultiplierRemaining = seconds;
+    }
+
+    void applyShield(double seconds) {
+        shielded = true;
+        shieldRemaining = seconds;
+    }
+
+    boolean shielded() {
+        return shielded;
+    }
+
+    boolean overlaps(Position point, double radius) {
+        Objects.requireNonNull(point, "point");
+        double closestX = clamp(point.x(), x, x + GameConstants.PLAYER_WIDTH);
+        double closestY = clamp(point.y(), y, y + GameConstants.PLAYER_HEIGHT);
+        double dx = point.x() - closestX;
+        double dy = point.y() - closestY;
+        return (dx * dx + dy * dy) <= radius * radius;
+    }
+
+    private void decayItemEffects(double seconds) {
+        if (speedMultiplierRemaining > 0) {
+            speedMultiplierRemaining -= seconds;
+            if (speedMultiplierRemaining <= 0) {
+                speedMultiplierRemaining = 0;
+                speedMultiplier = 1.0;
+            }
+        }
+
+        if (jumpMultiplierRemaining > 0) {
+            jumpMultiplierRemaining -= seconds;
+            if (jumpMultiplierRemaining <= 0) {
+                jumpMultiplierRemaining = 0;
+                jumpMultiplier = 1.0;
+            }
+        }
+
+        if (shieldRemaining > 0) {
+            shieldRemaining -= seconds;
+            if (shieldRemaining <= 0) {
+                shieldRemaining = 0;
+                shielded = false;
+            }
+        }
+    }
+
     GameCharacterState state() {
         return new GameCharacterState(player.id(), slot, player.nickname(), x, y,
-                velocityX, velocityY, grounded);
+                velocityX, velocityY, grounded, shielded);
+    }
+
+    UUID id() {
+        return id;
     }
 
     private static double clamp(double value, double minimum, double maximum) {
