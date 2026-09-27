@@ -30,10 +30,7 @@ final class GamePanel extends JPanel {
     private static final Color FIRST_PLAYER = new Color(58, 141, 255);
     private static final Color SECOND_PLAYER = new Color(244, 92, 92);
     private static final Color SHIELD_RING = new Color(120, 200, 255);
-    private static final double SHIELD_MARGIN = 6.0;
-    private static final double SHIELD_SIZE = 46.0;
-    private static final double SHIELD_VERTICAL_GAP = 10.0;
-    private static final double SHIELD_HORIZONTAL_OFFSET = 14.0;
+    private static final double SHIELD_SIZE = 32.0;
 
     private final Map<UUID, Boolean> facingRight = new HashMap<>();
     private final Map<String, Image> itemIcons = new HashMap<>();
@@ -42,6 +39,7 @@ final class GamePanel extends JPanel {
 
     GamePanel() {
         loadIcons();
+        loadCharacters();
         setPreferredSize(new Dimension(960, 540));
         setMinimumSize(new Dimension(640, 360));
         setFocusable(true);
@@ -108,11 +106,17 @@ final class GamePanel extends JPanel {
     }
 
     private void loadIcons() {
-        loadSingleIcon("SPEED_BOOST", "assets/SPEED.png");
-        loadSingleIcon("JUMP_BOOST", "assets/JUMP.png");
-        loadSingleIcon("SHIELD", "assets/SHIELD.png");
+        loadSingle("SPEED_BOOST", "assets/SPEED.png");
+        loadSingle("JUMP_BOOST", "assets/JUMP.png");
+        loadSingle("SHIELD", "assets/SHIELD.png");
     }
-    private void loadSingleIcon(String key, String resourcePath) {
+    private void loadCharacters() {
+        loadSingle("MARTY", "assets/MARTY.png");
+        loadSingle("JUSTAS", "assets/JUSTAS.png");
+        loadSingle("JURGIS", "assets/JURGIS.png");
+        loadSingle("GUOG", "assets/GUOG.png");
+    }
+    private void loadSingle(String key, String resourcePath) {
         try (var stream = getClass().getClassLoader().getResourceAsStream(resourcePath)) {
             if (stream != null) {
                 itemIcons.put(key, ImageIO.read(stream));
@@ -137,22 +141,33 @@ final class GamePanel extends JPanel {
         }
         boolean facesRight = facingRight.getOrDefault(player.playerId(), true);
 
-        g.setColor(player.slot() == 0 ? FIRST_PLAYER : SECOND_PLAYER);
-        g.fill(body);
-        boolean local = player.playerId().equals(localPlayerId);
-        g.setColor(local ? Color.WHITE : new Color(25, 25, 25));
-        g.setStroke(new BasicStroke(local ? 3f : 1.5f));
-        g.draw(body);
-        g.setColor(Color.WHITE);
-        String label = player.nickname() + (local ? " (you)" : "");
-        FontMetrics metrics = g.getFontMetrics();
-        int labelX = (int) Math.round(body.getCenterX() - metrics.stringWidth(label) / 2.0);
-        int labelY = (int) Math.max(offsetY + metrics.getAscent(), body.getY() - 6);
-        g.drawString(label, labelX, labelY);
-        if (player.shielded()){
+        Image characterIcon = itemIcons.get("MARTY");
+        if (characterIcon != null) {
+            drawCharacterImage(g, characterIcon, body, facesRight);
+        } else {
+            g.setColor(player.slot() == 0 ? FIRST_PLAYER : SECOND_PLAYER);
+            g.fill(body);
+        }
+
+        if (player.shielded()) {
             drawShieldIconAboveHead(g, body, scale, facesRight);
         }
     }
+
+    private void drawCharacterImage(Graphics2D g, Image icon, Rectangle2D body, boolean facesRight) {
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        int x = (int) Math.round(body.getX());
+        int y = (int) Math.round(body.getY());
+        int width = (int) Math.round(body.getWidth());
+        int height = (int) Math.round(body.getHeight());
+
+        if (facesRight) {
+            g.drawImage(icon, x, y, width, height, null);
+        } else {
+            g.drawImage(icon, x + width, y, -width, height, null);
+        }
+    }
+
     private void drawShieldIconAboveHead(Graphics2D g, Rectangle2D body, double scale, boolean facesRight) {
         double iconSize = SHIELD_SIZE * scale;
         double horizontalOffset = (body.getWidth() / 2) * (facesRight ? 1 : -1);
@@ -172,7 +187,7 @@ final class GamePanel extends JPanel {
     private void drawItem(Graphics2D g2d, ItemSnapshot item, double scale, double offsetX, double offsetY) {
         g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
 
-        double itemSize = 48.0; 
+        double itemSize = 32.0; 
         int width = (int) Math.round(itemSize * scale);
         int height = (int) Math.round(itemSize * scale);
 
