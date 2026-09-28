@@ -92,6 +92,16 @@ objects.
 
 ## Lifecycle and deployment
 
+The client uses an `AssetManager` singleton to load bundled character sprites and item icons once per client JVM.
+Startup initializes it before creating the Swing UI. `GamePanel` uses its images for rendering, while
+`ConnectionWindow` uses the same cached `MARTY` image for its window icon. The cache is private and immutable
+after construction; callers treat the images as read-only. Missing images retain the renderer's primitive-shape
+fallback and the window's default icon.
+
+For the Singleton pattern demonstration, `AssetManager` has a private constructor, one `static final INSTANCE`,
+and a public `getInstance()` accessor. Both UI consumers obtain the same manager and reuse the same image objects.
+`AssetManagerTest` verifies manager identity, cached image identity, and successful loading of all bundled images.
+
 The server binds `0.0.0.0`. Its shutdown hook closes WebSocket connections and then terminates the scheduler;
 tests verify the loop worker does not remain alive. Client disconnect cancels pending work, clears input/UI state,
 and shuts down its HTTP client when the window closes.

@@ -1,27 +1,23 @@
 package lt.ktu.paskutinisatsiskaitymas.client;
 
-import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Image;
 import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.geom.Ellipse2D;
 import java.awt.geom.Rectangle2D;
-import java.util.UUID;
-import javax.swing.JPanel;
-import lt.ktu.paskutinisatsiskaitymas.protocol.PlayerSnapshot;
-import lt.ktu.paskutinisatsiskaitymas.protocol.WorldSnapshot;
-import lt.ktu.paskutinisatsiskaitymas.protocol.ItemSnapshot;
-import java.awt.Image;
-import java.io.File;
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import javax.imageio.ImageIO;
-import java.awt.geom.Ellipse2D;
+import java.util.UUID;
+import javax.swing.JPanel;
+import lt.ktu.paskutinisatsiskaitymas.protocol.ItemSnapshot;
+import lt.ktu.paskutinisatsiskaitymas.protocol.PlayerSnapshot;
+import lt.ktu.paskutinisatsiskaitymas.protocol.WorldSnapshot;
 
 /** Direct Java2D renderer for immutable authoritative snapshots. All mutation occurs on the EDT. */
 final class GamePanel extends JPanel {
@@ -33,13 +29,11 @@ final class GamePanel extends JPanel {
     private static final double SHIELD_SIZE = 32.0;
 
     private final Map<UUID, Boolean> facingRight = new HashMap<>();
-    private final Map<String, Image> itemIcons = new HashMap<>();
+    private final AssetManager assets = AssetManager.getInstance();
     private WorldSnapshot snapshot;
     private UUID localPlayerId;
 
     GamePanel() {
-        loadIcons();
-        loadCharacters();
         setPreferredSize(new Dimension(960, 540));
         setMinimumSize(new Dimension(640, 360));
         setFocusable(true);
@@ -105,29 +99,6 @@ final class GamePanel extends JPanel {
         }
     }
 
-    private void loadIcons() {
-        loadSingle("SPEED_BOOST", "assets/SPEED.png");
-        loadSingle("JUMP_BOOST", "assets/JUMP.png");
-        loadSingle("SHIELD", "assets/SHIELD.png");
-    }
-    private void loadCharacters() {
-        loadSingle("MARTY", "assets/MARTY.png");
-        loadSingle("JUSTAS", "assets/JUSTAS.png");
-        loadSingle("JURGIS", "assets/JURGIS.png");
-        loadSingle("GUOG", "assets/GUOG.png");
-    }
-    private void loadSingle(String key, String resourcePath) {
-        try (var stream = getClass().getClassLoader().getResourceAsStream(resourcePath)) {
-            if (stream != null) {
-                itemIcons.put(key, ImageIO.read(stream));
-            } else {
-                System.err.println("Icon not found: " + resourcePath);
-            }
-        } catch (IOException e) {
-            System.err.println("Loading error" + resourcePath + ": " + e.getMessage());
-        }
-    }
-
     private void drawPlayer(Graphics2D g, PlayerSnapshot player, double scale, double offsetX, double offsetY) {
         Rectangle2D body = new Rectangle2D.Double(
                 offsetX + player.x() * scale,
@@ -141,7 +112,7 @@ final class GamePanel extends JPanel {
         }
         boolean facesRight = facingRight.getOrDefault(player.playerId(), true);
 
-        Image characterIcon = itemIcons.get("MARTY");
+        Image characterIcon = assets.getImage("MARTY");
         if (characterIcon != null) {
             drawCharacterImage(g, characterIcon, body, facesRight);
         } else {
@@ -174,7 +145,7 @@ final class GamePanel extends JPanel {
         double centerX = body.getCenterX() + horizontalOffset;
         double centerY = body.getCenterY();
 
-        Image icon = itemIcons.get("SHIELD");
+        Image icon = assets.getImage("SHIELD");
         if (icon != null) {
             g.drawImage(icon, (int) Math.round(centerX - iconSize / 2),
                     (int) Math.round(centerY - iconSize / 2),
@@ -194,7 +165,7 @@ final class GamePanel extends JPanel {
         int x = (int) Math.round(offsetX + (item.x() - itemSize / 2.0) * scale);
         int y = (int) Math.round(offsetY + (item.y() - itemSize / 2.0) * scale);
 
-        Image icon = itemIcons.get(item.type());
+        Image icon = assets.getImage(item.type());
 
         if (icon != null) {
             g2d.drawImage(icon, x, y, width, height, null);

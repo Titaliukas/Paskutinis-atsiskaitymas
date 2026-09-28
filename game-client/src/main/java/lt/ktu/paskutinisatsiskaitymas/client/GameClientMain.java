@@ -12,6 +12,7 @@ public final class GameClientMain {
         }
         String address = args.length > 0 ? args[0] : "ws://localhost:8080/game";
         String nickname = args.length > 1 ? args[1] : "Player";
+        AssetManager.getInstance();
         SwingUtilities.invokeLater(() -> new ConnectionWindow(address, nickname).setVisible(true));
     }
 }
