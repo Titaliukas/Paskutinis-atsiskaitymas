@@ -27,11 +27,16 @@ final class GamePanel extends JPanel {
     private static final Color SECOND_PLAYER = new Color(244, 92, 92);
     private static final Color SHIELD_RING = new Color(120, 200, 255);
     private static final double SHIELD_SIZE = 32.0;
-
     private final Map<UUID, Boolean> facingRight = new HashMap<>();
     private final AssetManager assets = AssetManager.getInstance();
     private WorldSnapshot snapshot;
     private UUID localPlayerId;
+    private String notification;
+    private final javax.swing.Timer notificationTimer = new javax.swing.Timer(4000, event -> {
+        notification = null;
+        repaint();
+    });
+
 
     GamePanel() {
         setPreferredSize(new Dimension(960, 540));
@@ -39,12 +44,19 @@ final class GamePanel extends JPanel {
         setFocusable(true);
         setFocusTraversalKeysEnabled(false);
         setBackground(Color.BLACK);
+        notificationTimer.setRepeats(false);
         addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent event) {
                 requestFocusInWindow();
             }
         });
+    }
+
+    void showNotification(String text) {
+        notification = text;
+        notificationTimer.restart();
+        repaint();
     }
 
     void setLocalPlayerId(UUID playerId) {
@@ -60,6 +72,7 @@ final class GamePanel extends JPanel {
     void clearGame() {
         snapshot = null;
         localPlayerId = null;
+        notification = null;
         repaint();
     }
 
@@ -93,6 +106,10 @@ final class GamePanel extends JPanel {
             }
             for (ItemSnapshot item : snapshot.items()) {
                 drawItem(g, item, scale, offsetX, offsetY);
+            }
+            if (notification != null) {
+                g.setColor(Color.WHITE);
+                g.drawString(notification, (int) offsetX + 12, (int) offsetY + 24);
             }
         } finally {
             g.dispose();

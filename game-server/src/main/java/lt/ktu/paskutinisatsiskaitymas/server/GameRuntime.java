@@ -13,6 +13,9 @@ import lt.ktu.paskutinisatsiskaitymas.application.MatchController;
 import lt.ktu.paskutinisatsiskaitymas.domain.GameConstants;
 import lt.ktu.paskutinisatsiskaitymas.domain.GameSession;
 import lt.ktu.paskutinisatsiskaitymas.protocol.WorldSnapshot;
+import lt.ktu.paskutinisatsiskaitymas.application.EventLogObserver;
+import lt.ktu.paskutinisatsiskaitymas.application.StatsObserver;
+import lt.ktu.paskutinisatsiskaitymas.protocol.GameEventMessage;
 
 /** Owns the one simulation thread, command queue, match, and snapshot cadence. */
 final class GameRuntime implements AutoCloseable {
@@ -30,9 +33,19 @@ final class GameRuntime implements AutoCloseable {
         thread.setDaemon(false);
         return thread;
     });
+    private final StatsObserver stats = new StatsObserver();
 
-    GameRuntime(Consumer<WorldSnapshot> broadcaster) {
+
+    GameRuntime(Consumer<WorldSnapshot> broadcaster,  Consumer<GameEventMessage> eventBroadcaster) {
         this.broadcaster = Objects.requireNonNull(broadcaster, "broadcaster");
+        Objects.requireNonNull(eventBroadcaster, "eventBroadcaster");
+        match.session().subscribe(new EventLogObserver());
+        match.session().subscribe(stats);
+        match.session().subscribe(new ClientNotificationObserver(eventBroadcaster));
+    }
+
+    StatsObserver stats() {
+        return stats;
     }
 
     BoundedCommandQueue<GameCommand> commands() {
