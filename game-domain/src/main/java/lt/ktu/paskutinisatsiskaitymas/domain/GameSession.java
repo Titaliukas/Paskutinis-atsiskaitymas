@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.Random;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /** Single authoritative match aggregate. Callers must confine mutation to the game-loop thread. */
 public final class GameSession {
@@ -16,6 +17,7 @@ public final class GameSession {
     private final Map<UUID, Item> activeItems = new LinkedHashMap<>();
     private final Random random = new Random();
     private double sinceLastItemSpawn;
+    private final List<GameEventListener> listeners = new CopyOnWriteArrayList<>();
 
     public GameSession(UUID id, Arena arena) {
         this.id = Objects.requireNonNull(id, "id");
@@ -43,10 +45,32 @@ public final class GameSession {
         double spawnY = GameConstants.GROUND_Y - GameConstants.PLAYER_HEIGHT;
         characters.put(player.id(), new GameCharacter(UUID.randomUUID(), player, slot,
                 new Position(GameConstants.spawnX(slot), spawnY), true));
+        publish(new PlayerJoinedEvent(player.id(), player.nickname()));
     }
 
     public void removePlayer(UUID playerId) {
-        characters.remove(Objects.requireNonNull(playerId, "playerId"));
+        GameCharacter removed = characters.remove(Objects.requireNonNull(playerId, "playerId"));
+        if (removed != null) {
+            publish(new PlayerLeftEvent(playerId, removed.state().nickname()));
+        }
+    }
+    public void subscribe(GameEventListener listener) {
+        listeners.add(Objects.requireNonNull(listener, "listener"));
+    }
+
+    public void unsubscribe(GameEventListener listener) {
+        listeners.remove(listener);
+    }
+
+    private void publish(GameEvent event) {
+        for (GameEventListener listener : listeners) {
+            try {
+                listener.onEvent(event);
+            } catch (RuntimeException exception) {
+                System.getLogger(GameSession.class.getName())
+                        .log(System.Logger.Level.ERROR, "Game event listener failed", exception);
+            }
+        }
     }
 
     public void advance(Map<UUID, MovementInput> inputByPlayer, double seconds) {
@@ -79,6 +103,7 @@ public final class GameSession {
 
         Item item = itemFactory.create(type, position);
         activeItems.put(item.id(), item);
+        publish(new ItemSpawnedEvent(item.id(), item.type()));
     }
     
     private void resolveItemCollisions() {
@@ -91,6 +116,8 @@ public final class GameSession {
                 if (overlaps) {
                     item.apply(character);
                     item.markCollected();
+                    GameCharacterState state = character.state();
+                    publish(new ItemCollectedEvent(state.playerId(), state.nickname(), item.type()));
                     return true;
                 }
                 return false;

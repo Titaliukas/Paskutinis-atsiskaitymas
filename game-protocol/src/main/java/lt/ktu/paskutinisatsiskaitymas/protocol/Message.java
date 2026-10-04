@@ -12,7 +12,8 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
     @JsonSubTypes.Type(value = Pong.class, name = "PONG"),
     @JsonSubTypes.Type(value = InputState.class, name = "INPUT"),
     @JsonSubTypes.Type(value = WorldSnapshot.class, name = "WORLD_SNAPSHOT"),
-    @JsonSubTypes.Type(value = ErrorMessage.class, name = "ERROR")
+    @JsonSubTypes.Type(value = ErrorMessage.class, name = "ERROR"),
+    @JsonSubTypes.Type(value = GameEventMessage.class, name = "GAME_EVENT")
 })
-public sealed interface Message permits Hello, Welcome, Ping, Pong, InputState, WorldSnapshot, ErrorMessage {
+public sealed interface Message permits Hello, Welcome, Ping, Pong, InputState, WorldSnapshot, ErrorMessage, GameEventMessage {
 }

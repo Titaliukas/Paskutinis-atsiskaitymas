@@ -50,6 +50,7 @@ final class ConnectionWindow extends JFrame {
             }
         });
         keyboard = new KeyboardInput(gamePanel, connection);
+        connection.addObserver(new NotificationObserver(gamePanel));
         address = new JTextField(initialAddress, 28);
         nickname = new JTextField(initialNickname, 28);
         JPanel fields = new JPanel(new GridLayout(2, 2, 8, 6));

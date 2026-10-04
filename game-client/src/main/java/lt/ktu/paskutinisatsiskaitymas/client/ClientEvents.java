@@ -2,10 +2,11 @@ package lt.ktu.paskutinisatsiskaitymas.client;
 
 import lt.ktu.paskutinisatsiskaitymas.protocol.Welcome;
 import lt.ktu.paskutinisatsiskaitymas.protocol.WorldSnapshot;
+import lt.ktu.paskutinisatsiskaitymas.protocol.GameEventMessage;
 
-/** Presentation-facing events emitted by the asynchronous network adapter. */
 public interface ClientEvents {
-    void onConnectionStatus(ConnectionStatus status);
-    void onJoined(Welcome welcome);
-    void onSnapshot(WorldSnapshot snapshot);
+    default void onConnectionStatus(ConnectionStatus status) { }
+    default void onJoined(Welcome welcome) { }
+    default void onSnapshot(WorldSnapshot snapshot) { }
+    default void onGameEvent(GameEventMessage event) { }
 }

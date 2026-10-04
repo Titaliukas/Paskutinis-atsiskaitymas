@@ -8,6 +8,8 @@ import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.TimeUnit;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import lt.ktu.paskutinisatsiskaitymas.protocol.Hello;
 import lt.ktu.paskutinisatsiskaitymas.protocol.InputState;
 import lt.ktu.paskutinisatsiskaitymas.protocol.JsonMessageCodec;
@@ -19,7 +21,7 @@ public final class ClientConnection implements AutoCloseable {
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
     private final JsonMessageCodec codec = new JsonMessageCodec();
     private final ClientMessageRouter router = new ClientMessageRouter();
-    private final ClientEvents observer;
+    private final List<ClientEvents> observers = new CopyOnWriteArrayList<>();
     private CompletableFuture<WebSocket> pending;
     private CompletableFuture<Welcome> handshake;
     private WebSocket socket;
@@ -28,7 +30,15 @@ public final class ClientConnection implements AutoCloseable {
     private boolean closed;
 
     public ClientConnection(ClientEvents observer) {
-        this.observer = java.util.Objects.requireNonNull(observer);
+        addObserver(observer);
+    }
+    
+    public void addObserver(ClientEvents observer) {
+        observers.add(java.util.Objects.requireNonNull(observer));
+    }
+
+    public void removeObserver(ClientEvents observer) {
+        observers.remove(observer);
     }
 
     public synchronized void connect(URI address, String nickname) {
@@ -111,7 +121,8 @@ public final class ClientConnection implements AutoCloseable {
     }
 
     private void emit(ConnectionStatus.State state, String detail) {
-        observer.onConnectionStatus(new ConnectionStatus(state, detail));
+        ConnectionStatus status = new ConnectionStatus(state, detail);
+        observers.forEach(o -> o.onConnectionStatus(status));
     }
 
     @Override
@@ -164,15 +175,17 @@ public final class ClientConnection implements AutoCloseable {
                 if (last) {
                     try {
                         router.route(codec.decode(fragments.toString()), welcome -> {
-                            CompletableFuture<Welcome> activeHandshake = handshake;
-                            if (activeHandshake != null && activeHandshake.complete(welcome)) {
-                                observer.onJoined(welcome);
-                                emit(ConnectionStatus.State.CONNECTED, "Connected as " + welcome.nickname());
-                            } else {
-                                fail(attempt, "Unexpected duplicate WELCOME");
-                            }
-                        }, observer::onSnapshot,
-                                error -> fail(attempt, error.code() + ": " + error.message()));
+                        CompletableFuture<Welcome> activeHandshake = handshake;
+                        if (activeHandshake != null && activeHandshake.complete(welcome)) {
+                            observers.forEach(o -> o.onJoined(welcome));
+                            emit(ConnectionStatus.State.CONNECTED, "Connected as " + welcome.nickname());
+                        } else {
+                            fail(attempt, "Unexpected duplicate WELCOME");
+                        }
+                    },
+                    snapshot -> observers.forEach(o -> o.onSnapshot(snapshot)),
+                    event -> observers.forEach(o -> o.onGameEvent(event)),
+                    error -> fail(attempt, error.code() + ": " + error.message()));
                     } catch (ProtocolException exception) {
                         fail(attempt, "Invalid server message");
                     } finally {
