@@ -11,6 +11,9 @@ import lt.ktu.paskutinisatsiskaitymas.protocol.JsonMessageCodec;
 import lt.ktu.paskutinisatsiskaitymas.protocol.Message;
 import lt.ktu.paskutinisatsiskaitymas.protocol.ProtocolException;
 import lt.ktu.paskutinisatsiskaitymas.protocol.WorldSnapshot;
+import lt.ktu.paskutinisatsiskaitymas.application.EventLogObserver;
+import lt.ktu.paskutinisatsiskaitymas.application.StatsObserver;
+import lt.ktu.paskutinisatsiskaitymas.protocol.GameEventMessage;
 import org.java_websocket.WebSocket;
 import org.java_websocket.drafts.Draft_6455;
 import org.java_websocket.handshake.ClientHandshake;
@@ -21,7 +24,7 @@ public final class GameWebSocketServer extends WebSocketServer implements AutoCl
     private static final System.Logger LOG = System.getLogger(GameWebSocketServer.class.getName());
     private final JsonMessageCodec codec = new JsonMessageCodec();
     private final PlayerSlots slots = new PlayerSlots();
-    private final GameRuntime runtime = new GameRuntime(this::broadcastSnapshot);
+    private final GameRuntime runtime = new GameRuntime(this::broadcastSnapshot, this::broadcastEvent);
     private final MessageRouter router = new MessageRouter(runtime.commands(), slots);
     private final CompletableFuture<Void> started = new CompletableFuture<>();
 
@@ -79,11 +82,19 @@ public final class GameWebSocketServer extends WebSocketServer implements AutoCl
     }
 
     private void broadcastSnapshot(WorldSnapshot snapshot) {
+        broadcast(snapshot);
+    }
+
+    private void broadcastEvent(GameEventMessage event) {
+        broadcast(event);
+    }
+
+    private void broadcast(Message message) {
         final String json;
         try {
-            json = codec.encode(snapshot);
+            json = codec.encode(message);
         } catch (ProtocolException exception) {
-            LOG.log(System.Logger.Level.ERROR, "Cannot encode world snapshot", exception);
+            LOG.log(System.Logger.Level.ERROR, "Cannot encode broadcast message", exception);
             return;
         }
         for (WebSocket connection : getConnections()) {

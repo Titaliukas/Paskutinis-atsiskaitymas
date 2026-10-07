@@ -17,18 +17,18 @@ class ClientMessageRouterTest {
         ErrorMessage error = new ErrorMessage("INVALID_MESSAGE", "Invalid JSON");
         WorldSnapshot snapshot = new WorldSnapshot(1,
                 new ArenaSnapshot(960, 540, List.of(new PlatformSnapshot(0, 480, 960, 60))), List.of(), List.of());
-        router.route(welcome, received::add, received::add, received::add);
-        router.route(snapshot, received::add, received::add, received::add);
-        router.route(error, received::add, received::add, received::add);
-        router.route(new Pong("one"), received::add, received::add, received::add);
+        router.route(welcome, received::add, received::add, received::add, received::add);
+        router.route(snapshot, received::add, received::add, received::add, received::add);
+        router.route(error, received::add, received::add, received::add, received::add);
+        router.route(new Pong("one"), received::add, received::add, received::add, received::add);
         assertEquals(List.of(welcome, snapshot, error), received);
         assertThrows(ProtocolException.class,
-                () -> router.route(new Hello("wrong"), received::add, received::add, received::add));
+                () -> router.route(new Hello("wrong"), received::add, received::add, received::add, received::add));
         assertThrows(ProtocolException.class,
                 () -> router.route(new InputState(0, false, false, false),
-                        received::add, received::add, received::add));
+                        received::add, received::add, received::add, received::add));
         assertThrows(ProtocolException.class,
-                () -> router.route(new Ping("wrong"), received::add, received::add, received::add));
+                () -> router.route(new Ping("wrong"), received::add, received::add, received::add, received::add));
     }
 
     @Test
