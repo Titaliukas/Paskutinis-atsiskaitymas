@@ -80,6 +80,10 @@ Each tick derives horizontal velocity from retained left/right state, applies a 
 gravity, clamps horizontal and vertical arena boundaries, and resolves downward crossing of the platform top.
 There is no client prediction or interpolation in this prototype.
 
+`Platform` implements the domain `Prototype<Platform>` interface. Its public `clone()` creates a platform with
+the same position and dimensions but a fresh UUID. `copyAt(Position)` clones the platform and changes only the
+copy's position, leaving the original in place. Position changes are private to this operation.
+
 ## Protocol and validation
 
 The sealed message vocabulary uses stable names: `HELLO`, `WELCOME`, `INPUT`, `WORLD_SNAPSHOT`, `PING`, `PONG`,
@@ -115,4 +119,4 @@ non-root Java 25 runtime. Compose uses project `paskutinis-atsiskaitymas`, servi
 
 Future slices can add more platform geometry to `Arena`, new application commands, versioned snapshot fields,
 and client interpolation without changing transport ownership. Combat, enemies, items, health, scoring, multiple
-arenas, persistence, authentication, match results, and additional design patterns remain deliberately absent.
+arenas, persistence, authentication, match results, and further design patterns remain deliberately absent.
