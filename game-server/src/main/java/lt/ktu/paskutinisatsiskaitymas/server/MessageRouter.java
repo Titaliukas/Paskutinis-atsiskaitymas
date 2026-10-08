@@ -36,7 +36,7 @@ final class MessageRouter {
                 synchronized (slots) {
                     PlayerSlots.Assignment assignment = slots.reserve(session.id).orElse(null);
                     if (assignment == null) {
-                        return new ErrorMessage("SERVER_FULL", "The two player slots are occupied");
+                        return new ErrorMessage("SERVER_FULL", "The four player slots are occupied");
                     }
                     boolean queued = commands.offerAfterEvicting(new JoinPlayerCommand(
                             assignment.playerId(), assignment.slot(), hello.nickname()),

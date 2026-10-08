@@ -10,7 +10,7 @@ class MatchControllerTest {
     @Test
     void validatesCommandsAndBoundsQueue() {
         UUID playerId = UUID.randomUUID();
-        assertThrows(IllegalArgumentException.class, () -> new JoinPlayerCommand(playerId, 2, "Player"));
+        assertThrows(IllegalArgumentException.class, () -> new JoinPlayerCommand(playerId, 4, "Player"));
         assertThrows(IllegalArgumentException.class, () -> new JoinPlayerCommand(playerId, 0, " "));
         assertThrows(IllegalArgumentException.class,
                 () -> new InputCommand(playerId, -1, false, false, false));
@@ -27,6 +27,25 @@ class MatchControllerTest {
         assertTrue(queue.offer(input));
         assertTrue(queue.offerAfterEvicting(leave, command -> command instanceof InputCommand));
         assertEquals(leave, queue.poll().orElseThrow());
+    }
+
+    @Test
+    void acceptsAllFourSlotsAndRetainsTheirOwnInputs() {
+        GameSession session = GameSession.createDefault();
+        MatchController controller = new MatchController(session);
+        for (int slot = 0; slot < 4; slot++) {
+            UUID id = UUID.randomUUID();
+            controller.handle(new JoinPlayerCommand(id, slot, "Player " + slot));
+            controller.handle(new InputCommand(id, 0, slot % 2 == 1, slot % 2 == 0, false));
+        }
+        controller.advance(GameConstants.TICK_SECONDS);
+        assertEquals(4, session.characters().size());
+        session.characters().forEach(character -> assertEquals(
+                character.slot() % 2 == 0 ? GameConstants.MOVE_SPEED : -GameConstants.MOVE_SPEED,
+                character.velocityX()));
+        for (int slot : new int[]{-1, 4}) {
+            assertThrows(IllegalArgumentException.class, () -> new JoinPlayerCommand(UUID.randomUUID(), slot, "Player"));
+        }
     }
 
     @Test

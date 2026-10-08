@@ -1,8 +1,10 @@
 package lt.ktu.paskutinisatsiskaitymas.protocol;
 
 import java.util.List;
+import java.util.ArrayList;
 import java.util.UUID;
 import java.util.stream.Stream;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -22,8 +24,9 @@ class JsonMessageCodecTest {
                 new InputState(7, true, false, true),
                 new WorldSnapshot(42,
                         new ArenaSnapshot(960, 540, List.of(new PlatformSnapshot(0, 480, 960, 60))),
-                        List.of(new PlayerSnapshot(PLAYER_ID, 0, "Player", 180, 416, 42, 64, true, false, 0)),
-                        List.of(new ItemSnapshot(PLAYER_ID, "SPEED_BOOST", 300, 400))),
+                        List.of(new PlayerSnapshot(PLAYER_ID, 0, "Player", 180, 416, 42, 64, true, false, 0, 20)),
+                        List.of(new ItemSnapshot(PLAYER_ID, "SPEED_BOOST", 300, 400)),
+                        List.of(new NPCSnapshot(1, 350.25, 416, 42, 64, "FLEE", true, 7))),
                 new ErrorMessage("INVALID_MESSAGE", "Invalid message"));
     }
 
@@ -60,12 +63,38 @@ class JsonMessageCodecTest {
     }
 
     @Test
+    void roundTripsFourPlayersAndNewSlotsWithoutChangingWireFields() throws Exception {
+        var players = IntStream.range(0, 4)
+                .mapToObj(slot -> new PlayerSnapshot(UUID.randomUUID(), slot, "Player " + slot,
+                        60 + slot * 200, 416, 42, 64, true, false, 0, 120 + slot * 0.5)).toList();
+        WorldSnapshot snapshot = new WorldSnapshot(1, new ArenaSnapshot(960, 540, List.of()),
+                players, List.of(), List.of());
+        assertEquals(snapshot, codec.decode(codec.encode(snapshot)));
+        for (int slot : new int[]{2, 3}) {
+            Welcome welcome = new Welcome(CONNECTION_ID, PLAYER_ID, slot, "Player");
+            assertEquals(welcome, codec.decode(codec.encode(welcome)));
+        }
+        for (int slot : new int[]{-1, 4}) {
+            assertThrows(IllegalArgumentException.class, () -> new Welcome(CONNECTION_ID, PLAYER_ID, slot, "Player"));
+            assertThrows(IllegalArgumentException.class, () -> new PlayerSnapshot(PLAYER_ID, slot, "Player",
+                    0, 0, 42, 64, true, false, 0, 0));
+            String invalid = codec.encode(new Welcome(CONNECTION_ID, PLAYER_ID, 0, "Player"))
+                    .replace("\"slot\":0", "\"slot\":" + slot);
+            assertThrows(ProtocolException.class, () -> codec.decode(invalid));
+        }
+        var tooMany = new ArrayList<>(players);
+        tooMany.add(players.getFirst());
+        assertThrows(IllegalArgumentException.class, () -> new WorldSnapshot(1,
+                new ArenaSnapshot(960, 540, List.of()), tooMany, List.of(), List.of()));
+    }
+
+    @Test
     void rejectsOversizedMessagesAndFields() {
         assertThrows(ProtocolException.class, () -> codec.decode(" ".repeat(JsonMessageCodec.MAX_MESSAGE_CHARACTERS + 1)));
         assertThrows(IllegalArgumentException.class, () -> new Hello("x".repeat(33)));
-        assertThrows(IllegalArgumentException.class, () -> new Welcome(CONNECTION_ID, PLAYER_ID, 2, "Player"));
+        assertThrows(IllegalArgumentException.class, () -> new Welcome(CONNECTION_ID, PLAYER_ID, 4, "Player"));
         assertThrows(IllegalArgumentException.class, () -> new PlayerSnapshot(
-                PLAYER_ID, 0, "Player", 0, 0, -1, 64, false, false, 0));
+                PLAYER_ID, 0, "Player", 0, 0, -1, 64, false, false, 0, 0));
         assertThrows(ProtocolException.class, () -> codec.encode(null));
     }
 }

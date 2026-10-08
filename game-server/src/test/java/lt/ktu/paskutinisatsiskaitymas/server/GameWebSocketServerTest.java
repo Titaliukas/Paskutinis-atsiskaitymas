@@ -63,6 +63,12 @@ class GameWebSocketServerTest {
         assertNotEquals(a.slot(), b.slot());
 
         WorldSnapshot initial = first.receive(WorldSnapshot.class, value -> value.players().size() == 2);
+        assertEquals(2, initial.npcs().size());
+        assertTrue(initial.npcs().stream().allMatch(npc -> List.of("PATROL", "CHASE", "ATTACK", "FLEE")
+                .contains(npc.activity())));
+        WorldSnapshot secondView = second.receive(WorldSnapshot.class, value -> value.npcs().size() == 2);
+        assertEquals(initial.npcs().stream().map(NPCSnapshot::id).toList(),
+                secondView.npcs().stream().map(NPCSnapshot::id).toList());
         double firstX = player(initial, a).x();
         double secondX = player(initial, b).x();
         first.send(new InputState(0, false, true, false));
@@ -76,21 +82,81 @@ class GameWebSocketServerTest {
     }
 
     @Test
-    void rejectsThirdPlayerThenAllowsReconnectAfterDisconnect() throws Exception {
-        Peer first = joined("First");
-        Peer second = joined("Second");
-        assertNotNull(second);
-        Peer third = connect("/game");
-        third.send(new Hello("Third"));
-        assertEquals("SERVER_FULL", third.receive(ErrorMessage.class,
-                value -> value.code().equals("SERVER_FULL")).code());
+    void fourPlayersReceiveUniqueSlotsAndMoveIndependently() throws Exception {
+        List<Peer> players = new ArrayList<>();
+        List<Welcome> welcomes = new ArrayList<>();
+        for (int index = 0; index < 4; index++) {
+            Peer peer = connect("/game");
+            peer.send(new Hello("Player " + index));
+            players.add(peer);
+            welcomes.add(peer.receive(Welcome.class, value -> true));
+        }
+        assertEquals(4, welcomes.stream().map(Welcome::playerId).distinct().count());
+        assertEquals(List.of(0, 1, 2, 3), welcomes.stream().map(Welcome::slot).sorted().toList());
+        Peer observer = players.getFirst();
+        for (Peer peer : players) {
+            WorldSnapshot view = peer.receive(WorldSnapshot.class, value -> value.players().size() == 4);
+            assertEquals(4, view.players().stream().map(PlayerSnapshot::playerId).distinct().count());
+            assertEquals(2, view.npcs().size());
+        }
+        for (int index = 0; index < 4; index++) {
+            Welcome active = welcomes.get(index);
+            WorldSnapshot before = observer.receive(WorldSnapshot.class,
+                    value -> value.players().size() == 4 && value.players().stream().allMatch(p -> p.velocityX() == 0));
+            players.get(index).send(new InputState(0, false, true, false));
+            WorldSnapshot moved = observer.receive(WorldSnapshot.class,
+                    value -> value.tick() > before.tick() && value.players().size() == 4
+                            && player(value, active).x() > player(before, active).x());
+            for (Welcome other : welcomes) {
+                if (!other.playerId().equals(active.playerId())) {
+                    assertEquals(player(before, other).x(), player(moved, other).x(), 0.000_001);
+                }
+            }
+            players.get(index).send(new InputState(1, false, false, false));
+            observer.receive(WorldSnapshot.class,
+                    value -> value.tick() > moved.tick() && player(value, active).velocityX() == 0);
+        }
+    }
 
-        first.socket.sendClose(1000, "done").get(5, TimeUnit.SECONDS);
-        assertEquals(1000, first.closed.get(5, TimeUnit.SECONDS));
-        Peer reconnect = connect("/game");
-        reconnect.send(new Hello("Replacement"));
-        assertEquals("Replacement", reconnect.receive(Welcome.class,
-                value -> value.nickname().equals("Replacement")).nickname());
+    @Test
+    void rejectsFifthPlayerThenReusesDisconnectedSlotWithFreshIdentity() throws Exception {
+        List<Peer> players = new ArrayList<>();
+        List<Welcome> welcomes = new ArrayList<>();
+        for (int index = 0; index < 4; index++) {
+            Peer peer = connect("/game");
+            peer.send(new Hello("Player " + index));
+            players.add(peer);
+            welcomes.add(peer.receive(Welcome.class, value -> true));
+        }
+        WorldSnapshot before = players.getFirst().receive(WorldSnapshot.class, value -> value.players().size() == 4);
+        Peer fifth = connect("/game");
+        fifth.send(new Hello("Fifth"));
+        assertEquals("SERVER_FULL", fifth.receive(ErrorMessage.class, value -> value.code().equals("SERVER_FULL")).code());
+
+        Welcome departed = welcomes.get(2);
+        players.get(2).socket.sendClose(1000, "done").get(5, TimeUnit.SECONDS);
+        assertEquals(1000, players.get(2).closed.get(5, TimeUnit.SECONDS));
+        WorldSnapshot afterLeave = players.getFirst().receive(WorldSnapshot.class,
+                value -> value.players().size() == 3 && value.players().stream()
+                        .noneMatch(p -> p.playerId().equals(departed.playerId())));
+        for (int index : new int[]{0, 1, 3}) {
+            Welcome survivor = welcomes.get(index);
+            assertEquals(player(before, survivor).x(), player(afterLeave, survivor).x(), 0.000_001);
+            players.get(index).send(new Ping("alive-" + index));
+            assertEquals(new Pong("alive-" + index), players.get(index).receive(Pong.class, value -> true));
+        }
+        fifth.send(new Hello("Replacement"));
+        Welcome replacement = fifth.receive(Welcome.class, value -> value.nickname().equals("Replacement"));
+        assertEquals(departed.slot(), replacement.slot());
+        assertNotEquals(departed.playerId(), replacement.playerId());
+        WorldSnapshot afterJoin = players.getFirst().receive(WorldSnapshot.class,
+                value -> value.players().size() == 4 && value.players().stream()
+                        .anyMatch(p -> p.playerId().equals(replacement.playerId())));
+        assertEquals(4, afterJoin.players().stream().map(PlayerSnapshot::slot).distinct().count());
+        assertTrue(afterJoin.players().stream().noneMatch(p -> p.playerId().equals(departed.playerId())));
+        Peer sixth = connect("/game");
+        sixth.send(new Hello("Sixth"));
+        assertEquals("SERVER_FULL", sixth.receive(ErrorMessage.class, value -> true).code());
     }
 
     @Test
@@ -107,7 +173,7 @@ class GameWebSocketServerTest {
         peer.send(new Hello("Replacement"));
         assertEquals("ALREADY_CONNECTED", peer.receive(ErrorMessage.class,
                 value -> value.code().equals("ALREADY_CONNECTED")).code());
-        peer.send(new WorldSnapshot(0, new ArenaSnapshot(1, 1, List.of()), List.of(), List.of()));
+        peer.send(new WorldSnapshot(0, new ArenaSnapshot(1, 1, List.of()), List.of(), List.of(), List.of()));
         assertEquals("UNEXPECTED_MESSAGE", peer.receive(ErrorMessage.class,
                 value -> value.code().equals("UNEXPECTED_MESSAGE")).code());
     }

@@ -76,6 +76,47 @@ class GameSessionPhysicsTest {
         assertEquals(secondStart, state(session, secondId).x(), 0.000_001);
     }
 
+    @Test
+    void fourSpawnsAreDistinctClearOfNPCsAndSupportIndependentInputs() {
+        GameSession session = GameSession.createDefault();
+        UUID[] ids = new UUID[4];
+        for (int slot = 0; slot < 4; slot++) {
+            ids[slot] = UUID.randomUUID();
+            session.addPlayer(new Player(ids[slot], "Player " + slot), slot);
+        }
+        assertEquals(GameConstants.FIRST_SPAWN_X, state(session, ids[0]).x());
+        assertEquals(GameConstants.SECOND_SPAWN_X, state(session, ids[1]).x());
+        var states = session.characters();
+        assertEquals(4, states.stream().map(GameCharacterState::x).distinct().count());
+        for (GameCharacterState character : states) {
+            assertTrue(character.x() >= 0 && character.x() + GameConstants.PLAYER_WIDTH <= session.arena().width());
+            for (GameCharacterState other : states) {
+                if (!other.playerId().equals(character.playerId())) {
+                    assertTrue(character.x() + GameConstants.PLAYER_WIDTH <= other.x()
+                            || other.x() + GameConstants.PLAYER_WIDTH <= character.x());
+                }
+            }
+            for (NPCView npc : session.npcs()) {
+                assertTrue(character.x() + GameConstants.PLAYER_WIDTH <= npc.state().preciseX()
+                        || npc.state().preciseX() + npc.state().width() <= character.x());
+            }
+        }
+        assertThrows(IllegalStateException.class, () -> session.addPlayer(new Player(UUID.randomUUID(), "Fifth"), 0));
+        session.advance(Map.of(ids[0], new MovementInput(false, true, false),
+                ids[1], new MovementInput(true, false, false), ids[2], new MovementInput(false, false, true)),
+                GameConstants.TICK_SECONDS);
+        assertTrue(state(session, ids[0]).x() > states.get(0).x());
+        assertTrue(state(session, ids[1]).x() < states.get(1).x());
+        assertTrue(state(session, ids[2]).y() < states.get(2).y());
+        assertEquals(states.get(3).x(), state(session, ids[3]).x());
+        assertEquals(states.get(3).y(), state(session, ids[3]).y());
+        for (int invalid : new int[]{-1, 4}) {
+            assertThrows(IllegalArgumentException.class, () -> GameConstants.spawnX(invalid));
+            GameSession empty = GameSession.createDefault();
+            assertThrows(IllegalArgumentException.class, () -> empty.addPlayer(new Player(UUID.randomUUID(), "Invalid"), invalid));
+        }
+    }
+
     private GameSession sessionWithFirstPlayer() {
         GameSession session = GameSession.createDefault();
         session.addPlayer(new Player(firstId, "First"), 0);

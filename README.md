@@ -1,12 +1,17 @@
 # Paskutinis atsiskaitymas
 
-A small playable two-player platform prototype for a university Object-Oriented Programming Patterns project.
+A small playable four-player platform prototype for a university Object-Oriented Programming Patterns project.
 The Java 25 server owns movement and collision state; Swing clients send keyboard intent and render authoritative
-JSON snapshots with Java2D primitive shapes.
+JSON snapshots with Java2D sprites and primitive fallbacks.
 
-The implemented scope is intentionally narrow: one 960×540 arena, one ground platform, two colored player
-rectangles, separate spawn positions, horizontal movement, jumping, gravity, arena/ground collision, and safe
-disconnect/reconnect. There is no combat, scoring, enemies, items, persistence, authentication, or match result.
+The playable scope includes one 960×540 arena, one ground platform, at most four players, separate spawn
+positions, horizontal movement, jumping, gravity, collision, and safe disconnect/reconnect. Timed speed/jump
+boosts and shields spawn as collectible items. Two student NPCs patrol, detect/chase players, make cooldown-limited
+attacks that increase visible player stress, and flee after a hit. Shields block stress damage. There is no player
+combat, projectile system, scoring, health/death, persistence, authentication, or match result.
+
+The NPC subsystem implements four separate Strategy classes. See [docs/strategy-npc.md](docs/strategy-npc.md)
+for UML correspondence, report-code markers, behavior rules, sprite replacement, and demonstration steps.
 
 ## Stack and architecture
 
@@ -25,10 +30,10 @@ game-server ───> game-protocol
 
 | Module | Responsibility |
 | --- | --- |
-| `game-domain` | Arena, characters, centralized constants, movement, gravity, and collision |
+| `game-domain` | Arena, characters, items/events, NPC strategies/controllers, damage, movement and collision |
 | `game-application` | Commands, retained input, bounded queue, match controller, and fixed-step loop |
 | `game-protocol` | Validated transport DTOs and JSON codec; no domain entities |
-| `game-server` | Connections, two player slots, command translation, scheduling, and snapshots |
+| `game-server` | Connections, four player slots, command translation, scheduling, and snapshots |
 | `game-client` | Connection form, keyboard state, asynchronous networking, and Java2D rendering |
 
 The server and clients are separate programs because the headless server owns authoritative state while every
@@ -75,7 +80,7 @@ reconnection, and shutdown tests, then produces:
 
 ## Start a local game directly
 
-Open three terminals in the repository root after building.
+Open five terminals in the repository root after building.
 
 Terminal 1 — server:
 
@@ -95,8 +100,23 @@ Terminal 3 — second client:
 java -jar game-client/target/game-client.jar ws://localhost:8080/game Bob
 ```
 
-Click **Connect** in both windows. The blue and red rectangles should appear at separate spawn positions. Each
-client marks its own rectangle with a white outline and `(you)`. Stop the direct server with `Ctrl+C`.
+Terminal 4 — third client:
+
+```sh
+java -jar game-client/target/game-client.jar ws://localhost:8080/game Charlie
+```
+
+Terminal 5 — fourth client:
+
+```sh
+java -jar game-client/target/game-client.jar ws://localhost:8080/game Dora
+```
+
+Click **Connect** in each window. Players appear at four distinct spawn positions; each client marks its own
+world character with a white outline and `(you)`. Every client shows the same four slot-based corner cards with
+head-and-shoulders portraits, nicknames and authoritative stress. The local card has a white border and `(you)`.
+The two green student NPCs show authoritative activity labels and switch among four poses. Stop the direct server
+with `Ctrl+C`. One to three clients also work; unused corners remain clear.
 
 ## Start the server with Docker Compose
 
@@ -106,7 +126,7 @@ docker compose up --build -d game-server
 docker compose logs -f game-server
 ```
 
-Press `Ctrl+C` to stop following logs, then start the two Swing clients with the commands above. Compose uses
+Press `Ctrl+C` to stop following logs, then start up to four Swing clients with the commands above. Compose uses
 project `paskutinis-atsiskaitymas`, service `game-server`, and image
 `paskutinis-atsiskaitymas-server:local`. The container runs headlessly as a non-root user and contains only the
 server JAR and Java 25 runtime.
@@ -131,15 +151,42 @@ produces no horizontal movement.
 
 ## Manual playable test
 
-1. Start one server and Alice and Bob clients, then click **Connect** in both.
-2. Confirm both windows display the same arena, platform, and two named rectangles.
-3. Focus Alice's game panel. Hold `D`, release it, then press `Space`. Confirm only Alice moves and jumps in both
-   windows, stops on release, lands on the platform, and cannot leave the arena.
-4. Focus Bob's panel and repeat using `A` and `W`. Confirm Bob moves independently in both windows.
-5. Start a third client and click **Connect**. Confirm it reports `SERVER_FULL` while Alice and Bob remain active.
-6. Disconnect or close Alice. Confirm Alice disappears without stopping Bob.
-7. Connect the third client again. Confirm it receives the freed slot, appears at that slot's spawn, and can move.
-8. Stop the server. Confirm clients report disconnection instead of freezing or crashing.
+1. Start one server and Alice, Bob, Charlie and Dora clients, then connect them in that order.
+2. Confirm all windows display four named players and two NPCs. Slots 0/1/2/3 occupy top-left/top-right/bottom-left/
+   bottom-right cards on every client; only the local player's card has a white border and `(you)`.
+3. Move and jump each player with `A`, `D`, `Space`/`W`; confirm only that character responds in every window,
+   stops on release, lands on the ground and cannot leave the arena. Its corner card must stay fixed.
+4. Approach an NPC, observe an attack and check that the same stress value increases in that player's card on
+   every client. Stress can exceed 100; it is a number, not a percentage. A shield still blocks damage.
+5. Resize to the supported 640×360 panel minimum. Confirm portraits show faces/shoulders, long card nicknames
+   are ellipsized, cards do not overlap, and notifications appear below the top cards.
+6. Start a fifth client. Confirm `SERVER_FULL` while all four existing players stay connected.
+7. Disconnect Charlie. Confirm only its world character and bottom-left card clear; the other three players retain
+   their identities and state. Retry the fifth client: it receives the freed slot with a new player UUID and uses
+   the bottom-left corner. Further joins are rejected while four slots are occupied.
+8. Observe item icons and their temporary speed, jump or shield effects when collected.
+9. Disconnect each client and confirm its cards/names/stress clear. Stop the server and confirm responsive
+   disconnection rather than freezing or crashing.
+
+## Corner portraits and diagram compatibility
+
+Slot 0 is top left, 1 top right, 2 bottom left and 3 bottom right. `GamePanel` draws cards after the world using
+panel dimensions, so position and snapshot order do not move them. Stress remains the unmodified authoritative
+value in its existing units, with no maximum, percentage or progress bar. World labels retain nickname/`(you)`;
+world outlines, shields, NPC poses/latches and items are preserved.
+
+All players currently render `assets/MARTY.png`; their cards therefore share its portrait. `AssetManager` privately
+caches `MARTY_PORTRAIT` once using `cachePortrait`: the nontransparent source bounds' full width and upper 28%
+frame the full face and shoulders. Replace `game-client/src/main/resources/assets/MARTY.png`, rebuild and restart
+the client to change both world sprite and portrait. Adjust the `0.28` crop fraction in that existing helper call
+for different framing. Alpha/aspect ratio are preserved and rendering uses nearest-neighbor scaling. Missing
+portrait images use a simple silhouette. No avatar selection, new artwork, UI model class or transport field was added.
+
+The supplied authoritative `class_after_strategy.png` has `0..*` GameSession-to-GameCharacter composition and
+GameSession-to-Player association, with each player/character identity remaining `1` to `1`. Four instances fit
+these multiplicities. The older generated `full-class-diagram-after-strategy.puml` and `.mmd` proposals explicitly
+use `0..2` for GameCharacter and PlayerSnapshot and the earlier Enemy model; four players would violate those
+older limits. This task follows the supplied PNG. All diagram files remain unchanged.
 
 ## Play over a LAN
 
@@ -197,15 +244,15 @@ does not read `.env`; `.env` controls Compose's published host port.
 
 The `/game` endpoint accepts JSON text messages with explicit stable types:
 
-- `HELLO`: requests one of two slots with a nickname.
+- `HELLO`: requests one of four slots with a nickname.
 - `WELCOME`: returns connection UUID, server-assigned player UUID, slot, and nickname.
 - `INPUT`: sends a monotonically sequenced complete left/right/jump state, never position or velocity.
-- `WORLD_SNAPSHOT`: broadcasts arena/platform geometry and both authoritative player rectangles at 20 Hz.
+- `WORLD_SNAPSHOT`: broadcasts arena/platform geometry and authoritative players (including stress), items, and NPC geometry/activity/facing/attack sequences at 20 Hz.
 - `PING`/`PONG`: application-level liveness round trip.
 - `ERROR`: reports malformed input, wrong direction, missing handshake, capacity, or queue pressure.
 
 Unknown JSON, duplicate fields, trailing values, invalid fields, oversized messages, binary frames, and URL paths
-other than `/game` are rejected. A third join receives `SERVER_FULL`. Nicknames are display labels rather than
+other than `/game` are rejected. A fifth join receives `SERVER_FULL`. Nicknames are display labels rather than
 authenticated identities.
 
 ## Troubleshooting
@@ -220,9 +267,22 @@ authenticated identities.
 - **Keys do nothing:** click inside the game panel. Reconnect if the status is not `Connected`.
 - **A character keeps moving:** return focus to the game window and press/release that direction once. Normal
   focus loss sends a neutral input state automatically.
-- **Third client rejected:** only two slots exist. Disconnect one active client and retry.
+- **Fifth client rejected:** only four slots exist. Disconnect one active client and retry.
 - **Docker problem:** run `docker compose ps` and `docker compose logs game-server`; rebuild with
   `docker compose build --no-cache game-server` if necessary.
 
+## Deterministic Strategy demonstration
+
+After building with Java 25, run from the repository root:
+
+```sh
+java -cp game-domain/target/game-domain.jar lt.ktu.paskutinisatsiskaitymas.domain.NPCStrategyDemo
+```
+
+This drives the production session/controller without networking or sleeps. It prints PATROL, CHASE, the
+ATTACK attempt resolved within a tick, FLEE, actual player stress, and the return to PATROL on the same NPC.
+A successful ATTACK can be shorter than a snapshot interval; the client latches its image for 180 ms using the
+monotonic attempt sequence while keeping the server activity label truthful.
+
 Current limitations: direct snapshot rendering may look less smooth on slow networks; there is no prediction,
-interpolation, animation art, sound, menu, match lifecycle, or Internet security layer.
+interpolation, multi-frame animation, sound, menu, match lifecycle, or Internet security layer.

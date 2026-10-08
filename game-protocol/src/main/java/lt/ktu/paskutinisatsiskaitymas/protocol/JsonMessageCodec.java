@@ -10,6 +10,8 @@ public final class JsonMessageCodec {
     public static final int MAX_MESSAGE_CHARACTERS = 8192;
     private final ObjectMapper mapper = new ObjectMapper()
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+            .enable(DeserializationFeature.FAIL_ON_MISSING_CREATOR_PROPERTIES)
+            .enable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
             .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
 
     public String encode(Message message) throws ProtocolException {

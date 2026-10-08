@@ -1,6 +1,7 @@
 package lt.ktu.paskutinisatsiskaitymas.client;
 
 import java.awt.Image;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -21,6 +22,12 @@ public final class AssetManager {
         load(loaded, "JUSTAS", "assets/JUSTAS.png");
         load(loaded, "JURGIS", "assets/JURGIS.png");
         load(loaded, "GUOG", "assets/GUOG.png");
+        load(loaded, "NPC_PATROL", "assets/NPC_PATROL.png");
+        load(loaded, "NPC_CHASE", "assets/NPC_CHASE.png");
+        load(loaded, "NPC_ATTACK", "assets/NPC_ATTACK.png");
+        load(loaded, "NPC_FLEE", "assets/NPC_FLEE.png");
+        // MARTY is also the world-player sprite. Portrait framing is presentation metadata only.
+        cachePortrait(loaded, "MARTY", "MARTY_PORTRAIT", 0.28);
         images = Map.copyOf(loaded);
     }
 
@@ -32,6 +39,32 @@ public final class AssetManager {
     /** Returns the shared image, or null for an unknown or unavailable asset so rendering can fall back. */
     public Image getImage(String key) {
         return images.get(key);
+    }
+
+    /** Crop MARTY's head/shoulders once, relative to its nontransparent bounds; never crop during painting. */
+    private static void cachePortrait(Map<String, Image> loaded, String sourceKey, String portraitKey,
+            double upperFraction) {
+        if (!(loaded.get(sourceKey) instanceof BufferedImage source)) {
+            return;
+        }
+        int left = source.getWidth();
+        int top = source.getHeight();
+        int right = -1;
+        int bottom = -1;
+        for (int y = 0; y < source.getHeight(); y++) {
+            for (int x = 0; x < source.getWidth(); x++) {
+                if ((source.getRGB(x, y) >>> 24) != 0) {
+                    left = Math.min(left, x);
+                    top = Math.min(top, y);
+                    right = Math.max(right, x);
+                    bottom = Math.max(bottom, y);
+                }
+            }
+        }
+        if (right >= left && bottom >= top) {
+            int height = Math.max(1, (int) Math.round((bottom - top + 1) * upperFraction));
+            loaded.put(portraitKey, source.getSubimage(left, top, right - left + 1, height));
+        }
     }
 
     private static void load(Map<String, Image> loaded, String key, String resourcePath) {

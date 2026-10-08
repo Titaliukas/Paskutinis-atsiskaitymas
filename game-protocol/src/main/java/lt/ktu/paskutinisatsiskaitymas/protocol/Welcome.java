@@ -8,8 +8,8 @@ public record Welcome(UUID connectionId, UUID playerId, int slot, String nicknam
     public Welcome {
         Objects.requireNonNull(connectionId, "connectionId");
         Objects.requireNonNull(playerId, "playerId");
-        if (slot < 0 || slot > 1) {
-            throw new IllegalArgumentException("Player slot must be 0 or 1");
+        if (slot < 0 || slot > 3) {
+            throw new IllegalArgumentException("Player slot must be between 0 and 3");
         }
         nickname = WireText.require(nickname, "nickname", 32);
     }
