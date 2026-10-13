@@ -93,6 +93,10 @@ public final class ClientConnection implements AutoCloseable {
         emit(ConnectionStatus.State.DISCONNECTED, "Disconnected");
     }
 
+    void sendInput(PlayerInput input) {
+        sendInput(input.left(), input.right(), input.jump());
+    }
+
     public synchronized void sendInput(boolean left, boolean right, boolean jump) {
         if (socket == null || handshake == null || !handshake.isDone()
                 || handshake.isCompletedExceptionally() || handshake.isCancelled()) {

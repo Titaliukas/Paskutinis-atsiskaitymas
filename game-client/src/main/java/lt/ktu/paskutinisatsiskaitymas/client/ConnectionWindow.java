@@ -25,7 +25,7 @@ final class ConnectionWindow extends JFrame {
     private final JLabel status = new JLabel("Disconnected");
     private final GamePanel gamePanel = new GamePanel();
     private final ClientConnection connection;
-    private final KeyboardInput keyboard;
+    private final InputSource input;
 
     ConnectionWindow(String initialAddress, String initialNickname) {
         super("Paskutinis atsiskaitymas — Connection");
@@ -49,7 +49,8 @@ final class ConnectionWindow extends JFrame {
                 SwingUtilities.invokeLater(() -> gamePanel.setSnapshot(snapshot));
             }
         });
-        keyboard = new KeyboardInput(gamePanel, connection);
+        input = new KeyboardInputAdapter(gamePanel);
+        input.setListener(connection::sendInput);
         connection.addObserver(new NotificationObserver(gamePanel));
         address = new JTextField(initialAddress, 28);
         nickname = new JTextField(initialNickname, 28);
@@ -79,7 +80,7 @@ final class ConnectionWindow extends JFrame {
             }
         });
         disconnect.addActionListener(event -> {
-            keyboard.reset();
+            input.reset();
             connection.disconnect();
         });
         addWindowListener(new WindowAdapter() {
@@ -105,7 +106,7 @@ final class ConnectionWindow extends JFrame {
         status.putClientProperty("html.disable", Boolean.TRUE);
         status.setText(update.detail());
         if (!active) {
-            keyboard.reset();
+            input.reset();
             gamePanel.clearGame();
         } else if (update.state() == ConnectionStatus.State.CONNECTED) {
             gamePanel.requestFocusInWindow();
