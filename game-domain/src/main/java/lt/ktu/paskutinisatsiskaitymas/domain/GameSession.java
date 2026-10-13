@@ -25,11 +25,19 @@ public final class GameSession {
     }
 
     public static GameSession createDefault() {
+        Platform template = new Platform(UUID.randomUUID(), new Position(0, 0),
+                GameConstants.PLATFORM_WIDTH, GameConstants.PLATFORM_HEIGHT);
+        Platform center = template.copyAt(new Position(GameConstants.CENTER_PLATFORM_X,
+                GameConstants.UPPER_PLATFORM_Y));
+        Platform left = template.copyAt(new Position(GameConstants.LEFT_PLATFORM_X,
+                GameConstants.LOWER_PLATFORM_Y));
+        Platform right = template.copyAt(new Position(GameConstants.RIGHT_PLATFORM_X,
+                GameConstants.LOWER_PLATFORM_Y));
         Platform ground = new Platform(UUID.randomUUID(),
                 new Position(GameConstants.GROUND_X, GameConstants.GROUND_Y),
                 GameConstants.GROUND_WIDTH, GameConstants.GROUND_HEIGHT);
         Arena arena = new Arena("Prototype arena", GameConstants.ARENA_WIDTH,
-                GameConstants.ARENA_HEIGHT, List.of(ground));
+                GameConstants.ARENA_HEIGHT, List.of(center, left, right, ground));
         return new GameSession(UUID.randomUUID(), arena);
     }
 

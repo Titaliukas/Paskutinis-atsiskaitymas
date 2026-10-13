@@ -70,6 +70,7 @@ World origin `(0,0)` is the arena's top-left. X increases rightward and Y downwa
 
 - Arena: `960 × 540` world units
 - Ground: `(0,480)`, size `960 × 60`
+- Raised platforms: `(140,380)`, `(660,380)`, and `(400,280)`, each `160 × 20`
 - Player: `42 × 64`
 - Fixed simulation: 60 ticks/second; snapshots: 20/second
 - Horizontal speed: 260 units/second
@@ -78,11 +79,15 @@ World origin `(0,0)` is the arena's top-left. X increases rightward and Y downwa
 
 Each tick derives horizontal velocity from retained left/right state, applies a grounded jump edge, integrates
 gravity, clamps horizontal and vertical arena boundaries, and resolves downward crossing of the platform top.
+Platforms can be jumped through from below. The default arena lists the center platform first, then the two
+lower platforms, then ground, so a downward crossing chooses the highest matching surface.
 There is no client prediction or interpolation in this prototype.
 
 `Platform` implements the domain `Prototype<Platform>` interface. Its public `clone()` creates a platform with
 the same position and dimensions but a fresh UUID. `copyAt(Position)` clones the platform and changes only the
-copy's position, leaving the original in place. Position changes are private to this operation.
+copy's position, leaving the original in place. Position changes are private to this operation. The default arena
+uses one `160 × 20` template to create its three raised platforms with `copyAt(Position)`; the template itself
+is not placed in the arena.
 
 ## Protocol and validation
 

@@ -63,6 +63,11 @@ class GameWebSocketServerTest {
         assertNotEquals(a.slot(), b.slot());
 
         WorldSnapshot initial = first.receive(WorldSnapshot.class, value -> value.players().size() == 2);
+        assertEquals(List.of(
+                new PlatformSnapshot(400, 280, 160, 20),
+                new PlatformSnapshot(140, 380, 160, 20),
+                new PlatformSnapshot(660, 380, 160, 20),
+                new PlatformSnapshot(0, 480, 960, 60)), initial.arena().platforms());
         double firstX = player(initial, a).x();
         double secondX = player(initial, b).x();
         first.send(new InputState(0, false, true, false));

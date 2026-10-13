@@ -11,6 +11,13 @@ public final class GameConstants {
     public static final double GROUND_Y = 480.0;
     public static final double GROUND_WIDTH = ARENA_WIDTH;
     public static final double GROUND_HEIGHT = ARENA_HEIGHT - GROUND_Y;
+    public static final double PLATFORM_WIDTH = 160.0;
+    public static final double PLATFORM_HEIGHT = 20.0;
+    public static final double LEFT_PLATFORM_X = 140.0;
+    public static final double RIGHT_PLATFORM_X = 660.0;
+    public static final double CENTER_PLATFORM_X = 400.0;
+    public static final double LOWER_PLATFORM_Y = 380.0;
+    public static final double UPPER_PLATFORM_Y = 280.0;
     public static final double PLAYER_WIDTH = 42.0;
     public static final double PLAYER_HEIGHT = 64.0;
     public static final double MOVE_SPEED = 260.0;

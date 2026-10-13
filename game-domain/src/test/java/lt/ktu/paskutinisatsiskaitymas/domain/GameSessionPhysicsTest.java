@@ -1,6 +1,7 @@
 package lt.ktu.paskutinisatsiskaitymas.domain;
 
 import java.util.Map;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
@@ -40,7 +41,12 @@ class GameSessionPhysicsTest {
 
     @Test
     void landsOnGroundAndCollidesWithBothArenaSides() {
-        GameSession session = sessionWithFirstPlayer();
+        Platform ground = new Platform(UUID.randomUUID(),
+                new Position(GameConstants.GROUND_X, GameConstants.GROUND_Y),
+                GameConstants.GROUND_WIDTH, GameConstants.GROUND_HEIGHT);
+        GameSession session = new GameSession(UUID.randomUUID(), new Arena("Ground only",
+                GameConstants.ARENA_WIDTH, GameConstants.ARENA_HEIGHT, List.of(ground)));
+        session.addPlayer(new Player(firstId, "First"), 0);
         session.advance(Map.of(firstId, new MovementInput(false, false, true)), GameConstants.TICK_SECONDS);
         for (int tick = 0; tick < GameConstants.TICK_RATE * 3; tick++) {
             session.advance(Map.of(), GameConstants.TICK_SECONDS);

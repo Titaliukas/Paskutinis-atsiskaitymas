@@ -4,8 +4,8 @@ A small playable two-player platform prototype for a university Object-Oriented 
 The Java 25 server owns movement and collision state; Swing clients send keyboard intent and render authoritative
 JSON snapshots with Java2D primitive shapes.
 
-The implemented scope is intentionally narrow: one 960×540 arena, one ground platform, two colored player
-rectangles, separate spawn positions, horizontal movement, jumping, gravity, arena/ground collision, and safe
+The implemented scope is intentionally narrow: one 960×540 arena, ground plus three raised platforms, two colored
+player rectangles, separate spawn positions, horizontal movement, jumping, gravity, arena/platform collision, and safe
 disconnect/reconnect. There is no combat, scoring, enemies, items, persistence, authentication, or match result.
 
 ## Stack and architecture
@@ -129,13 +129,20 @@ The client tracks both press and release, so movement does not depend on operati
 game area if keys do not respond. Releasing every movement key stops the character. Holding both left and right
 produces no horizontal movement.
 
+The default arena has a ground platform at `(0,480)` and three `160 × 20` raised platforms at `(140,380)`,
+`(660,380)`, and `(400,280)`. Jump onto either lower platform, then toward the center platform. Players pass
+through a platform from below and land when falling onto its top. The raised platforms are copies made with
+`Platform.copyAt(Position)` from one template; each copy has its own UUID.
+
 ## Manual playable test
 
 1. Start one server and Alice and Bob clients, then click **Connect** in both.
-2. Confirm both windows display the same arena, platform, and two named rectangles.
+2. Confirm both windows display the same arena, four platforms, and two named rectangles.
 3. Focus Alice's game panel. Hold `D`, release it, then press `Space`. Confirm only Alice moves and jumps in both
-   windows, stops on release, lands on the platform, and cannot leave the arena.
-4. Focus Bob's panel and repeat using `A` and `W`. Confirm Bob moves independently in both windows.
+   windows, stops on release, lands on the left platform, and cannot leave the arena. Move right along it, then
+   jump toward the center platform and land there.
+4. Focus Bob's panel and repeat using `A` and `W` on the right platform, then jump toward the center. Confirm Bob
+   moves independently in both windows.
 5. Start a third client and click **Connect**. Confirm it reports `SERVER_FULL` while Alice and Bob remain active.
 6. Disconnect or close Alice. Confirm Alice disappears without stopping Bob.
 7. Connect the third client again. Confirm it receives the freed slot, appears at that slot's spawn, and can move.
