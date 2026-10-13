@@ -7,6 +7,7 @@ import lt.ktu.paskutinisatsiskaitymas.protocol.PlatformSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.PlayerSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.WorldSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.ItemSnapshot;
+import lt.ktu.paskutinisatsiskaitymas.protocol.NPCSnapshot;
 
 /** Maps loop-owned domain state into detached transport DTOs. */
 final class SnapshotMapper {
@@ -21,12 +22,17 @@ final class SnapshotMapper {
         var players = session.characters().stream()
                 .map(character -> new PlayerSnapshot(character.playerId(), character.slot(), character.nickname(),
                         character.x(), character.y(), GameConstants.PLAYER_WIDTH,
-                        GameConstants.PLAYER_HEIGHT, character.grounded(), character.shielded(), character.velocityX()))
+                        GameConstants.PLAYER_HEIGHT, character.grounded(), character.shielded(), character.velocityX(), character.stressLevel()))
                 .toList();
         var items = session.activeItems().stream()
                 .map(item -> new ItemSnapshot(item.id(), item.type().name(),
                         item.position().x(), item.position().y()))
                 .toList();
-        return new WorldSnapshot(tick, arena, players, items);
+        var npcs = session.npcs().stream().map(view -> {
+            var state = view.state();
+            return new NPCSnapshot(state.id(), state.preciseX(), state.preciseY(), state.width(), state.height(),
+                    view.activity().name(), state.facingRight(), state.attackAttemptSequence());
+        }).toList();
+        return new WorldSnapshot(tick, arena, players, items, npcs);
     }
 }

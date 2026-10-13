@@ -18,6 +18,7 @@ public final class GameCharacter {
     private double speedMultiplierRemaining;
     private double jumpMultiplier = 1.0;
     private double jumpMultiplierRemaining;
+    private double stressLevel;
     private boolean shielded;
     private double shieldRemaining;
 
@@ -96,6 +97,20 @@ public final class GameCharacter {
         shieldRemaining = seconds;
     }
 
+    /** Minimal NPC damage effect: accumulate stress; an active shield prevents any change. */
+    public boolean takeDamage(double damage) {
+        NPCGeometry.positive(damage, "damage");
+        if (shielded) {
+            return false;
+        }
+        double nextStress = NPCGeometry.finite(stressLevel + damage, "stressLevel");
+        if (nextStress == stressLevel) {
+            return false;
+        }
+        stressLevel = nextStress;
+        return true;
+    }
+
     boolean shielded() {
         return shielded;
     }
@@ -137,7 +152,7 @@ public final class GameCharacter {
 
     GameCharacterState state() {
         return new GameCharacterState(player.id(), slot, player.nickname(), x, y,
-                velocityX, velocityY, grounded, shielded);
+                velocityX, velocityY, grounded, shielded, stressLevel);
     }
 
     UUID id() {
