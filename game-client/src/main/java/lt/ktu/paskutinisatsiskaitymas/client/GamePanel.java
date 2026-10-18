@@ -21,6 +21,7 @@ import lt.ktu.paskutinisatsiskaitymas.protocol.ItemSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.NPCSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.PlayerSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.WorldSnapshot;
+import lt.ktu.paskutinisatsiskaitymas.protocol.AttackSnapshot;
 
 /** Direct Java2D renderer for immutable authoritative snapshots. All mutation occurs on the EDT. */
 final class GamePanel extends JPanel {
@@ -35,6 +36,11 @@ final class GamePanel extends JPanel {
     private static final Color CARD_BACKGROUND = new Color(17, 23, 34, 225);
     private static final Color SHIELD_RING = new Color(120, 200, 255);
     private static final double SHIELD_SIZE = 32.0;
+    private static final Color PROJECTILE = new Color(255, 190, 60);
+    private static final Color MELEE_SWING = new Color(255, 255, 255, 150);
+    private static final Color HEALTH_BACK = new Color(40, 40, 40, 200);
+    private static final Color HEALTH_FILL = new Color(90, 220, 110);
+    private static final String[] CHARACTER_ASSETS = {"MARTY", "JUSTAS", "JURGIS", "GUOG"};
     private final Map<UUID, Boolean> facingRight = new HashMap<>();
     private final AssetManager assets = AssetManager.getInstance();
     private WorldSnapshot snapshot;
@@ -138,6 +144,9 @@ final class GamePanel extends JPanel {
             for (ItemSnapshot item : snapshot.items()) {
                 drawItem(g, item, scale, offsetX, offsetY);
             }
+            for (AttackSnapshot attack : snapshot.attacks()) {
+                drawAttack(g, attack, scale, offsetX, offsetY);
+            }
             drawPlayerCards(g);
             drawNotification(g);
         } finally {
@@ -158,7 +167,7 @@ final class GamePanel extends JPanel {
         }
         boolean facesRight = facingRight.getOrDefault(player.playerId(), true);
 
-        Image characterIcon = assets.getImage("MARTY");
+        Image characterIcon = assets.getImage(CHARACTER_ASSETS[player.slot()]);
         if (characterIcon != null) {
             drawCharacterImage(g, characterIcon, body, facesRight);
         } else {
@@ -169,12 +178,34 @@ final class GamePanel extends JPanel {
         g.setColor(Color.WHITE);
         String label = player.nickname() + (player.playerId().equals(localPlayerId) ? " (you)" : "");
         g.drawString(label, (int) body.getX(), (int) body.getY() - 6);
-        if (player.playerId().equals(localPlayerId)) {
-            g.draw(body);
-        }
         if (player.shielded()) {
             drawShieldIconAboveHead(g, body, scale, facesRight);
         }
+        drawHealthBar(g, body, player.health(), player.maxHealth());
+        }
+
+    private void drawAttack(Graphics2D g, AttackSnapshot attack, double scale, double offsetX, double offsetY) {
+        double x = offsetX + attack.x() * scale;
+        double y = offsetY + attack.y() * scale;
+        double width = attack.width() * scale;
+        double height = attack.height() * scale;
+        if ("RANGED".equals(attack.type())) {
+            g.setColor(PROJECTILE);
+            g.fill(new Ellipse2D.Double(x, y, width, height));
+        } else {
+            g.setColor(MELEE_SWING);
+            g.fill(new Rectangle2D.Double(x, y, width, height));
+        }
+    }
+
+    private void drawHealthBar(Graphics2D g, Rectangle2D body, int health, int maxHealth) {
+        double barHeight = 5.0;
+        double barY = body.getY() - 22.0;
+        double fraction = (double) health / maxHealth;
+        g.setColor(HEALTH_BACK);
+        g.fill(new Rectangle2D.Double(body.getX(), barY, body.getWidth(), barHeight));
+        g.setColor(HEALTH_FILL);
+        g.fill(new Rectangle2D.Double(body.getX(), barY, body.getWidth() * fraction, barHeight));
     }
 
     /** Cards use panel coordinates and stable slots, independently of list order and world movement. */

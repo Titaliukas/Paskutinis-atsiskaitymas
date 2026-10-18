@@ -6,9 +6,11 @@ import java.util.UUID;
 /** Server-owned mutable character. It accepts input intent and resolves movement inside domain bounds. */
 public final class GameCharacter {
     private static final double COLLISION_EPSILON = 0.000_001;
+    private static final double KNOCKBACK_DECAY_PER_SECOND = 6.0;
     private final UUID id;
     private final Player player;
     private final int slot;
+    private final Position spawn;
     private double x;
     private double y;
     private double velocityX;
@@ -21,12 +23,19 @@ public final class GameCharacter {
     private double stressLevel;
     private boolean shielded;
     private double shieldRemaining;
+    private int health = GameConstants.MAX_HEALTH;
+    private int facing;
+    private double knockbackX;
+    private double rangedCooldownRemaining;
+    private double meleeCooldownRemaining;
 
     GameCharacter(UUID id, Player player, int slot, Position spawn, boolean grounded) {
         this.id = Objects.requireNonNull(id, "id");
         this.player = Objects.requireNonNull(player, "player");
         this.slot = slot;
-        this.x = Objects.requireNonNull(spawn, "spawn").x();
+        this.spawn = Objects.requireNonNull(spawn, "spawn");
+        this.facing = slot % 2 == 0 ? 1 : -1;
+        this.x = spawn.x();
         this.y = spawn.y();
         this.grounded = grounded;
     }
@@ -39,8 +48,13 @@ public final class GameCharacter {
         }
 
         decayItemEffects(seconds);
+        decayCooldowns(seconds);
 
         int direction = (input.right() ? 1 : 0) - (input.left() ? 1 : 0);
+        if (direction != 0) {
+            facing = direction;
+        }
+
         velocityX = direction * GameConstants.MOVE_SPEED * speedMultiplier;
         if (input.jumpRequested() && grounded) {
             velocityY = -GameConstants.JUMP_SPEED * Math.sqrt(jumpMultiplier);
@@ -49,7 +63,11 @@ public final class GameCharacter {
 
         double previousBottom = y + GameConstants.PLAYER_HEIGHT;
         velocityY += GameConstants.GRAVITY * seconds;
-        x = clamp(x + velocityX * seconds, 0, arena.width() - GameConstants.PLAYER_WIDTH);
+        x = clamp(x + (velocityX + knockbackX) * seconds, 0, arena.width() - GameConstants.PLAYER_WIDTH);
+        knockbackX *= Math.max(0.0, 1.0 - KNOCKBACK_DECAY_PER_SECOND * seconds);
+        if (Math.abs(knockbackX) < 1.0) {
+            knockbackX = 0;
+        }
         double nextY = y + velocityY * seconds;
         grounded = false;
 
@@ -97,7 +115,7 @@ public final class GameCharacter {
         shieldRemaining = seconds;
     }
 
-    /** Minimal NPC damage effect: accumulate stress; an active shield prevents any change. */
+    /** Single damage entry point: a shield blocks it, otherwise stress grows and health drops. */
     public boolean takeDamage(double damage) {
         NPCGeometry.positive(damage, "damage");
         if (shielded) {
@@ -105,14 +123,57 @@ public final class GameCharacter {
         }
         double nextStress = NPCGeometry.finite(stressLevel + damage, "stressLevel");
         if (nextStress == stressLevel) {
-            return false;
+            return false; // nothing actually changed
         }
         stressLevel = nextStress;
+        health -= (int) Math.ceil(damage);
+        if (health <= 0) {
+            respawn();
+        }
         return true;
     }
 
     boolean shielded() {
         return shielded;
+    }
+
+     /** Replaces any previous knockback; velocityY is set directly so a negative value launches upward. */
+    void applyImpulse(double impulseX, double impulseY) {
+        knockbackX = impulseX;
+        velocityY = impulseY;
+        grounded = false;
+    }
+
+    /** Starts the cooldown and returns true only if the attack type is ready. */
+    boolean tryUseCooldown(AttackType type) {
+        if (type == AttackType.RANGED) {
+            if (rangedCooldownRemaining > 0) {
+                return false;
+            }
+            rangedCooldownRemaining = GameConstants.RANGED_COOLDOWN_SECONDS;
+        } else {
+            if (meleeCooldownRemaining > 0) {
+                return false;
+            }
+            meleeCooldownRemaining = GameConstants.MELEE_COOLDOWN_SECONDS;
+        }
+        return true;
+    }
+
+    private void respawn() {
+        health = GameConstants.MAX_HEALTH;
+        x = spawn.x();
+        y = spawn.y();
+        velocityX = 0;
+        velocityY = 0;
+        knockbackX = 0;
+        grounded = true;
+        speedMultiplier = 1.0;
+        speedMultiplierRemaining = 0;
+        jumpMultiplier = 1.0;
+        jumpMultiplierRemaining = 0;
+        shielded = false;
+        shieldRemaining = 0;
     }
 
     boolean overlaps(Position point, double radius) {
@@ -122,6 +183,11 @@ public final class GameCharacter {
         double dx = point.x() - closestX;
         double dy = point.y() - closestY;
         return (dx * dx + dy * dy) <= radius * radius;
+    }
+
+    boolean overlapsRect(double left, double top, double width, double height) {
+        return x < left + width && x + GameConstants.PLAYER_WIDTH > left
+            && y < top + height && y + GameConstants.PLAYER_HEIGHT > top;
     }
 
     private void decayItemEffects(double seconds) {
@@ -150,13 +216,34 @@ public final class GameCharacter {
         }
     }
 
+    private void decayCooldowns(double seconds) {
+        rangedCooldownRemaining = Math.max(0, rangedCooldownRemaining - seconds);
+        meleeCooldownRemaining = Math.max(0, meleeCooldownRemaining - seconds);
+    }
+
     GameCharacterState state() {
         return new GameCharacterState(player.id(), slot, player.nickname(), x, y,
-                velocityX, velocityY, grounded, shielded, stressLevel);
+                velocityX, velocityY, grounded, shielded, health,stressLevel);
     }
 
     UUID id() {
         return id;
+    }
+
+    UUID playerId() {
+        return player.id();
+    }
+
+    int facing() {
+        return facing;
+    }
+
+    double x() {
+        return x;
+    }
+
+    double y() {
+        return y;
     }
 
     private static double clamp(double value, double minimum, double maximum) {

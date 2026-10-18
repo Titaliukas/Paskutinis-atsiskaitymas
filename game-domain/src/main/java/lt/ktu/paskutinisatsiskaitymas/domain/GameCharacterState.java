@@ -14,6 +14,7 @@ public record GameCharacterState(
         double velocityY,
         boolean grounded,
         boolean shielded,
+        int health,
         double stressLevel) {
     public GameCharacterState {
         Objects.requireNonNull(playerId, "playerId");

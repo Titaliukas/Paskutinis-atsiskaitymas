@@ -5,7 +5,7 @@ import java.util.Objects;
 
 /** Authoritative state broadcast. It contains transport DTOs rather than domain entities. */
 public record WorldSnapshot(long tick, ArenaSnapshot arena, List<PlayerSnapshot> players, List<ItemSnapshot> items,
-        List<NPCSnapshot> npcs) implements Message {
+        List<NPCSnapshot> npcs, List<AttackSnapshot> attacks) implements Message {
     public WorldSnapshot {
         if (tick < 0) {
             throw new IllegalArgumentException("Snapshot tick cannot be negative");
@@ -14,6 +14,7 @@ public record WorldSnapshot(long tick, ArenaSnapshot arena, List<PlayerSnapshot>
         players = List.copyOf(players);
         items = List.copyOf(items);
         npcs = List.copyOf(npcs);
+        attacks = List.copyOf(attacks);
         if (npcs.stream().map(NPCSnapshot::id).distinct().count() != npcs.size()) {
             throw new IllegalArgumentException("NPC IDs must be unique");
         }

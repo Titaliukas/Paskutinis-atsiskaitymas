@@ -22,6 +22,7 @@ public final class GameSession {
     private final Random random = new Random();
     private double sinceLastItemSpawn;
     private final List<GameEventListener> listeners = new CopyOnWriteArrayList<>();
+    private final Map<UUID, Attack> activeAttacks = new LinkedHashMap<>();
 
     public GameSession(UUID id, Arena arena) {
         this.id = Objects.requireNonNull(id, "id");
@@ -105,6 +106,7 @@ public final class GameSession {
         }
         spawnItemIfDue(seconds, random);
         resolveItemCollisions();
+        activeAttacks.values().removeIf(attack -> attack.update(characters, NPCs.values(), arena, seconds));
         // STRATEGY-REPORT R5 BEGIN: The existing owner tick selects, delegates, integrates, and resolves.
         List<NPCTarget> targets = npcTargets();
         for (Map.Entry<Integer, NPC> entry : NPCs.entrySet()) {
@@ -118,6 +120,8 @@ public final class GameSession {
                 controller.onAttackResolved(resolveNPCAction(entry.getKey(), action));
             }
         }
+        NPCs.values().removeIf(npc -> !npc.alive());
+        NPCControllers.keySet().removeIf(id -> !NPCs.containsKey(id));
         // STRATEGY-REPORT R5 END
     }
 
@@ -238,6 +242,32 @@ public final class GameSession {
                 return false;
             });
         }
+    }
+    
+    /** Starts an attack for the player if it exists and the cooldown for that attack type has elapsed. */
+    public void startAttack(UUID playerId, AttackType type) {
+        Objects.requireNonNull(playerId, "playerId");
+        Objects.requireNonNull(type, "type");
+        GameCharacter source = characters.get(playerId);
+        if (source == null || !source.tryUseCooldown(type)) {
+            return;
+        }
+        int direction = source.facing();
+        Attack attack = switch (type) {
+            case RANGED -> new ProjectileAttack(UUID.randomUUID(), playerId, direction,
+                    List.of(new SlowEffect(GameConstants.RANGED_SLOW_MULTIPLIER, GameConstants.RANGED_SLOW_SECONDS),
+                            new DamageEffect(GameConstants.RANGED_DAMAGE)),
+                    new Position(direction > 0 ? source.x() + GameConstants.PLAYER_WIDTH : source.x(),
+                            source.y() + GameConstants.PLAYER_HEIGHT / 2.0));
+            case MELEE -> new MeleeAttack(UUID.randomUUID(), playerId, direction,
+                    List.of(new KnockbackEffect(GameConstants.MELEE_KNOCKBACK_X, GameConstants.MELEE_KNOCKBACK_Y),
+                            new DamageEffect(GameConstants.MELEE_DAMAGE)));
+        };
+        activeAttacks.put(attack.id(), attack);
+    }
+
+    public List<AttackState> activeAttacks() {
+        return activeAttacks.values().stream().map(Attack::state).toList();
     }
 
     public List<Item> activeItems() {

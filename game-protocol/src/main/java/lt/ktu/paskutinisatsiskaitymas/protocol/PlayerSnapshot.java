@@ -15,6 +15,8 @@ public record PlayerSnapshot(
         boolean grounded,
         boolean shielded,
         double velocityX,
+        int health,
+        int maxHealth,
         double stressLevel) {
     public PlayerSnapshot {
         Objects.requireNonNull(playerId, "playerId");
@@ -27,7 +29,10 @@ public record PlayerSnapshot(
         WireNumbers.positive(width, "width");
         WireNumbers.positive(height, "height");
         WireNumbers.finite(velocityX, "velocityX");
-        if (WireNumbers.finite(stressLevel, "stressLevel") < 0) {
+        if (maxHealth < 1 || health < 0 || health > maxHealth) {
+            throw new IllegalArgumentException("Health must be between 0 and maxHealth");
+        }
+            if (WireNumbers.finite(stressLevel, "stressLevel") < 0) {
             throw new IllegalArgumentException("Stress cannot be negative");
         }
     }

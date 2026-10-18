@@ -3,6 +3,7 @@ package lt.ktu.paskutinisatsiskaitymas.server;
 import lt.ktu.paskutinisatsiskaitymas.domain.GameConstants;
 import lt.ktu.paskutinisatsiskaitymas.domain.GameSession;
 import lt.ktu.paskutinisatsiskaitymas.protocol.ArenaSnapshot;
+import lt.ktu.paskutinisatsiskaitymas.protocol.AttackSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.PlatformSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.PlayerSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.WorldSnapshot;
@@ -22,7 +23,9 @@ final class SnapshotMapper {
         var players = session.characters().stream()
                 .map(character -> new PlayerSnapshot(character.playerId(), character.slot(), character.nickname(),
                         character.x(), character.y(), GameConstants.PLAYER_WIDTH,
-                        GameConstants.PLAYER_HEIGHT, character.grounded(), character.shielded(), character.velocityX(), character.stressLevel()))
+                        GameConstants.PLAYER_HEIGHT, character.grounded(), character.shielded(),
+                        character.velocityX(), character.health(), GameConstants.MAX_HEALTH,
+                        character.stressLevel()))
                 .toList();
         var items = session.activeItems().stream()
                 .map(item -> new ItemSnapshot(item.id(), item.type().name(),
@@ -33,6 +36,10 @@ final class SnapshotMapper {
             return new NPCSnapshot(state.id(), state.preciseX(), state.preciseY(), state.width(), state.height(),
                     view.activity().name(), state.facingRight(), state.attackAttemptSequence());
         }).toList();
-        return new WorldSnapshot(tick, arena, players, items, npcs);
+        var attacks = session.activeAttacks().stream()
+                .map(attack -> new AttackSnapshot(attack.id(), attack.type().name(),
+                        attack.x(), attack.y(), attack.width(), attack.height()))
+                .toList();
+        return new WorldSnapshot(tick, arena, players, items, npcs, attacks);
     }
 }
