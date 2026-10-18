@@ -76,12 +76,12 @@ class GameWebSocketServerTest {
                 secondView.npcs().stream().map(NPCSnapshot::id).toList());
         double firstX = player(initial, a).x();
         double secondX = player(initial, b).x();
-        first.send(new InputState(0, false, true, false));
+        first.send(new InputState(0, false, true, false, false, false));
         WorldSnapshot moved = first.receive(WorldSnapshot.class,
                 value -> value.players().size() == 2 && player(value, a).x() > firstX);
         assertEquals(secondX, player(moved, b).x(), 0.000_001);
 
-        first.send(new InputState(1, false, false, false));
+        first.send(new InputState(1, false, false, false, false, false));
         first.send(new Ping("one"));
         assertEquals(new Pong("one"), first.receive(Pong.class, value -> value.requestId().equals("one")));
     }
@@ -108,7 +108,7 @@ class GameWebSocketServerTest {
             Welcome active = welcomes.get(index);
             WorldSnapshot before = observer.receive(WorldSnapshot.class,
                     value -> value.players().size() == 4 && value.players().stream().allMatch(p -> p.velocityX() == 0));
-            players.get(index).send(new InputState(0, false, true, false));
+            players.get(index).send(new InputState(0, false, true, false, false, false));
             WorldSnapshot moved = observer.receive(WorldSnapshot.class,
                     value -> value.tick() > before.tick() && value.players().size() == 4
                             && player(value, active).x() > player(before, active).x());
@@ -117,7 +117,7 @@ class GameWebSocketServerTest {
                     assertEquals(player(before, other).x(), player(moved, other).x(), 0.000_001);
                 }
             }
-            players.get(index).send(new InputState(1, false, false, false));
+            players.get(index).send(new InputState(1, false, false, false, false, false));
             observer.receive(WorldSnapshot.class,
                     value -> value.tick() > moved.tick() && player(value, active).velocityX() == 0);
         }
@@ -167,7 +167,7 @@ class GameWebSocketServerTest {
     @Test
     void validatesDirectionAndMalformedMessagesWithoutLosingConnection() throws Exception {
         Peer peer = connect("/game");
-        peer.send(new InputState(0, false, true, false));
+        peer.send(new InputState(0, false, true, false, false, false));
         assertEquals("HANDSHAKE_REQUIRED", peer.receive(ErrorMessage.class,
                 value -> value.code().equals("HANDSHAKE_REQUIRED")).code());
         peer.socket.sendText("not-json", true).get(5, TimeUnit.SECONDS);
@@ -178,7 +178,7 @@ class GameWebSocketServerTest {
         peer.send(new Hello("Replacement"));
         assertEquals("ALREADY_CONNECTED", peer.receive(ErrorMessage.class,
                 value -> value.code().equals("ALREADY_CONNECTED")).code());
-        peer.send(new WorldSnapshot(0, new ArenaSnapshot(1, 1, List.of()), List.of(), List.of(), List.of()));
+        peer.send(new WorldSnapshot(0, new ArenaSnapshot(1, 1, List.of()), List.of(), List.of(), List.of(), List.of()));
         assertEquals("UNEXPECTED_MESSAGE", peer.receive(ErrorMessage.class,
                 value -> value.code().equals("UNEXPECTED_MESSAGE")).code());
     }

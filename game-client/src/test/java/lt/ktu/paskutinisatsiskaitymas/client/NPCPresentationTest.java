@@ -90,7 +90,7 @@ class NPCPresentationTest {
                     new NPCSnapshot(5, 810, 416, 42, 64, "FLEE", false, 0));
             WorldSnapshot snapshot = new WorldSnapshot(0,
                     new ArenaSnapshot(960, 540, List.of(new PlatformSnapshot(0, 480, 960, 60))),
-                    List.of(), List.of(), npcs);
+                    List.of(), List.of(), npcs, List.of());
             panel.setSnapshot(snapshot);
             BufferedImage image = new BufferedImage(960, 540, BufferedImage.TYPE_INT_ARGB);
             Graphics2D graphics = image.createGraphics();

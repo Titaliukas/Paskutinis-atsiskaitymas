@@ -27,6 +27,7 @@ public final class NPC {
     private boolean facingRight = true;
     private boolean facingTarget;
     private long attackAttemptSequence;
+    private double health = GameConstants.NPC_MAX_HEALTH;
 
     public NPC(Integer id, Position spawn, double width, double height, double speed,
             double attackRange, double attackDamage, double attackCooldownSeconds,
@@ -50,6 +51,11 @@ public final class NPC {
     }
 
     public NPCAction advance(Arena arena, NPCTarget target, double seconds) {
+        if(!alive) {
+            velocityX = 0;
+            velocityY = 0;
+            return new NPCAction(0, 0, null);
+        }
         Objects.requireNonNull(arena, "arena");
         NPCGeometry.positive(seconds, "seconds");
         if (width > arena.width() || height > arena.height()
@@ -114,6 +120,38 @@ public final class NPC {
         return new NPCState(id, position_x, position_y, width, height, speed, velocityX, velocityY,
                 alive, targetID, attackRange, attackCooldownRemaining == 0, preciseX, preciseY,
                 grounded, facingRight, attackAttemptSequence);
+    }
+
+    /** Damage from a player attack. True only if the NPC was alive and actually lost health. */
+    public boolean takeDamage(double damage) {
+        NPCGeometry.positive(damage, "damage");
+        if (!alive) {
+            return false;
+        }
+        health = Math.max(0, health - damage);
+        if (health == 0) {
+            retire();
+        }
+        return true;
+    }
+
+    double health() { return health; }
+
+    boolean alive() { return alive; }
+
+    Integer id() { return id; }
+
+    boolean overlapsRect(double left, double top, double rectWidth, double rectHeight) {
+        return preciseX < left + rectWidth && preciseX + width > left
+                && preciseY < top + rectHeight && preciseY + height > top;
+    }
+
+    boolean overlaps(Position point, double radius) {
+        double closestX = NPCGeometry.clamp(point.x(), preciseX, preciseX + width);
+        double closestY = NPCGeometry.clamp(point.y(), preciseY, preciseY + height);
+        double dx = point.x() - closestX;
+        double dy = point.y() - closestY;
+        return dx * dx + dy * dy <= radius * radius;
     }
 
     void retire() {

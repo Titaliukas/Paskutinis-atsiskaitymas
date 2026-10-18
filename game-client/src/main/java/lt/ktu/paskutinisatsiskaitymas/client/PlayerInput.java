@@ -1,6 +1,6 @@
 package lt.ktu.paskutinisatsiskaitymas.client;
 
-/** Held control state as the local player sees it. The server derives jump edges and motion. */
-record PlayerInput(boolean left, boolean right, boolean jump) {
-    static final PlayerInput NONE = new PlayerInput(false, false, false);
+/** Complete keyboard state: movement keys plus the ranged (J) and melee (K) attack keys. */
+public record PlayerInput(boolean left, boolean right, boolean jump, boolean ranged, boolean melee) {
+    public static final PlayerInput NONE = new PlayerInput(false, false, false, false, false);
 }

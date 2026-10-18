@@ -56,7 +56,7 @@ final class MessageRouter {
             }
             if (message instanceof InputState input) {
                 boolean accepted = commands.offer(new InputCommand(session.playerId, input.sequence(),
-                        input.left(), input.right(), input.jump()));
+                        input.left(), input.right(), input.jump(), input.ranged(), input.melee()));
                 return accepted ? null : new ErrorMessage("SERVER_BUSY", "The command queue is full");
             }
             if (message instanceof Ping ping) {
