@@ -10,6 +10,6 @@ public record SlowEffect(double multiplier, double seconds) implements AttackEff
 
     @Override
     public void applyTo(GameCharacter target, int direction) {
-        target.applySpeedMultiplier(multiplier, seconds);
+        target.applySlow(multiplier, seconds);
     }
 }

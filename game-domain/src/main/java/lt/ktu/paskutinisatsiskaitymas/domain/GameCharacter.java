@@ -17,13 +17,9 @@ public final class GameCharacter {
     private double velocityX;
     private double velocityY;
     private boolean grounded;
-    private double speedMultiplier = 1.0;
-    private double speedMultiplierRemaining;
-    private double jumpMultiplier = 1.0;
-    private double jumpMultiplierRemaining;
+    /** Decorator chain of active timed effects; BaseStats when none are active. */
+    private CharacterStats stats = BaseStats.INSTANCE;
     private double stressLevel;
-    private boolean shielded;
-    private double shieldRemaining;
     private int health = GameConstants.MAX_HEALTH;
     private int facing;
     private double knockbackX;
@@ -49,7 +45,7 @@ public final class GameCharacter {
             throw new IllegalArgumentException("Tick duration must be finite and positive");
         }
 
-        decayItemEffects(seconds);
+        stats = stats.tick(seconds);
         decayCooldowns(seconds);
 
         int direction = (input.right() ? 1 : 0) - (input.left() ? 1 : 0);
@@ -57,9 +53,9 @@ public final class GameCharacter {
             facing = direction;
         }
 
-        velocityX = direction * GameConstants.MOVE_SPEED * speedMultiplier;
+        velocityX = direction * GameConstants.MOVE_SPEED * stats.speedMultiplier();
         if (input.jumpRequested() && grounded) {
-            velocityY = -GameConstants.JUMP_SPEED * Math.sqrt(jumpMultiplier);
+            velocityY = -GameConstants.JUMP_SPEED * Math.sqrt(stats.jumpMultiplier());
             grounded = false;
         }
 
@@ -102,25 +98,33 @@ public final class GameCharacter {
         y = nextY;
     }
 
-    void applySpeedMultiplier(double multiplier, double seconds) {
-        speedMultiplier = multiplier;
-        speedMultiplierRemaining = seconds;
+    // Each effect wraps the chain in a new layer. An existing layer of the same type is removed first, so picking up
+    // the same effect again refreshes its timer, while different effects (for example boost and slow) stack.
+
+    void applySpeedBoost(double multiplier, double seconds) {
+        stats = new SpeedBoostDecorator(stats.without(SpeedBoostDecorator.class), multiplier, seconds);
     }
 
-    void applyJumpMultiplier(double multiplier, double seconds) {
-        jumpMultiplier = multiplier;
-        jumpMultiplierRemaining = seconds;
+    void applySlow(double multiplier, double seconds) {
+        stats = new SlowDecorator(stats.without(SlowDecorator.class), multiplier, seconds);
+    }
+
+    void applyJumpBoost(double multiplier, double seconds) {
+        stats = new JumpBoostDecorator(stats.without(JumpBoostDecorator.class), multiplier, seconds);
     }
 
     void applyShield(double seconds) {
-        shielded = true;
-        shieldRemaining = seconds;
+        stats = new ShieldDecorator(stats.without(ShieldDecorator.class), seconds);
+    }
+
+    CharacterStats stats() {
+        return stats;
     }
 
     /** Single damage entry point: a shield blocks it, otherwise stress grows and health drops. */
     public boolean takeDamage(double damage) {
         NPCGeometry.positive(damage, "damage");
-        if (shielded) {
+        if (stats.shielded()) {
             return false;
         }
         double nextStress = NPCGeometry.finite(stressLevel + damage, "stressLevel");
@@ -136,7 +140,7 @@ public final class GameCharacter {
     }
 
     boolean shielded() {
-        return shielded;
+        return stats.shielded();
     }
 
      /** Replaces any previous knockback; velocityY is set directly so a negative value launches upward. */
@@ -170,12 +174,7 @@ public final class GameCharacter {
         velocityY = 0;
         knockbackX = 0;
         grounded = true;
-        speedMultiplier = 1.0;
-        speedMultiplierRemaining = 0;
-        jumpMultiplier = 1.0;
-        jumpMultiplierRemaining = 0;
-        shielded = false;
-        shieldRemaining = 0;
+        stats = BaseStats.INSTANCE;
     }
 
     boolean overlaps(Position point, double radius) {
@@ -192,32 +191,6 @@ public final class GameCharacter {
             && y < top + height && y + GameConstants.PLAYER_HEIGHT > top;
     }
 
-    private void decayItemEffects(double seconds) {
-        if (speedMultiplierRemaining > 0) {
-            speedMultiplierRemaining -= seconds;
-            if (speedMultiplierRemaining <= 0) {
-                speedMultiplierRemaining = 0;
-                speedMultiplier = 1.0;
-            }
-        }
-
-        if (jumpMultiplierRemaining > 0) {
-            jumpMultiplierRemaining -= seconds;
-            if (jumpMultiplierRemaining <= 0) {
-                jumpMultiplierRemaining = 0;
-                jumpMultiplier = 1.0;
-            }
-        }
-
-        if (shieldRemaining > 0) {
-            shieldRemaining -= seconds;
-            if (shieldRemaining <= 0) {
-                shieldRemaining = 0;
-                shielded = false;
-            }
-        }
-    }
-
     private void decayCooldowns(double seconds) {
         rangedCooldownRemaining = Math.max(0, rangedCooldownRemaining - seconds);
         meleeCooldownRemaining = Math.max(0, meleeCooldownRemaining - seconds);
@@ -225,7 +198,7 @@ public final class GameCharacter {
 
     GameCharacterState state() {
         return new GameCharacterState(player.id(), slot, player.nickname(), x, y,
-                velocityX, velocityY, grounded, shielded, health,stressLevel, characterType);
+                velocityX, velocityY, grounded, stats.shielded(), health, stressLevel, characterType);
     }
 
     UUID id() {

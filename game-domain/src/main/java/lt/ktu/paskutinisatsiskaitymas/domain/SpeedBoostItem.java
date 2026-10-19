@@ -12,6 +12,6 @@ public final class SpeedBoostItem extends Item {
 
     @Override
     public void apply(GameCharacter target) {
-        target.applySpeedMultiplier(GameConstants.SPEED_BOOST_MULTIPLIER, durationSeconds());
+        target.applySpeedBoost(GameConstants.SPEED_BOOST_MULTIPLIER, durationSeconds());
     }
 }

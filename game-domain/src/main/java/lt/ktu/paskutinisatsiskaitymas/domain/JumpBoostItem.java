@@ -12,6 +12,6 @@ public final class JumpBoostItem extends Item {
 
     @Override
     public void apply(GameCharacter target) {
-        target.applyJumpMultiplier(GameConstants.JUMP_BOOST_MULTIPLIER, durationSeconds());
+        target.applyJumpBoost(GameConstants.JUMP_BOOST_MULTIPLIER, durationSeconds());
     }
 }
