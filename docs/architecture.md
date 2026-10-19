@@ -190,6 +190,15 @@ renderer receives as `facesRight`; sprite art faces right and is mirrored for le
 use drawn shapes.
 Presentation only: no game rule depends on the skin.
 
+For the Decorator pattern, a domain `GameCharacter` keeps its timed effects as one `CharacterStats` chain. The chain
+ends in the shared `BaseStats.INSTANCE`, and each effect wraps it in a `StatsDecorator` layer: `SpeedBoostDecorator`,
+`SlowDecorator`, `JumpBoostDecorator` or `ShieldDecorator`. A layer changes only its own value and delegates the rest,
+so a speed boost and a slow multiply instead of overwriting each other. Every tick, `tick` counts the timers down and
+expired layers remove themselves. Re-applying an effect first removes the old layer of that type (`without`), which
+refreshes its timer instead of stacking it, and respawn resets the chain to `BaseStats`. Items and `SlowEffect` only
+call `applySpeedBoost`, `applySlow`, `applyJumpBoost` or `applyShield`. `CharacterStatsDecoratorTest` covers three-
+and four-level chains, for example `Slow(Shield(JumpBoost(SpeedBoost(Base))))`.
+
 The server binds `0.0.0.0`. Its shutdown hook closes WebSocket connections and then terminates the scheduler;
 tests verify the loop worker does not remain alive. Client disconnect cancels pending work, clears input/UI state,
 and shuts down its HTTP client when the window closes.
