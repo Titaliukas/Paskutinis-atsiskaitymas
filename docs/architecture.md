@@ -88,10 +88,10 @@ the top cards. No child controls or input interception were introduced. Departur
 snapshot; `clearGame` clears snapshot/local state and timers. Stress is absent from world labels and is not clamped
 or treated as a percentage/health. Existing damage/shield/NPC behavior remains unchanged.
 
-`AssetManager.cachePortrait` derives `MARTY_PORTRAIT` once into its existing private images map. MARTY is the actual
+`AssetManager.cachePortrait` derives `PATASIJUS_PORTRAIT` once into its existing private images map. PATASIJUS is the actual
 world sprite for every player. The crop scans transparent margins, retains nontransparent width and the upper
 28% of opaque-bounds height, including face and shoulders. The `cachePortrait(..., 0.28)` call controls framing;
-replacing `assets/MARTY.png` and rebuilding/restarting changes both world image and portrait. No other character
+replacing `assets/PATASIJUS.png` and rebuilding/restarting changes both world image and portrait. No other character
 portrait is silently substituted. The cached alpha image is read-only; Java2D preserves aspect and uses
 nearest-neighbor scaling. Missing portraits draw a silhouette.
 
@@ -170,7 +170,7 @@ DTOs and never expose exceptions or domain objects.
 
 The client uses an `AssetManager` singleton to load bundled character sprites and item icons once per client JVM.
 Startup initializes it before creating the Swing UI. `GamePanel` uses its images for rendering, while
-`ConnectionWindow` uses the same cached `MARTY` image for its window icon. The cache is private and immutable
+`ConnectionWindow` uses the same cached `PATASIJUS` image for its window icon. The cache is private and immutable
 after construction; callers treat the images as read-only. Missing images retain the renderer's primitive-shape
 fallback and the window's default icon.
 

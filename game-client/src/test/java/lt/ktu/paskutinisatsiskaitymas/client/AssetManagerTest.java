@@ -11,8 +11,8 @@ class AssetManagerTest {
     void loadsBundledImagesAndSharesTheCache() {
         AssetManager assets = AssetManager.getInstance();
         assertSame(assets, AssetManager.getInstance());
-        for (String key : List.of("SPEED_BOOST", "JUMP_BOOST", "SHIELD", "MARTY", "MARTY_PORTRAIT",
-                "JUSTAS", "JUSTAS_PORTRAIT", "JURGIS", "JURGIS_PORTRAIT", "GUOG", "GUOG_PORTRAIT",
+        for (String key : List.of("SPEED_BOOST", "JUMP_BOOST", "SHIELD", "PATASIJUS", "PATASIJUS_PORTRAIT",
+                "VACIJUS", "VACIJUS_PORTRAIT", "JURGELINIS", "JURGELINIS_PORTRAIT", "GOGIS", "GOGIS_PORTRAIT",
                 "NPC_PATROL", "NPC_CHASE", "NPC_ATTACK", "NPC_FLEE")) {
             Image image = assets.getImage(key);
             assertNotNull(image, key);
@@ -25,19 +25,19 @@ class AssetManagerTest {
     @Test
     void cachedPortraitRetainsAlphaAndFramesUpperBodyWithoutChangingWorldSprite() {
         var assets = AssetManager.getInstance();
-        var source = (BufferedImage) assets.getImage("MARTY");
-        var portrait = (BufferedImage) assets.getImage("MARTY_PORTRAIT");
+        var source = (BufferedImage) assets.getImage("PATASIJUS");
+        var portrait = (BufferedImage) assets.getImage("PATASIJUS_PORTRAIT");
         assertTrue(portrait.getColorModel().hasAlpha());
         assertTrue(portrait.getWidth() > 0 && portrait.getWidth() <= source.getWidth());
         assertTrue(portrait.getHeight() > 0 && portrait.getHeight() < source.getHeight() * 0.4);
-        assertSame(portrait, assets.getImage("MARTY_PORTRAIT"));
-        assertSame(source, assets.getImage("MARTY"));
+        assertSame(portrait, assets.getImage("PATASIJUS_PORTRAIT"));
+        assertSame(source, assets.getImage("PATASIJUS"));
     }
 
     @Test
     void characterPortraitsUseSquareConsistentFrames() {
         AssetManager assets = AssetManager.getInstance();
-        for (String character : List.of("MARTY", "JUSTAS", "JURGIS", "GUOG")) {
+        for (String character : List.of("PATASIJUS", "VACIJUS", "JURGELINIS", "GOGIS")) {
             var portrait = (BufferedImage) assets.getImage(character + "_PORTRAIT");
             assertEquals(portrait.getWidth(), portrait.getHeight(), character);
             assertTrue(portrait.getWidth() >= 200, character);

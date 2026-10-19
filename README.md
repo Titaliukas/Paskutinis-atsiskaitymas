@@ -115,10 +115,10 @@ Each character has a different attack role (J: ranged, K: melee):
 
 | Character | Ranged | Melee |
 | --- | --- | --- |
-| MARTY | 12 damage | 32 damage and strong knockback |
-| JUSTAS | 30 damage | 12 damage |
-| JURGIS | 16 damage and slows to 30% speed for 4 seconds | 16 damage and knockback |
-| GUOG | 20 damage and slows to 65% speed for 2 seconds | 22 damage and knockback |
+| PATASIJUS | 12 damage | 32 damage and strong knockback |
+| VACIJUS | 30 damage | 12 damage |
+| JURGELINIS | 16 damage and slows to 30% speed for 4 seconds | 16 damage and knockback |
+| GOGIS | 20 damage and slows to 65% speed for 2 seconds | 22 damage and knockback |
 
 The two green student NPCs show authoritative activity labels and switch among four poses. Stop the direct server
 with `Ctrl+C`. One to three clients also work; unused corners remain clear.

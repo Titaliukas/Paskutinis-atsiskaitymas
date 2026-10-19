@@ -39,7 +39,7 @@ class JsonMessageCodecTest {
 
     @Test
     void usesStableWireNamesWithoutJavaClassNames() throws Exception {
-        assertEquals("{\"type\":\"HELLO\",\"nickname\":\"Player\",\"character\":\"MARTY\"}", codec.encode(new Hello("Player")));
+        assertEquals("{\"type\":\"HELLO\",\"nickname\":\"Player\",\"character\":\"PATASIJUS\"}", codec.encode(new Hello("Player")));
         assertEquals(new Ping("a"), codec.decode("{\"type\":\"PING\",\"requestId\":\"a\"}"));
         assertTrue(codec.encode(new InputState(0, false, true, false, false, false)).contains("\"type\":\"INPUT\""));
         assertFalse(codec.encode(messages().toList().get(5)).contains("lt.ktu"));

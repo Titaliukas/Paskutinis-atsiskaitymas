@@ -8,6 +8,5 @@ package lt.ktu.paskutinisatsiskaitymas.domain;
  */
 public interface AttackEffect {
     void applyTo(GameCharacter target, int direction);
-
     default void applyTo(NPC target, int direction) { }
 }
