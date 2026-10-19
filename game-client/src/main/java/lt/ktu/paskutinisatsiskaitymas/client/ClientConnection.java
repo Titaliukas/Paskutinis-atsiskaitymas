@@ -42,6 +42,10 @@ public final class ClientConnection implements AutoCloseable {
     }
 
     public synchronized void connect(URI address, String nickname) {
+        connect(address, nickname, Hello.DEFAULT_CHARACTER);
+    }
+
+    public synchronized void connect(URI address, String nickname, String character) {
         if (closed) {
             throw new IllegalStateException("Client has closed");
         }
@@ -51,7 +55,7 @@ public final class ClientConnection implements AutoCloseable {
         }
         final String hello;
         try {
-            hello = codec.encode(new Hello(nickname));
+            hello = codec.encode(new Hello(nickname, character));
         } catch (ProtocolException exception) {
             throw new IllegalArgumentException("Cannot encode HELLO", exception);
         }

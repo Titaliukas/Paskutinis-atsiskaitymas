@@ -13,6 +13,7 @@ import lt.ktu.paskutinisatsiskaitymas.protocol.Message;
 import lt.ktu.paskutinisatsiskaitymas.protocol.Ping;
 import lt.ktu.paskutinisatsiskaitymas.protocol.Pong;
 import lt.ktu.paskutinisatsiskaitymas.protocol.Welcome;
+import lt.ktu.paskutinisatsiskaitymas.domain.CharacterType;
 
 /**
  * Validates message direction and translates client DTOs into application commands.
@@ -38,8 +39,15 @@ final class MessageRouter {
                     if (assignment == null) {
                         return new ErrorMessage("SERVER_FULL", "The four player slots are occupied");
                     }
+                    CharacterType charType;
+                    try {
+                        charType = CharacterType.valueOf(hello.character());
+                    } catch (IllegalArgumentException e) {
+                        charType = CharacterType.values()[0];
+                    }
+
                     boolean queued = commands.offerAfterEvicting(new JoinPlayerCommand(
-                            assignment.playerId(), assignment.slot(), hello.nickname()),
+                            assignment.playerId(), assignment.slot(), hello.nickname(), charType),
                             queuedCommand -> queuedCommand instanceof InputCommand);
                     if (!queued) {
                         slots.release(session.id);

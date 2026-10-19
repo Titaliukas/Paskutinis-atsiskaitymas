@@ -5,7 +5,7 @@ import java.util.UUID;
 /** Transport-only state. Access is guarded by MessageRouter's per-session lock. */
 final class ConnectionSession {
     final UUID id = UUID.randomUUID();
-    volatile UUID playerId;
+    UUID playerId;
     int slot = -1;
     String nickname;
 }

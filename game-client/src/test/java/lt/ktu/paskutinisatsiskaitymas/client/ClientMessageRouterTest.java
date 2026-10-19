@@ -41,6 +41,8 @@ class ClientMessageRouterTest {
         })) {
             assertThrows(IllegalArgumentException.class, () -> connection.connect(URI.create("http://localhost/game"), "Player"));
             assertThrows(IllegalArgumentException.class, () -> connection.connect(URI.create("ws://localhost/game"), " "));
+            assertThrows(IllegalArgumentException.class,
+                    () -> connection.connect(URI.create("ws://localhost/game"), "Player", "UNKNOWN"));
             connection.close();
             assertThrows(IllegalStateException.class, () -> connection.connect(URI.create("ws://localhost/game"), "Player"));
         }

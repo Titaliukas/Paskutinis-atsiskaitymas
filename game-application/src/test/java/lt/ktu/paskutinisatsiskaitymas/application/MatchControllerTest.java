@@ -1,4 +1,5 @@
 package lt.ktu.paskutinisatsiskaitymas.application;
+import lt.ktu.paskutinisatsiskaitymas.domain.CharacterType;
 
 import java.util.UUID;
 import lt.ktu.paskutinisatsiskaitymas.domain.GameConstants;
@@ -10,8 +11,8 @@ class MatchControllerTest {
     @Test
     void validatesCommandsAndBoundsQueue() {
         UUID playerId = UUID.randomUUID();
-        assertThrows(IllegalArgumentException.class, () -> new JoinPlayerCommand(playerId, 4, "Player"));
-        assertThrows(IllegalArgumentException.class, () -> new JoinPlayerCommand(playerId, 0, " "));
+        assertThrows(IllegalArgumentException.class, () -> new JoinPlayerCommand(playerId, 4, "Player", CharacterType.values()[0]));
+        assertThrows(IllegalArgumentException.class, () -> new JoinPlayerCommand(playerId, 0, " ", CharacterType.values()[0]));
         assertThrows(IllegalArgumentException.class,
                 () -> new InputCommand(playerId, -1, false, false, false));
 
@@ -35,7 +36,7 @@ class MatchControllerTest {
         MatchController controller = new MatchController(session);
         for (int slot = 0; slot < 4; slot++) {
             UUID id = UUID.randomUUID();
-            controller.handle(new JoinPlayerCommand(id, slot, "Player " + slot));
+            controller.handle(new JoinPlayerCommand(id, slot, "Player " + slot, CharacterType.values()[0]));
             controller.handle(new InputCommand(id, 0, slot % 2 == 1, slot % 2 == 0, false));
         }
         controller.advance(GameConstants.TICK_SECONDS);
@@ -44,7 +45,7 @@ class MatchControllerTest {
                 character.slot() % 2 == 0 ? GameConstants.MOVE_SPEED : -GameConstants.MOVE_SPEED,
                 character.velocityX()));
         for (int slot : new int[]{-1, 4}) {
-            assertThrows(IllegalArgumentException.class, () -> new JoinPlayerCommand(UUID.randomUUID(), slot, "Player"));
+            assertThrows(IllegalArgumentException.class, () -> new JoinPlayerCommand(UUID.randomUUID(), slot, "Player", CharacterType.values()[0]));
         }
     }
 
@@ -53,7 +54,7 @@ class MatchControllerTest {
         UUID playerId = UUID.randomUUID();
         GameSession session = GameSession.createDefault();
         MatchController controller = new MatchController(session);
-        controller.handle(new JoinPlayerCommand(playerId, 0, "Player"));
+        controller.handle(new JoinPlayerCommand(playerId, 0, "Player", CharacterType.values()[0]));
         double startX = session.characters().getFirst().x();
 
         controller.handle(new InputCommand(playerId, 2, false, true, false));
@@ -76,7 +77,7 @@ class MatchControllerTest {
         MatchController controller = new MatchController(session);
         BoundedCommandQueue<GameCommand> queue = new BoundedCommandQueue<>(8);
         AuthoritativeGameLoop loop = new AuthoritativeGameLoop(queue, controller);
-        queue.offer(new JoinPlayerCommand(playerId, 0, "Player"));
+        queue.offer(new JoinPlayerCommand(playerId, 0, "Player", CharacterType.values()[0]));
         queue.offer(new InputCommand(playerId, 0, false, true, false));
 
         loop.tick();

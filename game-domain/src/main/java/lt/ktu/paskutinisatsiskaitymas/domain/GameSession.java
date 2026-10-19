@@ -48,22 +48,36 @@ public final class GameSession {
         session.spawnNPC(2, new Position(580, GameConstants.GROUND_Y - GameConstants.PLAYER_HEIGHT), 530, 650);
         return session;
     }
-
-    public void addPlayer(Player player, int slot) {
+    
+    public void addPlayer(Player player, int slot, CharacterType characterType) {
         Objects.requireNonNull(player, "player");
+        Objects.requireNonNull(characterType, "characterType");
+
         if (characters.size() >= GameConstants.MAX_PLAYERS) {
             throw new IllegalStateException("The match already has four players");
         }
+
         if (characters.containsKey(player.id())
-                || characters.values().stream().anyMatch(character -> character.state().slot() == slot)) {
+                || characters.values().stream()
+                        .anyMatch(character -> character.state().slot() == slot)) {
             throw new IllegalArgumentException("Player ID and slot must be unique");
         }
+
         if (nextTargetId > Integer.MAX_VALUE) {
             throw new IllegalStateException("Session target identities exhausted");
         }
+
         double spawnY = GameConstants.GROUND_Y - GameConstants.PLAYER_HEIGHT;
-        characters.put(player.id(), new GameCharacter(UUID.randomUUID(), player, slot,
-                new Position(GameConstants.spawnX(slot), spawnY), true));
+
+        characters.put(player.id(), new GameCharacter(
+                UUID.randomUUID(),
+                player,
+                slot,
+                new Position(GameConstants.spawnX(slot), spawnY),
+                true,
+                characterType
+        ));
+
         targetCharacters.put((int) nextTargetId++, characters.get(player.id()).id());
         publish(new PlayerJoinedEvent(player.id(), player.nickname()));
     }
@@ -253,15 +267,14 @@ public final class GameSession {
             return;
         }
         int direction = source.facing();
+        List<AttackEffect> effects = source.characterType().loadout().effectsFor(type);
         Attack attack = switch (type) {
             case RANGED -> new ProjectileAttack(UUID.randomUUID(), playerId, direction,
-                    List.of(new SlowEffect(GameConstants.RANGED_SLOW_MULTIPLIER, GameConstants.RANGED_SLOW_SECONDS),
-                            new DamageEffect(GameConstants.RANGED_DAMAGE)),
+                    effects,
                     new Position(direction > 0 ? source.x() + GameConstants.PLAYER_WIDTH : source.x(),
                             source.y() + GameConstants.PLAYER_HEIGHT / 2.0));
             case MELEE -> new MeleeAttack(UUID.randomUUID(), playerId, direction,
-                    List.of(new KnockbackEffect(GameConstants.MELEE_KNOCKBACK_X, GameConstants.MELEE_KNOCKBACK_Y),
-                            new DamageEffect(GameConstants.MELEE_DAMAGE)));
+                    effects);
         };
         activeAttacks.put(attack.id(), attack);
     }

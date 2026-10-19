@@ -11,7 +11,7 @@ class GameSessionNPCTest {
 
     private GameSession session() {
         GameSession session = new GameSession(UUID.randomUUID(), NPCStrategyTest.arena());
-        session.addPlayer(new Player(playerId, "Player"), 0);
+        session.addPlayer(new Player(playerId, "Player"), 0, CharacterType.values()[0]);
         session.spawnNPC(1, new Position(235, 416), 235, 236);
         return session;
     }
@@ -68,7 +68,7 @@ class GameSessionNPCTest {
         assertNull(session.npcs().getFirst().state().targetId());
         assertEquals(NPCActivity.PATROL, session.npcs().getFirst().activity());
         assertFalse(session.resolveNPCAction(1, new NPCAction(0, 0, oldTarget)));
-        session.addPlayer(new Player(playerId, "Reconnected"), 0);
+        session.addPlayer(new Player(playerId, "Reconnected"), 0, CharacterType.values()[0]);
         assertTrue(session.npcTargets().getFirst().id() > oldTarget);
         tick(session, 36);
         assertEquals(session.npcTargets().getFirst().id(), session.npcs().getFirst().state().targetId());
@@ -118,7 +118,7 @@ class GameSessionNPCTest {
         for (int slot : new int[]{2, 3}) {
             GameSession session = GameSession.createDefault();
             UUID id = UUID.randomUUID();
-            session.addPlayer(new Player(id, "Player " + slot), slot);
+            session.addPlayer(new Player(id, "Player " + slot), slot, CharacterType.values()[0]);
             for (int tick = 0; tick < 80; tick++) {
                 session.advance(Map.of(id, new MovementInput(slot == 3, slot == 2, false)), GameConstants.TICK_SECONDS);
             }
@@ -134,7 +134,7 @@ class GameSessionNPCTest {
     @Test
     void characterDamageIsActualAndShieldAwareAndRejectsInvalidDamage() {
         GameCharacter character = new GameCharacter(UUID.randomUUID(), new Player(playerId, "Player"),
-                0, new Position(180, 416), true);
+                0, new Position(180, 416), true, CharacterType.values()[0]);
         assertTrue(character.takeDamage(10));
         assertEquals(10, character.state().stressLevel());
         character.applyShield(1);

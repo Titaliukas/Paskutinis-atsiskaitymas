@@ -71,7 +71,7 @@ class GameSessionPlatformTest {
 
     private GameSession sessionWithPlayer(int slot) {
         GameSession session = GameSession.createDefault();
-        session.addPlayer(new Player(playerId, "Player"), slot);
+        session.addPlayer(new Player(playerId, "Player"), slot, CharacterType.values()[0]);
         return session;
     }
 

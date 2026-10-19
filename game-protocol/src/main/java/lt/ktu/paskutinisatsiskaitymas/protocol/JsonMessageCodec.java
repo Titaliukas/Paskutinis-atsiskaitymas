@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public final class JsonMessageCodec {
     public static final int MAX_MESSAGE_CHARACTERS = 8192;
     private final ObjectMapper mapper = new ObjectMapper()
+            .findAndRegisterModules()
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
             .enable(DeserializationFeature.FAIL_ON_MISSING_CREATOR_PROPERTIES)
             .enable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)

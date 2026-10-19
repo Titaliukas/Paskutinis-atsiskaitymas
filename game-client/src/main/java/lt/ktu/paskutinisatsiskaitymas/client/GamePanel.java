@@ -40,7 +40,6 @@ final class GamePanel extends JPanel {
     private static final Color MELEE_SWING = new Color(255, 255, 255, 150);
     private static final Color HEALTH_BACK = new Color(40, 40, 40, 200);
     private static final Color HEALTH_FILL = new Color(90, 220, 110);
-    private static final String[] CHARACTER_ASSETS = {"MARTY", "JUSTAS", "JURGIS", "GUOG"};
     private final Map<UUID, Boolean> facingRight = new HashMap<>();
     private final AssetManager assets = AssetManager.getInstance();
     private WorldSnapshot snapshot;
@@ -167,7 +166,7 @@ final class GamePanel extends JPanel {
         }
         boolean facesRight = facingRight.getOrDefault(player.playerId(), true);
 
-        Image characterIcon = assets.getImage(CHARACTER_ASSETS[player.slot()]);
+        Image characterIcon = assets.getImage(player.character());
         if (characterIcon != null) {
             drawCharacterImage(g, characterIcon, body, facesRight);
         } else {
@@ -230,7 +229,7 @@ final class GamePanel extends JPanel {
         if (local) {
             g.drawRoundRect(x + 1, y + 1, width - 3, CARD_HEIGHT - 3, 7, 7);
         }
-        drawPortrait(g, x + 12, y + 14, 64);
+        drawPortrait(g, x + 12, y + 14, 64, player.character());
         int textX = x + 88;
         int textWidth = width - 100;
         Font original = g.getFont();
@@ -246,10 +245,10 @@ final class GamePanel extends JPanel {
         g.setFont(original);
     }
 
-    private void drawPortrait(Graphics2D g, int x, int y, int size) {
+    private void drawPortrait(Graphics2D g, int x, int y, int size, String character) {
         g.setColor(new Color(33, 42, 57));
         g.fillRect(x, y, size, size);
-        Image portrait = assets.getImage("MARTY_PORTRAIT");
+        Image portrait = assets.getImage(character + "_PORTRAIT");
         if (portrait != null) {
             double scale = Math.min((double) size / portrait.getWidth(null), (double) size / portrait.getHeight(null));
             int width = (int) Math.round(portrait.getWidth(null) * scale);

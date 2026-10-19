@@ -107,9 +107,19 @@ Terminal 5 — fourth client:
 java -jar game-client/target/game-client.jar ws://localhost:8080/game Dora
 ```
 
-Click **Connect** in each window. Players appear at four distinct spawn positions; each client marks its own
-world character with a white outline and `(you)`. Every client shows the same four slot-based corner cards with
-head-and-shoulders portraits, nicknames and authoritative stress. The local card has a white border and `(you)`.
+Choose a character from the **Character** list and click **Connect** in each window. Multiple players may choose
+the same character. Players appear at four distinct spawn positions; each client marks its own world character
+with a white outline and `(you)`. Every client shows the same four slot-based corner cards with each player's
+chosen portrait, nickname and authoritative stress. The local card has a white border and `(you)`.
+Each character has a different attack role (J: ranged, K: melee):
+
+| Character | Ranged | Melee |
+| --- | --- | --- |
+| MARTY | 12 damage | 32 damage and strong knockback |
+| JUSTAS | 30 damage | 12 damage |
+| JURGIS | 16 damage and slows to 30% speed for 4 seconds | 16 damage and knockback |
+| GUOG | 20 damage and slows to 65% speed for 2 seconds | 22 damage and knockback |
+
 The two green student NPCs show authoritative activity labels and switch among four poses. Stop the direct server
 with `Ctrl+C`. One to three clients also work; unused corners remain clear.
 

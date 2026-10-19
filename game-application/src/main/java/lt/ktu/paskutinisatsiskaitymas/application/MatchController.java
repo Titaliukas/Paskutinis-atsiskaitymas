@@ -27,7 +27,7 @@ public final class MatchController {
     public void handle(GameCommand command) {
         Objects.requireNonNull(command, "command");
         if (command instanceof JoinPlayerCommand join) {
-            session.addPlayer(new Player(join.playerId(), join.nickname()), join.slot());
+            session.addPlayer(new Player(join.playerId(), join.nickname()), join.slot(), join.characterType());
             inputByPlayer.put(join.playerId(), new InputTracker());
         } else if (command instanceof LeavePlayerCommand leave) {
             session.removePlayer(leave.playerId());
