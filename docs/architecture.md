@@ -88,10 +88,10 @@ the top cards. No child controls or input interception were introduced. Departur
 snapshot; `clearGame` clears snapshot/local state and timers. Stress is absent from world labels and is not clamped
 or treated as a percentage/health. Existing damage/shield/NPC behavior remains unchanged.
 
-`AssetManager.cachePortrait` derives `MARTY_PORTRAIT` once into its existing private images map. MARTY is the actual
+`AssetManager.cachePortrait` derives `PATASIJUS_PORTRAIT` once into its existing private images map. PATASIJUS is the actual
 world sprite for every player. The crop scans transparent margins, retains nontransparent width and the upper
 28% of opaque-bounds height, including face and shoulders. The `cachePortrait(..., 0.28)` call controls framing;
-replacing `assets/MARTY.png` and rebuilding/restarting changes both world image and portrait. No other character
+replacing `assets/PATASIJUS.png` and rebuilding/restarting changes both world image and portrait. No other character
 portrait is silently substituted. The cached alpha image is read-only; Java2D preserves aspect and uses
 nearest-neighbor scaling. Missing portraits draw a silhouette.
 
@@ -170,13 +170,21 @@ DTOs and never expose exceptions or domain objects.
 
 The client uses an `AssetManager` singleton to load bundled character sprites and item icons once per client JVM.
 Startup initializes it before creating the Swing UI. `GamePanel` uses its images for rendering, while
-`ConnectionWindow` uses the same cached `MARTY` image for its window icon. The cache is private and immutable
+`ConnectionWindow` uses the same cached `PATASIJUS` image for its window icon. The cache is private and immutable
 after construction; callers treat the images as read-only. Missing images retain the renderer's primitive-shape
 fallback and the window's default icon.
 
 For the Singleton pattern demonstration, `AssetManager` has a private constructor, one `static final INSTANCE`,
 and a public `getInstance()` accessor. Both UI consumers obtain the same manager and reuse the same image objects.
 `AssetManagerTest` verifies manager identity, cached image identity, and successful loading of all bundled images.
+
+For the Abstract Factory pattern, the client's `CharacterFactory` creates one character's matching renderer family:
+a `BodyRenderer`, a `ProjectileRenderer` and a `MeleeRenderer`. `PatasijusFactory`, `VacijusFactory`,
+`JurgelinisFactory` and `GogisFactory` each create their own three products. `CharacterFactories` maps the wire
+character name to its factory, and `CharacterSkin.from` builds the whole family at once so a player's body, projectile
+and melee swing always match. `GamePanel` depends only on the interfaces. Attack snapshots carry the attacker's
+`sourceId`, which `GamePanel` resolves to that player's character; unknown characters and attacks whose player has
+left keep the primitive-shape fallback. Presentation only: no game rule depends on the skin.
 
 The server binds `0.0.0.0`. Its shutdown hook closes WebSocket connections and then terminates the scheduler;
 tests verify the loop worker does not remain alive. Client disconnect cancels pending work, clears input/UI state,

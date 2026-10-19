@@ -6,11 +6,11 @@ import java.util.List;
 
 /**
  * Client request to occupy a game slot; nickname is not authentication.
- * The character is chosen by the player and may repeat across players. A missing value means MARTY.
+ * The character is chosen by the player and may repeat across players. A missing value means PATASIJUS.
  */
 public record Hello(String nickname, String character) implements Message {
-    public static final String DEFAULT_CHARACTER = "MARTY";
-    public static final List<String> CHARACTERS = List.of("MARTY", "JUSTAS", "JURGIS", "GUOG");
+    public static final String DEFAULT_CHARACTER = "PATASIJUS";
+    public static final List<String> CHARACTERS = List.of("PATASIJUS", "VACIJUS", "JURGELINIS", "GOGIS");
 
     @JsonCreator
     public Hello(

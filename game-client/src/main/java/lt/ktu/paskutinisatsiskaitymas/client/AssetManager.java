@@ -18,19 +18,19 @@ public final class AssetManager {
         load(loaded, "SPEED_BOOST", "assets/SPEED.png");
         load(loaded, "JUMP_BOOST", "assets/JUMP.png");
         load(loaded, "SHIELD", "assets/SHIELD.png");
-        load(loaded, "MARTY", "assets/MARTY.png");
-        load(loaded, "JUSTAS", "assets/JUSTAS.png");
-        load(loaded, "JURGIS", "assets/JURGIS.png");
-        load(loaded, "GUOG", "assets/GUOG.png");
+        load(loaded, "PATASIJUS", "assets/PATASIJUS.png");
+        load(loaded, "VACIJUS", "assets/VACIJUS.png");
+        load(loaded, "JURGELINIS", "assets/JURGELINIS.png");
+        load(loaded, "GOGIS", "assets/GOGIS.png");
         load(loaded, "NPC_PATROL", "assets/NPC_PATROL.png");
         load(loaded, "NPC_CHASE", "assets/NPC_CHASE.png");
         load(loaded, "NPC_ATTACK", "assets/NPC_ATTACK.png");
         load(loaded, "NPC_FLEE", "assets/NPC_FLEE.png");
         // Square head-and-shoulders crops normalize the differently sized source sprites.
-        cachePortrait(loaded, "MARTY", "MARTY_PORTRAIT", 0.165, 0, 0.660);
-        cachePortrait(loaded, "JUSTAS", "JUSTAS_PORTRAIT", 0.280, 0.026, 0.391);
-        cachePortrait(loaded, "JURGIS", "JURGIS_PORTRAIT", 0.147, 0, 0.697);
-        cachePortrait(loaded, "GUOG", "GUOG_PORTRAIT", 0.376, 0, 0.254);
+        cachePortrait(loaded, "PATASIJUS", "PATASIJUS_PORTRAIT", 0.165, 0, 0.660);
+        cachePortrait(loaded, "VACIJUS", "VACIJUS_PORTRAIT", 0.280, 0.026, 0.391);
+        cachePortrait(loaded, "JURGELINIS", "JURGELINIS_PORTRAIT", 0.147, 0, 0.697);
+        cachePortrait(loaded, "GOGIS", "GOGIS_PORTRAIT", 0.376, 0, 0.254);
         images = Map.copyOf(loaded);
     }
 
