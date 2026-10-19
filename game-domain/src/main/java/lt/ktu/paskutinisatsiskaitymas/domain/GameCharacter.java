@@ -10,6 +10,7 @@ public final class GameCharacter {
     private final UUID id;
     private final Player player;
     private final int slot;
+    private final CharacterType characterType;
     private final Position spawn;
     private double x;
     private double y;
@@ -29,17 +30,18 @@ public final class GameCharacter {
     private double rangedCooldownRemaining;
     private double meleeCooldownRemaining;
 
-    GameCharacter(UUID id, Player player, int slot, Position spawn, boolean grounded) {
+    GameCharacter(UUID id, Player player, int slot, Position spawn, boolean grounded, CharacterType characterType) {
         this.id = Objects.requireNonNull(id, "id");
         this.player = Objects.requireNonNull(player, "player");
         this.slot = slot;
+        this.characterType = Objects.requireNonNull(characterType, "characterType");
         this.spawn = Objects.requireNonNull(spawn, "spawn");
         this.facing = slot % 2 == 0 ? 1 : -1;
         this.x = spawn.x();
         this.y = spawn.y();
         this.grounded = grounded;
     }
-
+    
     void advance(MovementInput input, Arena arena, double seconds) {
         Objects.requireNonNull(input, "input");
         Objects.requireNonNull(arena, "arena");
@@ -223,7 +225,7 @@ public final class GameCharacter {
 
     GameCharacterState state() {
         return new GameCharacterState(player.id(), slot, player.nickname(), x, y,
-                velocityX, velocityY, grounded, shielded, health,stressLevel);
+                velocityX, velocityY, grounded, shielded, health,stressLevel, characterType);
     }
 
     UUID id() {
@@ -244,6 +246,10 @@ public final class GameCharacter {
 
     double y() {
         return y;
+    }
+    
+    CharacterType characterType() {
+        return characterType;
     }
 
     private static double clamp(double value, double minimum, double maximum) {

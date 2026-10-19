@@ -46,7 +46,7 @@ class GameSessionPhysicsTest {
                 GameConstants.GROUND_WIDTH, GameConstants.GROUND_HEIGHT);
         GameSession session = new GameSession(UUID.randomUUID(), new Arena("Ground only",
                 GameConstants.ARENA_WIDTH, GameConstants.ARENA_HEIGHT, List.of(ground)));
-        session.addPlayer(new Player(firstId, "First"), 0);
+        session.addPlayer(new Player(firstId, "First"), 0, CharacterType.values()[0]);
         session.advance(Map.of(firstId, new MovementInput(false, false, true)), GameConstants.TICK_SECONDS);
         for (int tick = 0; tick < GameConstants.TICK_RATE * 3; tick++) {
             session.advance(Map.of(), GameConstants.TICK_SECONDS);
@@ -72,7 +72,7 @@ class GameSessionPhysicsTest {
     void updatesTwoPlayersIndependently() {
         GameSession session = sessionWithFirstPlayer();
         UUID secondId = UUID.randomUUID();
-        session.addPlayer(new Player(secondId, "Second"), 1);
+        session.addPlayer(new Player(secondId, "Second"), 1, CharacterType.values()[0]);
         double firstStart = state(session, firstId).x();
         double secondStart = state(session, secondId).x();
 
@@ -88,7 +88,7 @@ class GameSessionPhysicsTest {
         UUID[] ids = new UUID[4];
         for (int slot = 0; slot < 4; slot++) {
             ids[slot] = UUID.randomUUID();
-            session.addPlayer(new Player(ids[slot], "Player " + slot), slot);
+            session.addPlayer(new Player(ids[slot], "Player " + slot), slot, CharacterType.values()[0]);
         }
         assertEquals(GameConstants.FIRST_SPAWN_X, state(session, ids[0]).x());
         assertEquals(GameConstants.SECOND_SPAWN_X, state(session, ids[1]).x());
@@ -107,7 +107,7 @@ class GameSessionPhysicsTest {
                         || npc.state().preciseX() + npc.state().width() <= character.x());
             }
         }
-        assertThrows(IllegalStateException.class, () -> session.addPlayer(new Player(UUID.randomUUID(), "Fifth"), 0));
+        assertThrows(IllegalStateException.class, () -> session.addPlayer(new Player(UUID.randomUUID(), "Fifth"), 0, CharacterType.values()[0]));
         session.advance(Map.of(ids[0], new MovementInput(false, true, false),
                 ids[1], new MovementInput(true, false, false), ids[2], new MovementInput(false, false, true)),
                 GameConstants.TICK_SECONDS);
@@ -119,13 +119,13 @@ class GameSessionPhysicsTest {
         for (int invalid : new int[]{-1, 4}) {
             assertThrows(IllegalArgumentException.class, () -> GameConstants.spawnX(invalid));
             GameSession empty = GameSession.createDefault();
-            assertThrows(IllegalArgumentException.class, () -> empty.addPlayer(new Player(UUID.randomUUID(), "Invalid"), invalid));
+            assertThrows(IllegalArgumentException.class, () -> empty.addPlayer(new Player(UUID.randomUUID(), "Invalid"), invalid, CharacterType.values()[0]));
         }
     }
 
     private GameSession sessionWithFirstPlayer() {
         GameSession session = GameSession.createDefault();
-        session.addPlayer(new Player(firstId, "First"), 0);
+        session.addPlayer(new Player(firstId, "First"), 0, CharacterType.values()[0]);
         return session;
     }
 

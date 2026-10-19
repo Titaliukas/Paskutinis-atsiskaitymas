@@ -87,6 +87,22 @@ class GameWebSocketServerTest {
     }
 
     @Test
+    void playersCanChooseTheSameCharacterAndSnapshotsKeepTheirChoice() throws Exception {
+        Peer first = connect("/game");
+        Peer second = connect("/game");
+        first.send(new Hello("First", "JUSTAS"));
+        second.send(new Hello("Second", "JUSTAS"));
+        first.receive(Welcome.class, value -> value.nickname().equals("First"));
+        second.receive(Welcome.class, value -> value.nickname().equals("Second"));
+
+        WorldSnapshot snapshot = first.receive(WorldSnapshot.class,
+                value -> value.players().size() == 2
+                        && value.players().stream().allMatch(player -> "JUSTAS".equals(player.character())));
+
+        assertEquals(2, snapshot.players().size());
+    }
+
+    @Test
     void fourPlayersReceiveUniqueSlotsAndMoveIndependently() throws Exception {
         List<Peer> players = new ArrayList<>();
         List<Welcome> welcomes = new ArrayList<>();
@@ -187,7 +203,8 @@ class GameWebSocketServerTest {
     void reassemblesFragmentedJoinAndRejectsWrongPathAndBinary() throws Exception {
         Peer fragmented = connect("/game");
         fragmented.socket.sendText("{\"type\":\"HELLO\",", false).get(5, TimeUnit.SECONDS);
-        fragmented.socket.sendText("\"nickname\":\"Fragmented\"}", true).get(5, TimeUnit.SECONDS);
+        fragmented.socket.sendText("\"nickname\":\"Fragmented\",\"character\":\"MARTY\"}", true)
+                .get(5, TimeUnit.SECONDS);
         assertEquals("Fragmented", fragmented.receive(Welcome.class, value -> true).nickname());
 
         Peer wrongPath = connect("/other");

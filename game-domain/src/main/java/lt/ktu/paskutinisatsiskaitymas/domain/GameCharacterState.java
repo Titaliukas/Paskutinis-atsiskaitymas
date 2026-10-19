@@ -15,9 +15,11 @@ public record GameCharacterState(
         boolean grounded,
         boolean shielded,
         int health,
-        double stressLevel) {
+        double stressLevel,
+        CharacterType characterType) {
     public GameCharacterState {
         Objects.requireNonNull(playerId, "playerId");
         Objects.requireNonNull(nickname, "nickname");
+        Objects.requireNonNull(characterType, "characterType");
     }
 }

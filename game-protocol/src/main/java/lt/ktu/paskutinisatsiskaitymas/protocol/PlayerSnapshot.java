@@ -17,7 +17,8 @@ public record PlayerSnapshot(
         double velocityX,
         int health,
         int maxHealth,
-        double stressLevel) {
+        double stressLevel,
+        String character) {
     public PlayerSnapshot {
         Objects.requireNonNull(playerId, "playerId");
         if (slot < 0 || slot > 3) {
@@ -32,8 +33,9 @@ public record PlayerSnapshot(
         if (maxHealth < 1 || health < 0 || health > maxHealth) {
             throw new IllegalArgumentException("Health must be between 0 and maxHealth");
         }
-            if (WireNumbers.finite(stressLevel, "stressLevel") < 0) {
+        if (WireNumbers.finite(stressLevel, "stressLevel") < 0) {
             throw new IllegalArgumentException("Stress cannot be negative");
         }
+        character = WireText.require(character, "character", 32);
     }
 }

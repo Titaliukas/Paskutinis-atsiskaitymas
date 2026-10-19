@@ -24,7 +24,7 @@ class JsonMessageCodecTest {
                 new InputState(7, true, false, true, true, true),
                 new WorldSnapshot(42,
                         new ArenaSnapshot(960, 540, List.of(new PlatformSnapshot(0, 480, 960, 60))),
-                        List.of(new PlayerSnapshot(PLAYER_ID, 0, "Player", 180, 416, 42, 64, true, false, 0, 80, 100, 20)),
+                        List.of(new PlayerSnapshot(PLAYER_ID, 0, "Player", 180, 416, 42, 64, true, false, 0, 80, 100, 20, "WARRIOR")),
                         List.of(new ItemSnapshot(PLAYER_ID, "SPEED_BOOST", 300, 400)),
                         List.of(new NPCSnapshot(1, 350.25, 416, 42, 64, "FLEE", true, 7)),
                         List.of(new AttackSnapshot(CONNECTION_ID, "RANGED", 300, 440, 16, 16))),
@@ -39,9 +39,9 @@ class JsonMessageCodecTest {
 
     @Test
     void usesStableWireNamesWithoutJavaClassNames() throws Exception {
-        assertEquals("{\"type\":\"HELLO\",\"nickname\":\"Player\"}", codec.encode(new Hello("Player")));
+        assertEquals("{\"type\":\"HELLO\",\"nickname\":\"Player\",\"character\":\"MARTY\"}", codec.encode(new Hello("Player")));
         assertEquals(new Ping("a"), codec.decode("{\"type\":\"PING\",\"requestId\":\"a\"}"));
-        assertTrue(codec.encode(new InputState(0, false, true, false, false, false)).startsWith("{\"type\":\"INPUT\""));
+        assertTrue(codec.encode(new InputState(0, false, true, false, false, false)).contains("\"type\":\"INPUT\""));
         assertFalse(codec.encode(messages().toList().get(5)).contains("lt.ktu"));
     }
 
@@ -74,7 +74,7 @@ class JsonMessageCodecTest {
     void roundTripsFourPlayersAndNewSlotsWithoutChangingWireFields() throws Exception {
         var players = IntStream.range(0, 4)
                 .mapToObj(slot -> new PlayerSnapshot(UUID.randomUUID(), slot, "Player " + slot,
-                        60 + slot * 200, 416, 42, 64, true, false, 0, 100, 100, 120 + slot * 0.5)).toList();
+                        60 + slot * 200, 416, 42, 64, true, false, 0, 100, 100, 120 + slot * 0.5, "WARRIOR")).toList();
         WorldSnapshot snapshot = new WorldSnapshot(1, new ArenaSnapshot(960, 540, List.of()),
                 players, List.of(), List.of(), List.of());
         assertEquals(snapshot, codec.decode(codec.encode(snapshot)));
@@ -85,7 +85,7 @@ class JsonMessageCodecTest {
         for (int slot : new int[]{-1, 4}) {
             assertThrows(IllegalArgumentException.class, () -> new Welcome(CONNECTION_ID, PLAYER_ID, slot, "Player"));
             assertThrows(IllegalArgumentException.class, () -> new PlayerSnapshot(PLAYER_ID, slot, "Player",
-                    0, 0, 42, 64, true, false, 0, 100, 100, 0));
+                    0, 0, 42, 64, true, false, 0, 100, 100, 0, "WARRIOR"));
             String invalid = codec.encode(new Welcome(CONNECTION_ID, PLAYER_ID, 0, "Player"))
                     .replace("\"slot\":0", "\"slot\":" + slot);
             assertThrows(ProtocolException.class, () -> codec.decode(invalid));
@@ -99,11 +99,11 @@ class JsonMessageCodecTest {
     @Test
     void rejectsInvalidPlayerHealth() {
         assertThrows(IllegalArgumentException.class, () -> new PlayerSnapshot(
-                PLAYER_ID, 0, "Player", 0, 0, 42, 64, true, false, 0, 101, 100, 0));
+                PLAYER_ID, 0, "Player", 0, 0, 42, 64, true, false, 0, 101, 100, 0, "WARRIOR"));
         assertThrows(IllegalArgumentException.class, () -> new PlayerSnapshot(
-                PLAYER_ID, 0, "Player", 0, 0, 42, 64, true, false, 0, -1, 100, 0));
+                PLAYER_ID, 0, "Player", 0, 0, 42, 64, true, false, 0, -1, 100, 0, "WARRIOR"));
         assertThrows(IllegalArgumentException.class, () -> new PlayerSnapshot(
-                PLAYER_ID, 0, "Player", 0, 0, 42, 64, true, false, 0, 0, 0, 0));
+                PLAYER_ID, 0, "Player", 0, 0, 42, 64, true, false, 0, 0, 0, 0, "WARRIOR"));
     }
 
     @Test
@@ -112,7 +112,7 @@ class JsonMessageCodecTest {
         assertThrows(IllegalArgumentException.class, () -> new Hello("x".repeat(33)));
         assertThrows(IllegalArgumentException.class, () -> new Welcome(CONNECTION_ID, PLAYER_ID, 4, "Player"));
         assertThrows(IllegalArgumentException.class, () -> new PlayerSnapshot(
-                PLAYER_ID, 0, "Player", 0, 0, -1, 64, false, false, 0, 100, 100, 0));
+                PLAYER_ID, 0, "Player", 0, 0, -1, 64, false, false, 0, 100, 100, 0, "WARRIOR"));
         assertThrows(ProtocolException.class, () -> codec.encode(null));
     }
 }

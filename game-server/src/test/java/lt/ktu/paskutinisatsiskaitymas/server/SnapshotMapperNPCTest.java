@@ -3,6 +3,7 @@ package lt.ktu.paskutinisatsiskaitymas.server;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.UUID;
+import lt.ktu.paskutinisatsiskaitymas.domain.CharacterType;
 import lt.ktu.paskutinisatsiskaitymas.domain.GameConstants;
 import lt.ktu.paskutinisatsiskaitymas.domain.GameSession;
 import lt.ktu.paskutinisatsiskaitymas.domain.NPCActivity;
@@ -16,7 +17,7 @@ class SnapshotMapperNPCTest {
     void mapsAllRealActivitiesAndAttackSequenceAtTwentyHzWithoutLeakingMutableState() throws Exception {
         GameSession session = GameSession.createDefault();
         session.removeNPC(2);
-        session.addPlayer(new Player(UUID.randomUUID(), "Player"), 0);
+        session.addPlayer(new Player(UUID.randomUUID(), "Player"), 0, CharacterType.values()[0]);
         var initial = SnapshotMapper.map(0, session);
         EnumSet<NPCActivity> seen = EnumSet.noneOf(NPCActivity.class);
         JsonMessageCodec codec = new JsonMessageCodec();

@@ -12,6 +12,7 @@ import java.util.UUID;
 import javax.imageio.ImageIO;
 import javax.swing.SwingUtilities;
 import lt.ktu.paskutinisatsiskaitymas.protocol.ArenaSnapshot;
+import lt.ktu.paskutinisatsiskaitymas.protocol.Hello;
 import lt.ktu.paskutinisatsiskaitymas.protocol.NPCSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.PlatformSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.PlayerSnapshot;
@@ -39,7 +40,8 @@ class GamePanelHUDTest {
                     100.0, // health
                     0,     // score
                     1,     // level
-                    slot == 0 ? firstStress : slot * 20.0 // stress
+                    slot == 0 ? firstStress : slot * 20.0, // stress
+                    Hello.CHARACTERS.get(slot)
             ));
         }
         return players;

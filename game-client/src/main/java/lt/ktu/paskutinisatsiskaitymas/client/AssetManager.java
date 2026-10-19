@@ -26,8 +26,11 @@ public final class AssetManager {
         load(loaded, "NPC_CHASE", "assets/NPC_CHASE.png");
         load(loaded, "NPC_ATTACK", "assets/NPC_ATTACK.png");
         load(loaded, "NPC_FLEE", "assets/NPC_FLEE.png");
-        // MARTY is also the world-player sprite. Portrait framing is presentation metadata only.
-        cachePortrait(loaded, "MARTY", "MARTY_PORTRAIT", 0.28);
+        // Square head-and-shoulders crops normalize the differently sized source sprites.
+        cachePortrait(loaded, "MARTY", "MARTY_PORTRAIT", 0.165, 0, 0.660);
+        cachePortrait(loaded, "JUSTAS", "JUSTAS_PORTRAIT", 0.280, 0.026, 0.391);
+        cachePortrait(loaded, "JURGIS", "JURGIS_PORTRAIT", 0.147, 0, 0.697);
+        cachePortrait(loaded, "GUOG", "GUOG_PORTRAIT", 0.376, 0, 0.254);
         images = Map.copyOf(loaded);
     }
 
@@ -41,30 +44,17 @@ public final class AssetManager {
         return images.get(key);
     }
 
-    /** Crop MARTY's head/shoulders once, relative to its nontransparent bounds; never crop during painting. */
+    /** Crop a normalized square portrait once; never crop during painting. */
     private static void cachePortrait(Map<String, Image> loaded, String sourceKey, String portraitKey,
-            double upperFraction) {
+            double leftFraction, double topFraction, double sizeFraction) {
         if (!(loaded.get(sourceKey) instanceof BufferedImage source)) {
             return;
         }
-        int left = source.getWidth();
-        int top = source.getHeight();
-        int right = -1;
-        int bottom = -1;
-        for (int y = 0; y < source.getHeight(); y++) {
-            for (int x = 0; x < source.getWidth(); x++) {
-                if ((source.getRGB(x, y) >>> 24) != 0) {
-                    left = Math.min(left, x);
-                    top = Math.min(top, y);
-                    right = Math.max(right, x);
-                    bottom = Math.max(bottom, y);
-                }
-            }
-        }
-        if (right >= left && bottom >= top) {
-            int height = Math.max(1, (int) Math.round((bottom - top + 1) * upperFraction));
-            loaded.put(portraitKey, source.getSubimage(left, top, right - left + 1, height));
-        }
+        int unit = Math.min(source.getWidth(), source.getHeight());
+        int size = Math.max(1, (int) Math.round(unit * sizeFraction));
+        int left = (int) Math.round(unit * leftFraction);
+        int top = (int) Math.round(unit * topFraction);
+        loaded.put(portraitKey, source.getSubimage(left, top, size, size));
     }
 
     private static void load(Map<String, Image> loaded, String key, String resourcePath) {

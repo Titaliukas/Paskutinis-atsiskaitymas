@@ -8,11 +8,13 @@ import java.awt.event.WindowEvent;
 import java.net.URI;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
+import lt.ktu.paskutinisatsiskaitymas.protocol.Hello;
 import lt.ktu.paskutinisatsiskaitymas.protocol.Welcome;
 import lt.ktu.paskutinisatsiskaitymas.protocol.WorldSnapshot;
 
@@ -20,6 +22,7 @@ import lt.ktu.paskutinisatsiskaitymas.protocol.WorldSnapshot;
 final class ConnectionWindow extends JFrame {
     private final JTextField address;
     private final JTextField nickname;
+    private final JComboBox<String> character = new JComboBox<>(Hello.CHARACTERS.toArray(String[]::new));
     private final JButton connect = new JButton("Connect");
     private final JButton disconnect = new JButton("Disconnect");
     private final JLabel status = new JLabel("Disconnected");
@@ -54,11 +57,13 @@ final class ConnectionWindow extends JFrame {
         connection.addObserver(new NotificationObserver(gamePanel));
         address = new JTextField(initialAddress, 28);
         nickname = new JTextField(initialNickname, 28);
-        JPanel fields = new JPanel(new GridLayout(2, 2, 8, 6));
+        JPanel fields = new JPanel(new GridLayout(3, 2, 8, 6));
         fields.add(new JLabel("Server address"));
         fields.add(address);
         fields.add(new JLabel("Player nickname"));
         fields.add(nickname);
+        fields.add(new JLabel("Character"));
+        fields.add(character);
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         buttons.add(connect);
         buttons.add(disconnect);
@@ -74,7 +79,9 @@ final class ConnectionWindow extends JFrame {
         disconnect.setEnabled(false);
         connect.addActionListener(event -> {
             try {
-                connection.connect(URI.create(address.getText().trim()), nickname.getText().trim());
+                String selectedCharacter = character.getItemAt(character.getSelectedIndex());
+                connection.connect(URI.create(address.getText().trim()), nickname.getText().trim(),
+                        selectedCharacter);
             } catch (IllegalArgumentException exception) {
                 showStatus(new ConnectionStatus(ConnectionStatus.State.ERROR, exception.getMessage()));
             }
@@ -102,6 +109,7 @@ final class ConnectionWindow extends JFrame {
         nickname.setEnabled(!active);
         connect.setEnabled(!active);
         disconnect.setEnabled(active);
+        character.setEnabled(!active);
         // A server-provided nickname must not be interpreted as Swing HTML.
         status.putClientProperty("html.disable", Boolean.TRUE);
         status.setText(update.detail());

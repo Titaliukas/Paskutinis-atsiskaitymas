@@ -25,7 +25,7 @@ final class SnapshotMapper {
                         character.x(), character.y(), GameConstants.PLAYER_WIDTH,
                         GameConstants.PLAYER_HEIGHT, character.grounded(), character.shielded(),
                         character.velocityX(), character.health(), GameConstants.MAX_HEALTH,
-                        character.stressLevel()))
+                        character.stressLevel(), character.characterType().name()))
                 .toList();
         var items = session.activeItems().stream()
                 .map(item -> new ItemSnapshot(item.id(), item.type().name(),
