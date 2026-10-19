@@ -11,7 +11,7 @@ final class JurgelinisProjectile implements ProjectileRenderer {
     private static final Color FILL = new Color(90, 200, 110);
 
     @Override
-    public void draw(Graphics2D g, Rectangle2D bounds) {
+    public void draw(Graphics2D g, Rectangle2D bounds, boolean facesRight) {
         double grow = bounds.getWidth() / 3;
         g.setColor(HALO);
         g.fill(new Ellipse2D.Double(bounds.getX() - grow, bounds.getY() - grow,

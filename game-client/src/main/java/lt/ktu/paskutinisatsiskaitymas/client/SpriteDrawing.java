@@ -23,6 +23,12 @@ final class SpriteDrawing {
         }
     }
 
+    /** Draws a square sprite of the given screen size centred on the bounds, so pixel art keeps its proportions. */
+    static void drawCentered(Graphics2D g, Image image, Rectangle2D bounds, double size, boolean facesRight) {
+        draw(g, image, new Rectangle2D.Double(bounds.getCenterX() - size / 2, bounds.getCenterY() - size / 2,
+                size, size), facesRight);
+    }
+
     /** Draws the character sprite, or a plain rectangle in the character colour when the image is missing. */
     static void drawOrFill(Graphics2D g, String assetKey, Rectangle2D bounds, boolean facesRight, Color fallback) {
         Image image = AssetManager.getInstance().getImage(assetKey);

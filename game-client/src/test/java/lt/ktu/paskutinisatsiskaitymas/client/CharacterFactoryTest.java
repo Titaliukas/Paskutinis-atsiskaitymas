@@ -66,8 +66,10 @@ class CharacterFactoryTest {
                 assertDoesNotThrow(() -> {
                     skin.body().draw(g, bounds, true);
                     skin.body().draw(g, bounds, false);
-                    skin.projectile().draw(g, new Rectangle2D.Double(10, 10, 16, 16));
-                    skin.melee().draw(g, bounds);
+                    skin.projectile().draw(g, new Rectangle2D.Double(10, 10, 16, 16), true);
+                    skin.projectile().draw(g, new Rectangle2D.Double(10, 10, 16, 16), false);
+                    skin.melee().draw(g, bounds, true);
+                    skin.melee().draw(g, bounds, false);
                 }, character);
             } finally {
                 g.dispose();

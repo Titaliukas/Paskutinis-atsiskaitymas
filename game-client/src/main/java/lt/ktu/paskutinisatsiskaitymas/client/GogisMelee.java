@@ -12,7 +12,7 @@ final class GogisMelee implements MeleeRenderer {
     private static final Color EDGE = new Color(170, 90, 230);
 
     @Override
-    public void draw(Graphics2D g, Rectangle2D bounds) {
+    public void draw(Graphics2D g, Rectangle2D bounds, boolean facesRight) {
         Graphics2D box = (Graphics2D) g.create();
         try {
             RoundRectangle2D shape = new RoundRectangle2D.Double(bounds.getX(), bounds.getY(),

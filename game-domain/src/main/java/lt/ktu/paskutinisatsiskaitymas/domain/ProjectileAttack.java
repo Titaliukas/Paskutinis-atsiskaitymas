@@ -44,6 +44,7 @@ public final class ProjectileAttack extends Attack {
     @Override
     AttackState state() {
         double r = GameConstants.PROJECTILE_RADIUS;
-        return new AttackState(id(), sourceId(), AttackType.RANGED, x - r, y - r, 2 * r, 2 * r);
+        return new AttackState(id(), sourceId(), AttackType.RANGED, direction(),
+                x - r, y - r, 2 * r, 2 * r);
     }
 }
