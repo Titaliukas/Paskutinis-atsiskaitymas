@@ -184,7 +184,11 @@ a `BodyRenderer`, a `ProjectileRenderer` and a `MeleeRenderer`. `PatasijusFactor
 character name to its factory, and `CharacterSkin.from` builds the whole family at once so a player's body, projectile
 and melee swing always match. `GamePanel` depends only on the interfaces. Attack snapshots carry the attacker's
 `sourceId`, which `GamePanel` resolves to that player's character; unknown characters and attacks whose player has
-left keep the primitive-shape fallback. Presentation only: no game rule depends on the skin.
+left keep the primitive-shape fallback. They also carry the attack's `direction` (-1 left, 1 right), which every
+renderer receives as `facesRight`; sprite art faces right and is mirrored for leftward attacks. Patasijus uses
+32x32 sprites for both attacks, Vacijus for both attacks and Gogis for his projectile; the remaining attacks still
+use drawn shapes.
+Presentation only: no game rule depends on the skin.
 
 The server binds `0.0.0.0`. Its shutdown hook closes WebSocket connections and then terminates the scheduler;
 tests verify the loop worker does not remain alive. Client disconnect cancels pending work, clears input/UI state,

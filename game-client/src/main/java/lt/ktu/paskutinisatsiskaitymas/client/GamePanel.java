@@ -192,15 +192,16 @@ final class GamePanel extends JPanel {
                 attack.width() * scale,
                 attack.height() * scale);
         boolean ranged = "RANGED".equals(attack.type());
+        boolean facesRight = attack.direction() > 0;
         CharacterSkin skin = snapshot.players().stream()
                 .filter(player -> player.playerId().equals(attack.sourceId()))
                 .findFirst()
                 .map(player -> skinFor(player.character()))
                 .orElse(null);
         if (skin != null && ranged) {
-            skin.projectile().draw(g, bounds);
+            skin.projectile().draw(g, bounds, facesRight);
         } else if (skin != null) {
-            skin.melee().draw(g, bounds);
+            skin.melee().draw(g, bounds, facesRight);
         } else if (ranged) {
             g.setColor(PROJECTILE);
             g.fill(new Ellipse2D.Double(bounds.getX(), bounds.getY(), bounds.getWidth(), bounds.getHeight()));

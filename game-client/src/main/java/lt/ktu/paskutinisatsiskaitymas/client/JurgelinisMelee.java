@@ -12,7 +12,7 @@ final class JurgelinisMelee implements MeleeRenderer {
     private static final Color SLASH = new Color(90, 200, 110);
 
     @Override
-    public void draw(Graphics2D g, Rectangle2D bounds) {
+    public void draw(Graphics2D g, Rectangle2D bounds, boolean facesRight) {
         Graphics2D slash = (Graphics2D) g.create();
         try {
             slash.setColor(AREA);
