@@ -41,6 +41,7 @@ final class GamePanel extends JPanel {
     private static final Color HEALTH_BACK = new Color(40, 40, 40, 200);
     private static final Color HEALTH_FILL = new Color(90, 220, 110);
     private final Map<UUID, Boolean> facingRight = new HashMap<>();
+    private final Map<String, CharacterSkin> skins = new HashMap<>();
     private final AssetManager assets = AssetManager.getInstance();
     private WorldSnapshot snapshot;
     private UUID localPlayerId;
@@ -166,9 +167,9 @@ final class GamePanel extends JPanel {
         }
         boolean facesRight = facingRight.getOrDefault(player.playerId(), true);
 
-        Image characterIcon = assets.getImage(player.character());
-        if (characterIcon != null) {
-            drawCharacterImage(g, characterIcon, body, facesRight);
+        CharacterSkin skin = skinFor(player.character());
+        if (skin != null) {
+            skin.body().draw(g, body, facesRight);
         } else {
             g.setColor(PLAYER_COLORS[player.slot()]);
             g.fill(body);
@@ -183,18 +184,37 @@ final class GamePanel extends JPanel {
         drawHealthBar(g, body, player.health(), player.maxHealth());
         }
 
+    /** The attacker's skin draws the attack; attacks from departed or unknown characters keep the plain shapes. */
     private void drawAttack(Graphics2D g, AttackSnapshot attack, double scale, double offsetX, double offsetY) {
-        double x = offsetX + attack.x() * scale;
-        double y = offsetY + attack.y() * scale;
-        double width = attack.width() * scale;
-        double height = attack.height() * scale;
-        if ("RANGED".equals(attack.type())) {
+        Rectangle2D bounds = new Rectangle2D.Double(
+                offsetX + attack.x() * scale,
+                offsetY + attack.y() * scale,
+                attack.width() * scale,
+                attack.height() * scale);
+        boolean ranged = "RANGED".equals(attack.type());
+        boolean facesRight = attack.direction() > 0;
+        CharacterSkin skin = snapshot.players().stream()
+                .filter(player -> player.playerId().equals(attack.sourceId()))
+                .findFirst()
+                .map(player -> skinFor(player.character()))
+                .orElse(null);
+        if (skin != null && ranged) {
+            skin.projectile().draw(g, bounds, facesRight);
+        } else if (skin != null) {
+            skin.melee().draw(g, bounds, facesRight);
+        } else if (ranged) {
             g.setColor(PROJECTILE);
-            g.fill(new Ellipse2D.Double(x, y, width, height));
+            g.fill(new Ellipse2D.Double(bounds.getX(), bounds.getY(), bounds.getWidth(), bounds.getHeight()));
         } else {
             g.setColor(MELEE_SWING);
-            g.fill(new Rectangle2D.Double(x, y, width, height));
+            g.fill(bounds);
         }
+    }
+
+    /** Builds each character's renderer family once, from that character's factory; null for unknown names. */
+    private CharacterSkin skinFor(String character) {
+        CharacterFactory factory = CharacterFactories.forCharacter(character);
+        return factory == null ? null : skins.computeIfAbsent(character, name -> CharacterSkin.from(factory));
     }
 
     private void drawHealthBar(Graphics2D g, Rectangle2D body, int health, int maxHealth) {
@@ -318,17 +338,7 @@ final class GamePanel extends JPanel {
     }
 
     private void drawCharacterImage(Graphics2D g, Image icon, Rectangle2D body, boolean facesRight) {
-        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-        int x = (int) Math.round(body.getX());
-        int y = (int) Math.round(body.getY());
-        int width = (int) Math.round(body.getWidth());
-        int height = (int) Math.round(body.getHeight());
-
-        if (facesRight) {
-            g.drawImage(icon, x, y, width, height, null);
-        } else {
-            g.drawImage(icon, x + width, y, -width, height, null);
-        }
+        SpriteDrawing.draw(g, icon, body, facesRight);
     }
 
     private void drawShieldIconAboveHead(Graphics2D g, Rectangle2D body, double scale, boolean facesRight) {

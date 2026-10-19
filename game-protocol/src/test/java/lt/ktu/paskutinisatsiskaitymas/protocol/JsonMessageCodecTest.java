@@ -27,7 +27,7 @@ class JsonMessageCodecTest {
                         List.of(new PlayerSnapshot(PLAYER_ID, 0, "Player", 180, 416, 42, 64, true, false, 0, 80, 100, 20, "WARRIOR")),
                         List.of(new ItemSnapshot(PLAYER_ID, "SPEED_BOOST", 300, 400)),
                         List.of(new NPCSnapshot(1, 350.25, 416, 42, 64, "FLEE", true, 7)),
-                        List.of(new AttackSnapshot(CONNECTION_ID, "RANGED", 300, 440, 16, 16))),
+                        List.of(new AttackSnapshot(CONNECTION_ID, PLAYER_ID, "RANGED", 1, 300, 440, 16, 16))),
                 new ErrorMessage("INVALID_MESSAGE", "Invalid message"));
     }
 
@@ -43,6 +43,20 @@ class JsonMessageCodecTest {
         assertEquals(new Ping("a"), codec.decode("{\"type\":\"PING\",\"requestId\":\"a\"}"));
         assertTrue(codec.encode(new InputState(0, false, true, false, false, false)).contains("\"type\":\"INPUT\""));
         assertFalse(codec.encode(messages().toList().get(5)).contains("lt.ktu"));
+    }
+
+    @Test
+    void attackSnapshotRequiresAttackingPlayer() {
+        assertThrows(NullPointerException.class,
+                () -> new AttackSnapshot(CONNECTION_ID, null, "MELEE", -1, 300, 440, 16, 16));
+    }
+
+    @Test
+    void attackSnapshotRejectsDirectionOtherThanLeftOrRight() {
+        for (int direction : new int[] {0, 2, -2}) {
+            assertThrows(IllegalArgumentException.class,
+                    () -> new AttackSnapshot(CONNECTION_ID, PLAYER_ID, "MELEE", direction, 300, 440, 16, 16));
+        }
     }
 
     @Test

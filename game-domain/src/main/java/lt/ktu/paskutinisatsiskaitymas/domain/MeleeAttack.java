@@ -48,7 +48,7 @@ public final class MeleeAttack extends Attack {
 
     @Override
     AttackState state() {
-        return new AttackState(id(), AttackType.MELEE, left, top,
+        return new AttackState(id(), sourceId(), AttackType.MELEE, direction(), left, top,
                 GameConstants.MELEE_RANGE, GameConstants.PLAYER_HEIGHT);
     }
 }
