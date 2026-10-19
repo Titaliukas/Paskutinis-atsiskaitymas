@@ -5,17 +5,17 @@ import java.util.Optional;
 
 /** Selectable characters. Several players may choose the same one. */
 public enum CharacterType {
-    MARTY(new AttackLoadout(
+    PATASIJUS(new AttackLoadout(
             List.of(new DamageEffect(12)),
             List.of(new KnockbackEffect(GameConstants.MELEE_KNOCKBACK_X, GameConstants.MELEE_KNOCKBACK_Y),
                     new DamageEffect(32)))),
-    JUSTAS(new AttackLoadout(
+    VACIJUS(new AttackLoadout(
             List.of(new DamageEffect(30)),
             List.of(new DamageEffect(12)))),
-    JURGIS(new AttackLoadout(
+    JURGELINIS(new AttackLoadout(
             List.of(new SlowEffect(0.3, 4.0), new DamageEffect(16)),
             List.of(new KnockbackEffect(450, -200), new DamageEffect(16)))),
-    GUOG(new AttackLoadout(
+    GOGIS(new AttackLoadout(
             List.of(new DamageEffect(20), new SlowEffect(0.65, 2.0)),
             List.of(new KnockbackEffect(500, -220), new DamageEffect(22))));
 

@@ -52,7 +52,7 @@ class GameSessionAttackLoadoutTest {
 
     @Test
     void controlCharacterRangedAttackSlowsItsTarget() {
-        GameSession session = sessionWithTwoPlayers(CharacterType.JURGIS);
+        GameSession session = sessionWithTwoPlayers(CharacterType.JURGELINIS);
         UUID sourceId = session.players().getFirst().id();
         UUID targetId = session.players().get(1).id();
 
@@ -67,7 +67,7 @@ class GameSessionAttackLoadoutTest {
 
     @Test
     void meleeSpecialistAttackKnocksItsTargetBack() {
-        GameSession session = sessionWithTwoPlayers(CharacterType.MARTY);
+        GameSession session = sessionWithTwoPlayers(CharacterType.PATASIJUS);
         UUID sourceId = session.players().getFirst().id();
         UUID targetId = session.players().get(1).id();
         double attackPosition = state(session, targetId).x()
@@ -89,7 +89,7 @@ class GameSessionAttackLoadoutTest {
         GameSession session = new GameSession(UUID.randomUUID(), new Arena("Attack test",
                 GameConstants.ARENA_WIDTH, GameConstants.ARENA_HEIGHT, List.of(ground)));
         session.addPlayer(new Player(UUID.randomUUID(), "Source"), 0, sourceType);
-        session.addPlayer(new Player(UUID.randomUUID(), "Target"), 1, CharacterType.MARTY);
+        session.addPlayer(new Player(UUID.randomUUID(), "Target"), 1, CharacterType.PATASIJUS);
         return session;
     }
 

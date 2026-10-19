@@ -32,7 +32,7 @@ final class ConnectionWindow extends JFrame {
 
     ConnectionWindow(String initialAddress, String initialNickname) {
         super("Paskutinis atsiskaitymas — Connection");
-        setIconImage(AssetManager.getInstance().getImage("MARTY"));
+        setIconImage(AssetManager.getInstance().getImage("PATASIJUS"));
         connection = new ClientConnection(new ClientEvents() {
             @Override
             public void onConnectionStatus(ConnectionStatus update) {

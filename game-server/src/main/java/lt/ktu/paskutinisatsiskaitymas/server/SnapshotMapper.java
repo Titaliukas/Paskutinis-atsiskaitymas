@@ -37,7 +37,7 @@ final class SnapshotMapper {
                     view.activity().name(), state.facingRight(), state.attackAttemptSequence());
         }).toList();
         var attacks = session.activeAttacks().stream()
-                .map(attack -> new AttackSnapshot(attack.id(), attack.type().name(),
+                .map(attack -> new AttackSnapshot(attack.id(), attack.sourceId(), attack.type().name(),
                         attack.x(), attack.y(), attack.width(), attack.height()))
                 .toList();
         return new WorldSnapshot(tick, arena, players, items, npcs, attacks);

@@ -11,7 +11,7 @@ public final class NPCStrategyDemo {
     public static void main(String[] args) {
         GameSession session = GameSession.createDefault();
         session.removeNPC(2);
-        session.addPlayer(new Player(UUID.fromString("00000000-0000-0000-0000-000000000001"), "Demo player"), 0, CharacterType.MARTY);
+        session.addPlayer(new Player(UUID.fromString("00000000-0000-0000-0000-000000000001"), "Demo player"), 0, CharacterType.PATASIJUS);
         EnumSet<NPCActivity> seen = EnumSet.noneOf(NPCActivity.class);
         NPCActivity previous = null;
         long lastAttempt = 0;
