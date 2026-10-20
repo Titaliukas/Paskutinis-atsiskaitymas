@@ -1,6 +1,7 @@
 package lt.ktu.paskutinisatsiskaitymas.client;
 
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
 import java.awt.FlowLayout;
 import java.awt.GridLayout;
 import java.awt.event.WindowAdapter;
@@ -8,13 +9,11 @@ import java.awt.event.WindowEvent;
 import java.net.URI;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
-import javax.swing.JComboBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
-import lt.ktu.paskutinisatsiskaitymas.protocol.Hello;
 import lt.ktu.paskutinisatsiskaitymas.protocol.Welcome;
 import lt.ktu.paskutinisatsiskaitymas.protocol.WorldSnapshot;
 
@@ -22,11 +21,16 @@ import lt.ktu.paskutinisatsiskaitymas.protocol.WorldSnapshot;
 final class ConnectionWindow extends JFrame {
     private final JTextField address;
     private final JTextField nickname;
-    private final JComboBox<String> character = new JComboBox<>(Hello.CHARACTERS.toArray(String[]::new));
+    private final CharacterSelectionPanel characterPicker = new CharacterSelectionPanel();
+    private final CharacterSelection selection = new CharacterSelection();
+    private final CommandHistory selectionHistory = new CommandHistory();
+    private final JButton undoSelection = new JButton("Undo selection");
     private final JButton connect = new JButton("Connect");
     private final JButton disconnect = new JButton("Disconnect");
     private final JLabel status = new JLabel("Disconnected");
     private final GamePanel gamePanel = new GamePanel();
+    private final CardLayout screenLayout = new CardLayout();
+    private final JPanel screens = new JPanel(screenLayout);
     private final ClientConnection connection;
     private final InputSource input;
 
@@ -36,12 +40,18 @@ final class ConnectionWindow extends JFrame {
         connection = new ClientConnection(new ClientEvents() {
             @Override
             public void onConnectionStatus(ConnectionStatus update) {
-                SwingUtilities.invokeLater(() -> showStatus(update));
+                if (SwingUtilities.isEventDispatchThread()) {
+                    showStatus(update);
+                } else {
+                    SwingUtilities.invokeLater(() -> showStatus(update));
+                }
             }
 
             @Override
             public void onJoined(Welcome welcome) {
                 SwingUtilities.invokeLater(() -> {
+                    selectionHistory.clear();
+                    updateUndoSelection();
                     gamePanel.setLocalPlayerId(welcome.playerId());
                     gamePanel.requestFocusInWindow();
                 });
@@ -57,14 +67,13 @@ final class ConnectionWindow extends JFrame {
         connection.addObserver(new NotificationObserver(gamePanel));
         address = new JTextField(initialAddress, 28);
         nickname = new JTextField(initialNickname, 28);
-        JPanel fields = new JPanel(new GridLayout(3, 2, 8, 6));
+        JPanel fields = new JPanel(new GridLayout(2, 2, 8, 6));
         fields.add(new JLabel("Server address"));
         fields.add(address);
         fields.add(new JLabel("Player nickname"));
         fields.add(nickname);
-        fields.add(new JLabel("Character"));
-        fields.add(character);
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        buttons.add(undoSelection);
         buttons.add(connect);
         buttons.add(disconnect);
         JPanel form = new JPanel(new BorderLayout(8, 4));
@@ -73,15 +82,29 @@ final class ConnectionWindow extends JFrame {
         JPanel content = new JPanel(new BorderLayout(8, 12));
         content.setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
         content.add(form, BorderLayout.NORTH);
-        content.add(gamePanel, BorderLayout.CENTER);
+        screens.add(characterPicker, "selection");
+        screens.add(gamePanel, "game");
+        content.add(screens, BorderLayout.CENTER);
         content.add(status, BorderLayout.SOUTH);
         setContentPane(content);
         disconnect.setEnabled(false);
+        characterPicker.setSelectedCharacter(selection.selectedCharacter());
+        undoSelection.setEnabled(false);
+        characterPicker.setSelectionListener(selected -> {
+            if (!selection.selectedCharacter().equals(selected)) {
+                selectionHistory.execute(new SelectCharacterCommand(selection, selected));
+                updateUndoSelection();
+            }
+        });
+        undoSelection.addActionListener(event -> {
+            selectionHistory.undo();
+            characterPicker.setSelectedCharacter(selection.selectedCharacter());
+            updateUndoSelection();
+        });
         connect.addActionListener(event -> {
             try {
-                String selectedCharacter = character.getItemAt(character.getSelectedIndex());
                 connection.connect(URI.create(address.getText().trim()), nickname.getText().trim(),
-                        selectedCharacter);
+                        selection.selectedCharacter());
             } catch (IllegalArgumentException exception) {
                 showStatus(new ConnectionStatus(ConnectionStatus.State.ERROR, exception.getMessage()));
             }
@@ -109,7 +132,9 @@ final class ConnectionWindow extends JFrame {
         nickname.setEnabled(!active);
         connect.setEnabled(!active);
         disconnect.setEnabled(active);
-        character.setEnabled(!active);
+        characterPicker.setEnabled(!active);
+        screenLayout.show(screens, update.state() == ConnectionStatus.State.CONNECTED ? "game" : "selection");
+        updateUndoSelection();
         // A server-provided nickname must not be interpreted as Swing HTML.
         status.putClientProperty("html.disable", Boolean.TRUE);
         status.setText(update.detail());
@@ -119,5 +144,9 @@ final class ConnectionWindow extends JFrame {
         } else if (update.state() == ConnectionStatus.State.CONNECTED) {
             gamePanel.requestFocusInWindow();
         }
+    }
+
+    private void updateUndoSelection() {
+        undoSelection.setEnabled(characterPicker.isEnabled() && selectionHistory.canUndo());
     }
 }

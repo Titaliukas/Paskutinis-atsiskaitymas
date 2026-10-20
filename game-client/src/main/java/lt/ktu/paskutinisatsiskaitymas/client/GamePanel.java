@@ -118,7 +118,7 @@ final class GamePanel extends JPanel {
         try {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             if (snapshot == null) {
-                drawCentered(g, "Connect to start", getWidth(), getHeight());
+                drawCentered(g, "Waiting for arena\u2026", getWidth(), getHeight());
                 return;
             }
             double scale = Math.min(getWidth() / snapshot.arena().width(),

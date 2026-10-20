@@ -168,6 +168,29 @@ DTOs and never expose exceptions or domain objects.
 
 ## Lifecycle and deployment
 
+Character selection before joining uses a client-local Command pattern. `UndoableCommand` declares `execute()`
+and `undo()`; `SelectCharacterCommand` captures the previous choice at execution time and restores it on undo.
+`CharacterSelection` is the receiver, initially `Hello.DEFAULT_CHARACTER`, and accepts only `Hello.CHARACTERS`.
+`CommandHistory` is the invoker: it pushes successfully executed commands onto a stack and undoes them in reverse
+order. Empty-history undo is a no-op; clearing history retains the receiver's current choice.
+
+`CharacterSelectionPanel` displays four Swing toggle cards using cached `<CHARACTER>_PORTRAIT` images from
+`AssetManager`. Cards retain standard keyboard activation and show a selection border, a Selected label and a
+keyboard-focus outline. Missing portraits retain a named placeholder. `ConnectionWindow` creates commands for
+actual card changes and provides **Undo selection**. The panel's programmatic selection setter updates the
+highlight without emitting an action, so undo does not create commands. The receiver, history and
+UI are owned by the EDT. Selection and undo are disabled while connecting or connected. Receiving `WELCOME`
+clears history on the EDT and makes the current choice the baseline; validation failures, connection failures and
+cancelled attempts preserve history. Disconnecting allows new changes and undo back to that baseline. History is
+per window and lives only for that window's lifetime. Connect reads the receiver's choice for the existing `HELLO`;
+these commands do not change the server's queued gameplay commands or authoritative state.
+
+A `CardLayout` switches between the picker and the same `GamePanel` instance, preserving its keyboard adapter.
+The picker remains visible and disabled while connecting; a successful connection shows and focuses the game
+panel, which displays Waiting for arena until the first snapshot arrives. Disconnects and errors return to the
+picker. Connection status callbacks already on the EDT update controls immediately; worker callbacks are
+dispatched onto the EDT.
+
 The client uses an `AssetManager` singleton to load bundled character sprites and item icons once per client JVM.
 Startup initializes it before creating the Swing UI. `GamePanel` uses its images for rendering, while
 `ConnectionWindow` uses the same cached `PATASIJUS` image for its window icon. The cache is private and immutable
