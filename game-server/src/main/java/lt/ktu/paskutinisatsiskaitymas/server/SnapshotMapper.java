@@ -9,6 +9,7 @@ import lt.ktu.paskutinisatsiskaitymas.protocol.PlayerSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.WorldSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.ItemSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.NPCSnapshot;
+import lt.ktu.paskutinisatsiskaitymas.protocol.ProjectileSnapshot;
 
 /** Maps loop-owned domain state into detached transport DTOs. */
 final class SnapshotMapper {
@@ -25,7 +26,7 @@ final class SnapshotMapper {
                         character.x(), character.y(), GameConstants.PLAYER_WIDTH,
                         GameConstants.PLAYER_HEIGHT, character.grounded(), character.shielded(),
                         character.velocityX(), character.health(), GameConstants.MAX_HEALTH,
-                        character.stressLevel(), character.characterType().name()))
+                        character.stressLevel(), character.characterType().name(), character.slowed()))
                 .toList();
         var items = session.activeItems().stream()
                 .map(item -> new ItemSnapshot(item.id(), item.type().name(),
@@ -34,12 +35,15 @@ final class SnapshotMapper {
         var npcs = session.npcs().stream().map(view -> {
             var state = view.state();
             return new NPCSnapshot(state.id(), state.preciseX(), state.preciseY(), state.width(), state.height(),
-                    view.activity().name(), state.facingRight(), state.attackAttemptSequence());
+                    view.activity().name(), state.facingRight(), state.attackAttemptSequence(), state.stunned());
         }).toList();
         var attacks = session.activeAttacks().stream()
                 .map(attack -> new AttackSnapshot(attack.id(), attack.sourceId(), attack.type().name(), attack.direction(),
                         attack.x(), attack.y(), attack.width(), attack.height()))
                 .toList();
-        return new WorldSnapshot(tick, arena, players, items, npcs, attacks);
+        var projectiles = session.projectiles().stream().map(state -> new ProjectileSnapshot(state.id(),
+                state.sourceNPCId(), state.type().name(), state.position().x(), state.position().y(),
+                GameConstants.NPC_PROJECTILE_RADIUS, state.velocityX(), state.velocityY(), state.returning())).toList();
+        return new WorldSnapshot(tick, arena, players, items, npcs, attacks, projectiles);
     }
 }

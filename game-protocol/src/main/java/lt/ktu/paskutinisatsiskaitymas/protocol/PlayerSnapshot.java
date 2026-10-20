@@ -18,7 +18,8 @@ public record PlayerSnapshot(
         int health,
         int maxHealth,
         double stressLevel,
-        String character) {
+        String character,
+        boolean slowed) {
     public PlayerSnapshot {
         Objects.requireNonNull(playerId, "playerId");
         if (slot < 0 || slot > 3) {

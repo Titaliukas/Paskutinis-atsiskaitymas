@@ -4,7 +4,7 @@ import java.util.Set;
 
 /** Protocol-only authoritative NPC geometry and presentation facts; activity is a validated wire name. */
 public record NPCSnapshot(int id, double x, double y, double width, double height,
-        String activity, boolean facingRight, long attackAttemptSequence) {
+        String activity, boolean facingRight, long attackAttemptSequence, boolean stunned) {
     private static final Set<String> ACTIVITIES = Set.of("PATROL", "CHASE", "ATTACK", "FLEE");
 
     public NPCSnapshot {

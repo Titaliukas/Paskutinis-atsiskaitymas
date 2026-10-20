@@ -16,6 +16,7 @@ public final class GameSession {
     private final Map<Integer, NPC> NPCs = new LinkedHashMap<>();
     private final Map<Integer, NPCBehaviorController> NPCControllers = new LinkedHashMap<>();
     private final Map<Integer, UUID> targetCharacters = new LinkedHashMap<>();
+    private final Projectiles projectiles = new Projectiles();
     private long nextTargetId = 1;
     private final ItemFactory itemFactory = new ItemFactory();
     private final Map<UUID, Item> activeItems = new LinkedHashMap<>();
@@ -89,6 +90,7 @@ public final class GameSession {
                     .filter(entry -> entry.getValue().equals(removed.id())).map(Map.Entry::getKey)
                     .findFirst().orElseThrow();
             targetCharacters.remove(targetId);
+            projectiles.removeTarget(targetId);
             NPCControllers.values().forEach(controller -> controller.clearTarget(targetId));
             publish(new PlayerLeftEvent(playerId, removed.state().nickname()));
         }
@@ -133,10 +135,14 @@ public final class GameSession {
             if (action.hasAttackRequest()) {
                 controller.onAttackResolved(resolveNPCAction(entry.getKey(), action));
             }
+            if (action.hasThrowRequest()) {
+                resolveNPCThrow(entry.getKey(), action);
+            }
         }
         NPCs.values().removeIf(npc -> !npc.alive());
         NPCControllers.keySet().removeIf(id -> !NPCs.containsKey(id));
         // STRATEGY-REPORT R5 END
+        projectiles.advance(arena, NPCs, List.copyOf(characters.values()), seconds);
     }
 
     /** Adds a matched entity/controller pair on the owner thread; boundaries are left-edge coordinates. */
@@ -166,6 +172,7 @@ public final class GameSession {
             removed.retire();
         }
         NPCControllers.remove(npcId);
+        projectiles.removeSource(npcId);
     }
 
     public List<NPCView> npcs() {
@@ -196,6 +203,7 @@ public final class GameSession {
         // STRATEGY-REPORT R5 BEGIN: Revalidate current geometry and cooldown before any state mutation.
         NPC npc = NPCs.get(npcId);
         if (npc == null || !action.hasAttackRequest() || !npc.state().alive() || !npc.state().attackReady()
+                || npc.state().stunned()
                 || NPCControllers.get(npcId).activity() != NPCActivity.ATTACK
                 || !action.attackTargetId().equals(npc.state().targetId())) {
             return false;
@@ -214,6 +222,31 @@ public final class GameSession {
         return target.takeDamage(npc.attackDamage());
         // STRATEGY-REPORT R5 END
     }
+
+    /** Revalidates chase intent on the owner thread. A full arena still consumes the throw interval. */
+    public boolean resolveNPCThrow(Integer npcId, NPCAction action) {
+        Objects.requireNonNull(action, "action");
+        NPC npc = NPCs.get(npcId);
+        if (npc == null || !action.hasThrowRequest() || !npc.state().alive() || npc.state().stunned()
+                || !npc.state().throwReady() || NPCControllers.get(npcId).activity() != NPCActivity.CHASE
+                || !action.throwTargetId().equals(npc.state().targetId())) {
+            return false;
+        }
+        GameCharacter target = characterForTarget(action.throwTargetId());
+        if (target == null) {
+            return false;
+        }
+        GameCharacterState body = target.state();
+        ProjectileType type = npc.recordThrowAttempt();
+        boolean spawned = projectiles.spawn(npc.state(), new NPCTarget(action.throwTargetId(), body.x(), body.y(),
+                GameConstants.PLAYER_WIDTH, GameConstants.PLAYER_HEIGHT), type);
+        if (spawned) {
+            npc.recordProjectileSpawned();
+        }
+        return spawned;
+    }
+
+    public List<ProjectileState> projectiles() { return projectiles.states(); }
 
     public void spawnItemIfDue(double seconds, Random random) {
         if (!Double.isFinite(seconds) || seconds <= 0) {

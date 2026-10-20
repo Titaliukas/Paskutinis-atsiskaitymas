@@ -27,22 +27,10 @@ class GamePanelHUDTest {
         List<PlayerSnapshot> players = new ArrayList<>();
         String[] names = {"Žaidėjas Su Labai Ilgu Vardu 😎", "Bob", "Charlie", "Dora"};
         for (int slot = 0; slot < 4; slot++) {
-            players.add(new PlayerSnapshot(
-                    ids[slot], 
-                    slot, 
-                    names[slot],
-                    180.0 + slot * 180 + (moved ? 15 : 0), 
-                    moved ? 190.0 : 210.0,
-                    42.0, 
-                    64.0, 
-                    false, 
-                    slot == 1, 
-                    100.0, // health
-                    0,     // score
-                    1,     // level
-                    slot == 0 ? firstStress : slot * 20.0, // stress
-                    Hello.CHARACTERS.get(slot)
-            ));
+            players.add(new PlayerSnapshot(ids[slot], slot, names[slot],
+                    180 + slot * 180 + (moved ? 15 : 0), moved ? 190 : 210,
+                    42, 64, false, slot == 1, moved ? 260 : 0, 100, 100,
+                    slot == 0 ? firstStress : slot * 20, Hello.CHARACTERS.get(slot), false));
         }
         return players;
     }
@@ -50,7 +38,7 @@ class GamePanelHUDTest {
     private WorldSnapshot world(List<PlayerSnapshot> players) {
         return new WorldSnapshot(1, new ArenaSnapshot(960, 540,
                 List.of(new PlatformSnapshot(0, 480, 960, 60))), players, List.of(),
-                List.of(new NPCSnapshot(1, 400, 416, 42, 64, "PATROL", true, 0)), List.of());
+                List.of(new NPCSnapshot(1, 400, 416, 42, 64, "PATROL", true, 0, false)), List.of(), List.of());
     }
 
     private BufferedImage render(GamePanel panel) {

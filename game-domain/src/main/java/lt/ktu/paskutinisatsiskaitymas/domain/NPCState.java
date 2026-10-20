@@ -6,7 +6,7 @@ import java.util.Objects;
 public record NPCState(Integer id, Integer x, Integer y, double width, double height,
         double speed, double velocityX, double velocityY, boolean alive, Integer targetId,
         double attackRange, boolean attackReady, double preciseX, double preciseY,
-        boolean grounded, boolean facingRight, long attackAttemptSequence) {
+        boolean grounded, boolean facingRight, long attackAttemptSequence, boolean throwReady, boolean stunned) {
     public NPCState {
         NPCGeometry.id(Objects.requireNonNull(id, "id"));
         Objects.requireNonNull(x, "x");

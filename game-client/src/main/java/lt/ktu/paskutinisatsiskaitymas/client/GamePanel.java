@@ -20,6 +20,7 @@ import javax.swing.JPanel;
 import lt.ktu.paskutinisatsiskaitymas.protocol.ItemSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.NPCSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.PlayerSnapshot;
+import lt.ktu.paskutinisatsiskaitymas.protocol.ProjectileSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.WorldSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.AttackSnapshot;
 
@@ -147,6 +148,9 @@ final class GamePanel extends JPanel {
             for (AttackSnapshot attack : snapshot.attacks()) {
                 drawAttack(g, attack, scale, offsetX, offsetY);
             }
+            for (ProjectileSnapshot projectile : snapshot.projectiles()) {
+                drawProjectile(g, projectile, scale, offsetX, offsetY);
+            }
             drawPlayerCards(g);
             drawNotification(g);
         } finally {
@@ -181,8 +185,12 @@ final class GamePanel extends JPanel {
         if (player.shielded()) {
             drawShieldIconAboveHead(g, body, scale, facesRight);
         }
-        drawHealthBar(g, body, player.health(), player.maxHealth());
+        if (player.slowed()) {
+            g.setColor(new Color(255, 210, 100));
+            g.drawString("\u22125% speed", (int) body.getX(), (int) body.getMaxY() + 14);
         }
+        drawHealthBar(g, body, player.health(), player.maxHealth());
+    }
 
     /** The attacker's skin draws the attack; attacks from departed or unknown characters keep the plain shapes. */
     private void drawAttack(Graphics2D g, AttackSnapshot attack, double scale, double offsetX, double offsetY) {
@@ -327,7 +335,7 @@ final class GamePanel extends JPanel {
         }
         g.setColor(new Color(150, 240, 175));
         // The label always reports server activity, even during a latched ATTACK image.
-        g.drawString("NPC " + npc.id() + " " + npc.activity(),
+        g.drawString("NPC " + npc.id() + " " + (npc.stunned() ? "STUNNED" : npc.activity()),
                 (int) (offsetX + npc.x() * scale), (int) (offsetY + npc.y() * scale) - 7);
     }
 
@@ -335,6 +343,37 @@ final class GamePanel extends JPanel {
     public void removeNotify() {
         notificationTimer.stop();
         super.removeNotify();
+    }
+
+    private void drawProjectile(Graphics2D graphics, ProjectileSnapshot projectile,
+            double scale, double offsetX, double offsetY) {
+        Graphics2D g = (Graphics2D) graphics.create();
+        try {
+            g.translate(offsetX + projectile.x() * scale, offsetY + projectile.y() * scale);
+            g.rotate(Math.atan2(projectile.velocityY(), projectile.velocityX()));
+            g.scale(scale, scale);
+            if (projectile.projectileType().equals("BOOK")) {
+                g.setColor(new Color(170, 65, 60));
+                g.fillRoundRect(-7, -8, 14, 16, 2, 2);
+                g.setColor(new Color(255, 243, 210));
+                g.fillRect(-4, -5, 9, 11);
+                g.setColor(new Color(110, 42, 40));
+                g.drawLine(-5, -7, -5, 7);
+            } else {
+                g.setColor(new Color(255, 243, 210));
+                g.fillRoundRect(-9, -6, 18, 12, 5, 5);
+                g.setColor(new Color(176, 141, 85));
+                g.drawOval(-9, -6, 4, 12);
+                g.drawOval(5, -6, 4, 12);
+                g.setColor(new Color(190, 55, 55));
+                g.fillRect(-2, -6, 4, 12);
+                g.fillPolygon(new int[]{-2, 0, 3}, new int[]{4, 10, 4}, 3);
+            }
+            g.setColor(projectile.returning() ? Color.CYAN : new Color(25, 25, 35));
+            g.drawRoundRect(-10, -10, 20, 20, 5, 5);
+        } finally {
+            g.dispose();
+        }
     }
 
     private void drawCharacterImage(Graphics2D g, Image icon, Rectangle2D body, boolean facesRight) {

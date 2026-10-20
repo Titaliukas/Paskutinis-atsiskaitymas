@@ -25,7 +25,7 @@ game-server ───> game-protocol
 
 | Module             | Responsibility                                                                              |
 | ------------------ | ------------------------------------------------------------------------------------------- |
-| `game-domain`      | Arena, characters, items/events, NPC strategies/controllers, damage, movement and collision |
+| `game-domain`      | Arena, characters, items/events, NPC strategies/controllers, projectiles, effects, movement and collision |
 | `game-application` | Commands, retained input, bounded queue, match controller, and fixed-step loop              |
 | `game-protocol`    | Validated transport DTOs and JSON codec; no domain entities                                 |
 | `game-server`      | Connections, four player slots, command translation, scheduling, and snapshots              |
@@ -230,7 +230,12 @@ The `/game` endpoint accepts JSON text messages with explicit stable types:
 - `HELLO`: requests one of four slots with a nickname.
 - `WELCOME`: returns connection UUID, server-assigned player UUID, slot, and nickname.
 - `INPUT`: sends a monotonically sequenced complete left/right/jump state, never position or velocity.
-- `WORLD_SNAPSHOT`: broadcasts arena/platform geometry and authoritative players (including stress), items, and NPC geometry/activity/facing/attack sequences at 20 Hz.
+- `WORLD_SNAPSHOT`: broadcasts arena/platform geometry, players (including health, character choice, stress and `slowed`), items,
+  NPC geometry/activity/facing/attack sequences and `stunned`, player `attacks`, and NPC `projectiles`
+  at 20 Hz. Each NPC projectile
+  carries its UUID, source NPC ID, explicit `projectileType` (`BOOK` or `DIPLOMA`), center, radius,
+  velocity and `returning` flag. Client and server must use this same snapshot format; older snapshots
+  missing these fields are rejected.
 - `PING`/`PONG`: application-level liveness round trip.
 - `ERROR`: reports malformed input, wrong direction, missing handshake, capacity, or queue pressure.
 
@@ -253,6 +258,29 @@ authenticated identities.
 - **Fifth client rejected:** only four slots exist. Disconnect one active client and retry.
 - **Docker problem:** run `docker compose ps` and `docker compose logs game-server`; rebuild with
   `docker compose build --no-cache game-server` if necessary.
+
+## NPC projectiles
+
+During CHASE, NPCs keep moving and throw alternating books and diplomas, starting with a book, immediately
+when ready and then at most every 1.2 seconds. Shots aim at the player's position at release and travel
+straight at 360 units/second without homing or gravity. A player hit reduces horizontal movement speed
+by 5% for three seconds. Further hits refresh the timer without stacking. The slowdown multiplies speed
+boosts independently and does not change jumping or stress. Shields absorb projectiles and block new slow
+applications and refreshes; they do not remove an existing slow. The client displays `−5% speed` below slowed players.
+
+The first left/right arena-wall hit replaces the shot with an independent Prototype clone with a new UUID,
+aimed at the thrower's position at that instant. Cyan outlines identify returning shots. These shots pass
+through players and other NPCs; hitting the thrower stuns it for one second, with further hits refreshing
+the stun. `STUNNED` replaces its displayed activity label while horizontal movement, melee and throwing
+are paused. Behavior timers pause too; gravity and attack/throw cooldowns continue, and the same activity
+resumes after the stun. Platforms, ground, ceiling and a second side-wall hit absorb shots. Each shot has
+an eight-unit collision radius and six seconds total lifetime, including its return. Swept collision checks
+resolve the earliest contact and remaining travel after a wall return inside the server tick.
+
+At most eight projectiles are active. A throw skipped at capacity consumes its 1.2-second cooldown but
+does not advance the book/diploma alternation. Removing a source NPC or disconnecting the shot's targeted
+player removes its associated projectiles. All flight, effects and collision rules run on the authoritative
+game-loop thread; clients render snapshots without deciding hits.
 
 ## Deterministic Strategy demonstration
 

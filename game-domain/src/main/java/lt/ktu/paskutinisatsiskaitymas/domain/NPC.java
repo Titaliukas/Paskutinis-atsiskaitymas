@@ -28,6 +28,9 @@ public final class NPC {
     private boolean facingTarget;
     private long attackAttemptSequence;
     private double health = GameConstants.NPC_MAX_HEALTH;
+    private double throwCooldownRemaining;
+    private double stunRemaining;
+    private boolean nextBook = true;
 
     public NPC(Integer id, Position spawn, double width, double height, double speed,
             double attackRange, double attackDamage, double attackCooldownSeconds,
@@ -62,11 +65,15 @@ public final class NPC {
                 || arena.width() > Integer.MAX_VALUE || arena.height() > Integer.MAX_VALUE) {
             throw new IllegalArgumentException("NPC body/arena must fit Integer coordinate views");
         }
+        boolean stunnedThisTick = stunRemaining > 0;
+        stunRemaining = remaining(stunRemaining, seconds);
+        throwCooldownRemaining = remaining(throwCooldownRemaining, seconds);
         attackCooldownRemaining = Math.max(0, attackCooldownRemaining - seconds);
         if (attackCooldownRemaining < 0.000_000_001) {
             attackCooldownRemaining = 0;
         }
-        NPCAction action = Objects.requireNonNull(activityStrategy.decide(state(), target, seconds), "decision");
+        NPCAction action = stunnedThisTick ? new NPCAction(0, velocityY, null)
+                : Objects.requireNonNull(activityStrategy.decide(state(), target, seconds), "decision");
         // STRATEGY-REPORT R2 END
         integrate(action, arena, seconds);
         return action;
@@ -119,7 +126,27 @@ public final class NPC {
     public NPCState state() {
         return new NPCState(id, position_x, position_y, width, height, speed, velocityX, velocityY,
                 alive, targetID, attackRange, attackCooldownRemaining == 0, preciseX, preciseY,
-                grounded, facingRight, attackAttemptSequence);
+                grounded, facingRight, attackAttemptSequence, throwCooldownRemaining == 0, stunRemaining > 0);
+    }
+
+    ProjectileType recordThrowAttempt() {
+        if (throwCooldownRemaining > 0 || stunRemaining > 0) {
+            throw new IllegalStateException("Throw is not ready");
+        }
+        throwCooldownRemaining = GameConstants.NPC_THROW_COOLDOWN_SECONDS;
+        return nextBook ? ProjectileType.BOOK : ProjectileType.DIPLOMA;
+    }
+
+    void recordProjectileSpawned() { nextBook = !nextBook; }
+
+    void stun() {
+        stunRemaining = GameConstants.NPC_STUN_SECONDS;
+        velocityX = 0;
+    }
+
+    private static double remaining(double value, double seconds) {
+        double next = Math.max(0, value - seconds);
+        return next < 0.000_000_001 ? 0 : next;
     }
 
     /** Damage from a player attack. True only if the NPC was alive and actually lost health. */

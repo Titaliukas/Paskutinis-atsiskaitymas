@@ -20,6 +20,7 @@ public final class GameCharacter {
     /** Decorator chain of active timed effects; BaseStats when none are active. */
     private CharacterStats stats = BaseStats.INSTANCE;
     private double stressLevel;
+    private double slowRemaining;
     private int health = GameConstants.MAX_HEALTH;
     private int facing;
     private double knockbackX;
@@ -47,13 +48,18 @@ public final class GameCharacter {
 
         stats = stats.tick(seconds);
         decayCooldowns(seconds);
+        slowRemaining = Math.max(0, slowRemaining - seconds);
+        if (slowRemaining < 0.000_000_001) {
+            slowRemaining = 0;
+        }
 
         int direction = (input.right() ? 1 : 0) - (input.left() ? 1 : 0);
         if (direction != 0) {
             facing = direction;
         }
 
-        velocityX = direction * GameConstants.MOVE_SPEED * stats.speedMultiplier();
+        velocityX = direction * GameConstants.MOVE_SPEED * stats.speedMultiplier()
+                * (slowRemaining > 0 ? GameConstants.PROJECTILE_SLOW_MULTIPLIER : 1.0);
         if (input.jumpRequested() && grounded) {
             velocityY = -GameConstants.JUMP_SPEED * Math.sqrt(stats.jumpMultiplier());
             grounded = false;
@@ -175,6 +181,13 @@ public final class GameCharacter {
         knockbackX = 0;
         grounded = true;
         stats = BaseStats.INSTANCE;
+        slowRemaining = 0;
+    }
+
+    void applyProjectileSlow() {
+        if (!shielded()) {
+            slowRemaining = GameConstants.PROJECTILE_SLOW_SECONDS;
+        }
     }
 
     boolean overlaps(Position point, double radius) {
@@ -198,7 +211,7 @@ public final class GameCharacter {
 
     GameCharacterState state() {
         return new GameCharacterState(player.id(), slot, player.nickname(), x, y,
-                velocityX, velocityY, grounded, stats.shielded(), health, stressLevel, characterType);
+                velocityX, velocityY, grounded, stats.shielded(), health, stressLevel, characterType, slowRemaining > 0);
     }
 
     UUID id() {

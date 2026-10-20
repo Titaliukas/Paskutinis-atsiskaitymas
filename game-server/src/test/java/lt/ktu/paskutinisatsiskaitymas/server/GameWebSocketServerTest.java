@@ -103,6 +103,26 @@ class GameWebSocketServerTest {
     }
 
     @Test
+    void twoClientsReceiveIdenticalProjectileAndSlowdownFactsForTheSameTicks() throws Exception {
+        Peer first = connect("/game");
+        Peer second = connect("/game");
+        first.send(new Hello("First"));
+        second.send(new Hello("Second"));
+        first.receive(Welcome.class, value -> true);
+        second.receive(Welcome.class, value -> true);
+        WorldSnapshot flying = first.receive(WorldSnapshot.class,
+                value -> value.players().size() == 2 && !value.projectiles().isEmpty());
+        WorldSnapshot otherFlying = second.receive(WorldSnapshot.class, value -> value.tick() == flying.tick());
+        assertEquals(flying, otherFlying);
+        assertTrue(flying.projectiles().stream().allMatch(shot -> shot.projectileType().equals("BOOK")));
+        WorldSnapshot slowed = first.receive(WorldSnapshot.class,
+                value -> value.players().size() == 2 && value.players().stream().anyMatch(PlayerSnapshot::slowed));
+        WorldSnapshot otherSlowed = second.receive(WorldSnapshot.class, value -> value.tick() == slowed.tick());
+        assertEquals(slowed, otherSlowed);
+        assertTrue(slowed.projectiles().size() <= 8);
+    }
+
+    @Test
     void fourPlayersReceiveUniqueSlotsAndMoveIndependently() throws Exception {
         List<Peer> players = new ArrayList<>();
         List<Welcome> welcomes = new ArrayList<>();
@@ -194,7 +214,7 @@ class GameWebSocketServerTest {
         peer.send(new Hello("Replacement"));
         assertEquals("ALREADY_CONNECTED", peer.receive(ErrorMessage.class,
                 value -> value.code().equals("ALREADY_CONNECTED")).code());
-        peer.send(new WorldSnapshot(0, new ArenaSnapshot(1, 1, List.of()), List.of(), List.of(), List.of(), List.of()));
+        peer.send(new WorldSnapshot(0, new ArenaSnapshot(1, 1, List.of()), List.of(), List.of(), List.of(), List.of(), List.of()));
         assertEquals("UNEXPECTED_MESSAGE", peer.receive(ErrorMessage.class,
                 value -> value.code().equals("UNEXPECTED_MESSAGE")).code());
     }

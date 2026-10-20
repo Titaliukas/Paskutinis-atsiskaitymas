@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class NPCPresentationTest {
     private static NPCSnapshot npc(String activity, long sequence) {
-        return new NPCSnapshot(1, 300, 416, 42, 64, activity, true, sequence);
+        return new NPCSnapshot(1, 300, 416, 42, 64, activity, true, sequence, false);
     }
 
     @Test
@@ -83,14 +83,14 @@ class NPCPresentationTest {
             GamePanel panel = new GamePanel();
             panel.setSize(960, 540);
             List<NPCSnapshot> npcs = List.of(
-                    new NPCSnapshot(1, 130, 416, 42, 64, "PATROL", true, 0),
-                    new NPCSnapshot(2, 300, 416, 42, 64, "CHASE", true, 0),
-                    new NPCSnapshot(3, 470, 416, 42, 64, "ATTACK", true, 0),
-                    new NPCSnapshot(4, 640, 416, 42, 64, "FLEE", true, 0),
-                    new NPCSnapshot(5, 810, 416, 42, 64, "FLEE", false, 0));
+                    new NPCSnapshot(1, 130, 416, 42, 64, "PATROL", true, 0, false),
+                    new NPCSnapshot(2, 300, 416, 42, 64, "CHASE", true, 0, false),
+                    new NPCSnapshot(3, 470, 416, 42, 64, "ATTACK", true, 0, false),
+                    new NPCSnapshot(4, 640, 416, 42, 64, "FLEE", true, 0, false),
+                    new NPCSnapshot(5, 810, 416, 42, 64, "FLEE", false, 0, false));
             WorldSnapshot snapshot = new WorldSnapshot(0,
                     new ArenaSnapshot(960, 540, List.of(new PlatformSnapshot(0, 480, 960, 60))),
-                    List.of(), List.of(), npcs, List.of());
+                    List.of(), List.of(), npcs, List.of(), List.of());
             panel.setSnapshot(snapshot);
             BufferedImage image = new BufferedImage(960, 540, BufferedImage.TYPE_INT_ARGB);
             Graphics2D graphics = image.createGraphics();

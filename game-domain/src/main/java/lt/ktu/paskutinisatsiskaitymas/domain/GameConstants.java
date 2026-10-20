@@ -59,6 +59,14 @@ public final class GameConstants {
     public static final double NPC_SAFE_DISTANCE = 170.0;
     public static final double NPC_MAX_CHASE_SECONDS = 4.0;
     public static final double NPC_MAX_FLEE_SECONDS = 1.5;
+    public static final double NPC_THROW_COOLDOWN_SECONDS = 1.2;
+    public static final double NPC_PROJECTILE_SPEED = 360.0;
+    public static final double NPC_PROJECTILE_RADIUS = 8.0;
+    public static final double NPC_PROJECTILE_LIFETIME_SECONDS = 6.0;
+    public static final int PROJECTILE_MAX_ACTIVE = 8;
+    public static final double PROJECTILE_SLOW_MULTIPLIER = 0.95;
+    public static final double PROJECTILE_SLOW_SECONDS = 3.0;
+    public static final double NPC_STUN_SECONDS = 1.0;
     private GameConstants() { }
 
     public static double spawnX(int slot) {

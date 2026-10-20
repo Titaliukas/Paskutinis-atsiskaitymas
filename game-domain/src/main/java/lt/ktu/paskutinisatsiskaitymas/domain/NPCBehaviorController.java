@@ -42,6 +42,9 @@ public final class NPCBehaviorController {
     public void update(List<NPCTarget> targets, double seconds) {
         Objects.requireNonNull(targets, "targets");
         NPCGeometry.positive(seconds, "seconds");
+        if (npc.state().stunned()) {
+            return;
+        }
         timeDistance += seconds;
         NPCTarget target = targets.stream().filter(value -> value.id().equals(targetId)).findFirst().orElse(null);
         if (activity != NPCActivity.PATROL && target == null) {

@@ -14,7 +14,8 @@ public final class ChaseStrategy implements NPCActivityStrategy {
         if (!NPCGeometry.matches(self, target)) {
             return new NPCAction(0, self.velocityY(), null);
         }
-        return new NPCAction(NPCGeometry.direction(self, target) * self.speed() * speedMultiplier, self.velocityY(), null);
+        return new NPCAction(NPCGeometry.direction(self, target) * self.speed() * speedMultiplier,
+                self.velocityY(), null, self.throwReady() && !self.stunned() ? target.id() : null);
         // STRATEGY-REPORT R3b END
     }
 }
