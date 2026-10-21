@@ -10,10 +10,10 @@ classDiagram
         class CharacterSelectionPanel {
             -cards : Map
             -sliders : Map
-            +setSelectionListener(listener)
-            +setStatChangeListener(listener)
-            +setSelectedCharacter(character)
-            +setStats(allocation)
+            ~setSelectionListener(listener)
+            ~setStatChangeListener(listener)
+            ~setSelectedCharacter(character)
+            ~setStats(allocation)
             +setEnabled(enabled)
         }
         class ConnectionWindow
@@ -22,10 +22,15 @@ classDiagram
             <<receiver>>
             -selectedCharacter : String
             -stats : StatAllocation
-            +select(character)
-            +changeStat(stat, value)
-            +snapshot() State
-            +restore(state)
+            ~select(character)
+            ~changeStat(stat, value)
+            ~snapshot() State
+            ~restore(state)
+        }
+        class SelectionState["CharacterSelection.State"] {
+            <<record>>
+            +character : String
+            +stats : StatAllocation
         }
         class UndoableCommand {
             <<interface>>
@@ -45,10 +50,10 @@ classDiagram
         class CommandHistory {
             <<invoker>>
             -commands : Deque
-            +execute(command)
-            +undo()
-            +canUndo() boolean
-            +clear()
+            ~execute(command)
+            ~undo()
+            ~canUndo() boolean
+            ~clear()
         }
         class ClientConnection
     }
@@ -83,6 +88,11 @@ classDiagram
             +jumpHeightPercent : int
         }
         class GameCharacter
+        class GameSession
+        class GameCharacterState {
+            +health : int
+            +maxHealth : int
+        }
     }
 
     ConnectionWindow *-- CharacterSelectionPanel
@@ -96,6 +106,9 @@ classDiagram
     ChangeStatCommand ..|> UndoableCommand
     SelectCharacterCommand --> CharacterSelection : resets or restores
     ChangeStatCommand --> CharacterSelection : edits or restores
+    SelectCharacterCommand --> SelectionState : captures previous
+    ChangeStatCommand --> SelectionState : captures previous
+    CharacterSelection ..> SelectionState : snapshot and restore
     CommandHistory o-- UndoableCommand : successful commands in stack
     CharacterSelection --> StatAllocation
     ConnectionWindow --> ClientConnection : final choice on Connect
@@ -106,9 +119,12 @@ classDiagram
     MessageRouter ..> JoinPlayerCommand : enqueues
     JoinPlayerCommand --> CharacterBuild
     MatchController ..> JoinPlayerCommand : handles in game loop
-    MatchController ..> GameCharacter : creates through GameSession
+    MatchController --> GameSession : applies join
+    GameSession *-- GameCharacter
     GameCharacter *-- CharacterBuild : permanent build
-    SnapshotMapper ..> GameCharacter : reads detached state
+    GameCharacter ..> GameCharacterState : detached state
+    SnapshotMapper ..> GameSession : reads snapshots
+    SnapshotMapper ..> GameCharacterState : maps
     SnapshotMapper ..> PlayerSnapshot : actual maximum health
 ```
 
