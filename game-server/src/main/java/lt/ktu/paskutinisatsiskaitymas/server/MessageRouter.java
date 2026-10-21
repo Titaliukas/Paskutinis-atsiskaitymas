@@ -14,6 +14,7 @@ import lt.ktu.paskutinisatsiskaitymas.protocol.Ping;
 import lt.ktu.paskutinisatsiskaitymas.protocol.Pong;
 import lt.ktu.paskutinisatsiskaitymas.protocol.Welcome;
 import lt.ktu.paskutinisatsiskaitymas.domain.CharacterType;
+import lt.ktu.paskutinisatsiskaitymas.domain.CharacterBuild;
 
 /**
  * Validates message direction and translates client DTOs into application commands.
@@ -34,6 +35,13 @@ final class MessageRouter {
                 if (session.playerId != null) {
                     return new ErrorMessage("ALREADY_CONNECTED", "HELLO was already accepted");
                 }
+                CharacterBuild build;
+                try {
+                    build = new CharacterBuild(hello.stats().healthPercent(), hello.stats().speedPercent(),
+                            hello.stats().jumpHeightPercent());
+                } catch (IllegalArgumentException exception) {
+                    return new ErrorMessage("INVALID_STATS", exception.getMessage());
+                }
                 synchronized (slots) {
                     PlayerSlots.Assignment assignment = slots.reserve(session.id).orElse(null);
                     if (assignment == null) {
@@ -47,7 +55,7 @@ final class MessageRouter {
                     }
 
                     boolean queued = commands.offerAfterEvicting(new JoinPlayerCommand(
-                            assignment.playerId(), assignment.slot(), hello.nickname(), charType),
+                            assignment.playerId(), assignment.slot(), hello.nickname(), charType, build),
                             queuedCommand -> queuedCommand instanceof InputCommand);
                     if (!queued) {
                         slots.release(session.id);

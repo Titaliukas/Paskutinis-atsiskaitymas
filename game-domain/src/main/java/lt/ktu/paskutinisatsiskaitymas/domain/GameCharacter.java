@@ -11,6 +11,7 @@ public final class GameCharacter {
     private final Player player;
     private final int slot;
     private final CharacterType characterType;
+    private final CharacterBuild build;
     private final Position spawn;
     private double x;
     private double y;
@@ -21,17 +22,24 @@ public final class GameCharacter {
     private CharacterStats stats = BaseStats.INSTANCE;
     private double stressLevel;
     private double slowRemaining;
-    private int health = GameConstants.MAX_HEALTH;
+    private int health;
     private int facing;
     private double knockbackX;
     private double rangedCooldownRemaining;
     private double meleeCooldownRemaining;
 
     GameCharacter(UUID id, Player player, int slot, Position spawn, boolean grounded, CharacterType characterType) {
+        this(id, player, slot, spawn, grounded, characterType, CharacterBuild.DEFAULT);
+    }
+
+    GameCharacter(UUID id, Player player, int slot, Position spawn, boolean grounded, CharacterType characterType,
+            CharacterBuild build) {
         this.id = Objects.requireNonNull(id, "id");
         this.player = Objects.requireNonNull(player, "player");
         this.slot = slot;
         this.characterType = Objects.requireNonNull(characterType, "characterType");
+        this.build = Objects.requireNonNull(build, "build");
+        this.health = build.maxHealth();
         this.spawn = Objects.requireNonNull(spawn, "spawn");
         this.facing = slot % 2 == 0 ? 1 : -1;
         this.x = spawn.x();
@@ -58,10 +66,10 @@ public final class GameCharacter {
             facing = direction;
         }
 
-        velocityX = direction * GameConstants.MOVE_SPEED * stats.speedMultiplier()
+        velocityX = direction * GameConstants.MOVE_SPEED * build.speedMultiplier() * stats.speedMultiplier()
                 * (slowRemaining > 0 ? GameConstants.PROJECTILE_SLOW_MULTIPLIER : 1.0);
         if (input.jumpRequested() && grounded) {
-            velocityY = -GameConstants.JUMP_SPEED * Math.sqrt(stats.jumpMultiplier());
+            velocityY = -GameConstants.JUMP_SPEED * Math.sqrt(build.jumpHeightMultiplier() * stats.jumpMultiplier());
             grounded = false;
         }
 
@@ -173,7 +181,7 @@ public final class GameCharacter {
     }
 
     private void respawn() {
-        health = GameConstants.MAX_HEALTH;
+        health = build.maxHealth();
         x = spawn.x();
         y = spawn.y();
         velocityX = 0;
@@ -211,7 +219,8 @@ public final class GameCharacter {
 
     GameCharacterState state() {
         return new GameCharacterState(player.id(), slot, player.nickname(), x, y,
-                velocityX, velocityY, grounded, stats.shielded(), health, stressLevel, characterType, slowRemaining > 0);
+                velocityX, velocityY, grounded, stats.shielded(), health, build.maxHealth(), stressLevel,
+                characterType, slowRemaining > 0);
     }
 
     UUID id() {

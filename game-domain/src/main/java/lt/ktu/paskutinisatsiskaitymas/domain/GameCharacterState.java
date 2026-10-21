@@ -15,6 +15,7 @@ public record GameCharacterState(
         boolean grounded,
         boolean shielded,
         int health,
+        int maxHealth,
         double stressLevel,
         CharacterType characterType,
         boolean slowed) {

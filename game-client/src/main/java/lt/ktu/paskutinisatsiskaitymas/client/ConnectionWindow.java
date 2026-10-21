@@ -24,7 +24,7 @@ final class ConnectionWindow extends JFrame {
     private final CharacterSelectionPanel characterPicker = new CharacterSelectionPanel();
     private final CharacterSelection selection = new CharacterSelection();
     private final CommandHistory selectionHistory = new CommandHistory();
-    private final JButton undoSelection = new JButton("Undo selection");
+    private final JButton undoSelection = new JButton("Undo change");
     private final JButton connect = new JButton("Connect");
     private final JButton disconnect = new JButton("Disconnect");
     private final JLabel status = new JLabel("Disconnected");
@@ -93,18 +93,27 @@ final class ConnectionWindow extends JFrame {
         characterPicker.setSelectionListener(selected -> {
             if (!selection.selectedCharacter().equals(selected)) {
                 selectionHistory.execute(new SelectCharacterCommand(selection, selected));
+                characterPicker.setStats(selection.stats());
+                updateUndoSelection();
+            }
+        });
+        characterPicker.setStatChangeListener((stat, value) -> {
+            if (stat.value(selection.stats()) != value) {
+                selectionHistory.execute(new ChangeStatCommand(selection, stat, value));
+                characterPicker.setStats(selection.stats());
                 updateUndoSelection();
             }
         });
         undoSelection.addActionListener(event -> {
             selectionHistory.undo();
             characterPicker.setSelectedCharacter(selection.selectedCharacter());
+            characterPicker.setStats(selection.stats());
             updateUndoSelection();
         });
         connect.addActionListener(event -> {
             try {
                 connection.connect(URI.create(address.getText().trim()), nickname.getText().trim(),
-                        selection.selectedCharacter());
+                        selection.selectedCharacter(), selection.stats());
             } catch (IllegalArgumentException exception) {
                 showStatus(new ConnectionStatus(ConnectionStatus.State.ERROR, exception.getMessage()));
             }

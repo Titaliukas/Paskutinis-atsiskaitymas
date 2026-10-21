@@ -168,22 +168,37 @@ DTOs and never expose exceptions or domain objects.
 
 ## Lifecycle and deployment
 
-Character selection before joining uses a client-local Command pattern. `UndoableCommand` declares `execute()`
-and `undo()`; `SelectCharacterCommand` captures the previous choice at execution time and restores it on undo.
-`CharacterSelection` is the receiver, initially `Hello.DEFAULT_CHARACTER`, and accepts only `Hello.CHARACTERS`.
+Character and stat selection before joining use a client-local Command pattern. `UndoableCommand` declares
+`execute()` and `undo()`; `SelectCharacterCommand` and `ChangeStatCommand` capture an immutable receiver snapshot
+at execution time and restore it on undo. `CharacterSelection` is the receiver, initially `Hello.DEFAULT_CHARACTER`
+with 100/100/100 stats, and accepts only `Hello.CHARACTERS`. Selecting another character resets all three stats;
+undo restores the exact previous character and allocation. See the [UML class diagram](character-selection.md).
 `CommandHistory` is the invoker: it pushes successfully executed commands onto a stack and undoes them in reverse
 order. Empty-history undo is a no-op; clearing history retains the receiver's current choice.
 
 `CharacterSelectionPanel` displays four Swing toggle cards using cached `<CHARACTER>_PORTRAIT` images from
 `AssetManager`. Cards retain standard keyboard activation and show a selection border, a Selected label and a
-keyboard-focus outline. Missing portraits retain a named placeholder. `ConnectionWindow` creates commands for
-actual card changes and provides **Undo selection**. The panel's programmatic selection setter updates the
-highlight without emitting an action, so undo does not create commands. The receiver, history and
-UI are owned by the EDT. Selection and undo are disabled while connecting or connected. Receiving `WELCOME`
+keyboard-focus outline. Missing portraits retain a named placeholder. Three sliders edit maximum health,
+movement speed, and jump height (50–150%, step 5, total at most 300). Unused points are allowed; increases are
+clamped to the available budget. Values preview during a drag and commit once on release; keyboard adjustments
+also commit. `ConnectionWindow` creates commands for actual changes and provides **Undo change**. The panel
+communicates through callbacks and has no dependency on history. Its programmatic setters update cards and
+sliders without emitting actions, so undo does not create commands. The receiver, history and
+UI are owned by the EDT. Selection, sliders, and undo are disabled while connecting or connected. Receiving `WELCOME`
 clears history on the EDT and makes the current choice the baseline; validation failures, connection failures and
 cancelled attempts preserve history. Disconnecting allows new changes and undo back to that baseline. History is
-per window and lives only for that window's lifetime. Connect reads the receiver's choice for the existing `HELLO`;
-these commands do not change the server's queued gameplay commands or authoritative state.
+per window and lives only for that window's lifetime. Connect reads the receiver's character and stat allocation
+for `HELLO`. Its optional `stats` object defaults to 100/100/100 when omitted. The protocol requires exactly three
+integer fields; `CharacterBuild` in the domain validates ranges, steps, and budget. The client mirrors these
+constraints for feedback but has no domain dependency. The server translates the DTO before reserving a slot;
+invalid builds return `INVALID_STATS` without queueing a join or consuming a reservation. `JoinPlayerCommand`
+carries the validated build into the single-owner game loop.
+
+`GameCharacter` retains the permanent build separately from the timed `CharacterStats` decorator chain. Health
+and speed scale directly; jump velocity uses the square root of the height multiplier. Existing defaults are
+currently common to all character types. Respawn restores the build's maximum health and clears temporary
+effects while preserving permanent allocations. Domain snapshots carry actual maximum health, mapped into the
+existing `PlayerSnapshot.maxHealth` field. Attack loadouts are unaffected.
 
 A `CardLayout` switches between the picker and the same `GamePanel` instance, preserving its keyboard adapter.
 The picker remains visible and disabled while connecting; a successful connection shows and focuses the game

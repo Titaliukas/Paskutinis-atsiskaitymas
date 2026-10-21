@@ -40,10 +40,40 @@ class JsonMessageCodecTest {
 
     @Test
     void usesStableWireNamesWithoutJavaClassNames() throws Exception {
-        assertEquals("{\"type\":\"HELLO\",\"nickname\":\"Player\",\"character\":\"PATASIJUS\"}", codec.encode(new Hello("Player")));
+        assertEquals("{\"type\":\"HELLO\",\"nickname\":\"Player\",\"character\":\"PATASIJUS\","
+                + "\"stats\":{\"healthPercent\":100,\"speedPercent\":100,\"jumpHeightPercent\":100}}",
+                codec.encode(new Hello("Player")));
         assertEquals(new Ping("a"), codec.decode("{\"type\":\"PING\",\"requestId\":\"a\"}"));
         assertTrue(codec.encode(new InputState(0, false, true, false, false, false)).contains("\"type\":\"INPUT\""));
         assertFalse(codec.encode(messages().toList().get(5)).contains("lt.ktu"));
+    }
+
+    @Test
+    void helloDefaultsOmittedFieldsAndRoundTripsCustomAllocations() throws Exception {
+        assertEquals(new Hello("Player"), codec.decode("{\"type\":\"HELLO\",\"nickname\":\"Player\"}"));
+        assertEquals(new Hello("Player", "GOGIS"),
+                codec.decode("{\"type\":\"HELLO\",\"nickname\":\"Player\",\"character\":\"GOGIS\"}"));
+        Hello custom = new Hello("Player", "GOGIS", new StatAllocation(75, 125, 100));
+        assertEquals(custom, codec.decode(codec.encode(custom)));
+        // Semantic gameplay limits belong to the domain, rather than transport decoding.
+        Hello outOfBudget = new Hello("Player", "GOGIS", new StatAllocation(150, 150, 150));
+        assertEquals(outOfBudget, codec.decode(codec.encode(outOfBudget)));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"null", "[]", "{}", "{\"healthPercent\":100,\"speedPercent\":100}",
+        "{\"healthPercent\":100.5,\"speedPercent\":100,\"jumpHeightPercent\":100}",
+        "{\"healthPercent\":100.0,\"speedPercent\":100,\"jumpHeightPercent\":100}",
+        "{\"healthPercent\":\"100\",\"speedPercent\":100,\"jumpHeightPercent\":100}",
+        "{\"healthPercent\":null,\"speedPercent\":100,\"jumpHeightPercent\":100}",
+        "{\"healthPercent\":true,\"speedPercent\":100,\"jumpHeightPercent\":100}",
+        "{\"healthPercent\":2147483648,\"speedPercent\":100,\"jumpHeightPercent\":100}",
+        "{\"healthPercent\":100,\"speedPercent\":100,\"jumpHeightPercent\":100,\"extra\":1}",
+        "{\"healthPercent\":100,\"speedPercent\":100,\"other\":100}",
+        "{\"healthPercent\":100,\"healthPercent\":75,\"speedPercent\":100,\"jumpHeightPercent\":100}"})
+    void rejectsIncompleteOrNonIntegerStatFields(String stats) {
+        assertThrows(ProtocolException.class, () -> codec.decode(
+                "{\"type\":\"HELLO\",\"nickname\":\"Player\",\"stats\":" + stats + "}"));
     }
 
     @Test

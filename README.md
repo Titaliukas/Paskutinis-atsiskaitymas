@@ -109,10 +109,14 @@ java -jar game-client/target/game-client.jar ws://localhost:8080/game Dora
 
 Click a character's portrait card in the **Choose your character** screen, then click **Connect** above.
 The highlighted card is marked **Selected**; Tab and Space also let you choose a card with the keyboard.
-Portraits come from the shared `AssetManager` cache. **Undo selection** steps back
-through character choices before connecting. Selection and undo are disabled while connecting or connected.
+Portraits come from the shared `AssetManager` cache. Below them, sliders adjust maximum health, movement speed,
+and jump height from **50–150%** in steps of **5**. Each starts at **100%** and shares a **300-point budget**:
+lower one stat to free points before increasing another. Unused points are allowed.
+**Undo change** steps back through both character choices and stat adjustments; each slider drag is one step.
+Switching characters resets all stats to 100%; undoing the switch restores the previous customized character.
+Selection, sliders, and undo are disabled while connecting or connected.
 Failed or cancelled connection attempts retain undo history; a successful join clears it and keeps the chosen
-character as the baseline for future changes after disconnecting. Each window has its own history.
+character and stats as the baseline for future changes after disconnecting. Each window has its own history.
 Multiple players may choose
 the same character. Players appear at four distinct spawn positions; each client marks its own world character
 with a white outline and `(you)`. Every client shows the same four slot-based corner cards with each player's
@@ -151,12 +155,15 @@ docker compose down
 ## Controls
 
 Character selection uses the Command pattern in `game-client`: `CharacterSelection` is the receiver,
-`SelectCharacterCommand` implements `UndoableCommand.execute()` and `undo()`, and `CommandHistory` is the invoker
-that stores executed commands in a stack. Each undo restores the previous character. The connection form creates
-commands only for actual changes; restoring the selected card during undo does not create another command.
+`SelectCharacterCommand` and `ChangeStatCommand` implement `UndoableCommand.execute()` and `undo()`, and
+`CommandHistory` is the invoker that stores executed commands in a stack. Commands capture an immutable snapshot
+of the previous character and stats. The connection form creates commands only for actual changes; restoring
+cards and sliders during undo does not create another command. See the [UML and build flow](docs/character-selection.md).
 The picker stays visible but disabled while connecting, switches to the arena after joining, and returns after
 disconnecting or a connection error.
-The selected character is sent in the existing `HELLO` message when connecting.
+The selected character and stat allocation are sent in `HELLO` when connecting. The server validates the build,
+applies it in the game loop, and keeps it across respawns. Temporary boosts and slows still compose with the build.
+All four characters currently share the same health, speed, and jump defaults; attack damage remains character-specific.
 
 | Action     | Keys           |
 | ---------- | -------------- |
@@ -241,7 +248,9 @@ does not read `.env`; `.env` controls Compose's published host port.
 
 The `/game` endpoint accepts JSON text messages with explicit stable types:
 
-- `HELLO`: requests one of four slots with a nickname.
+- `HELLO`: requests one of four slots with a nickname, character, and optional integer `stats` allocation
+  (`healthPercent`, `speedPercent`, `jumpHeightPercent`). Omitted stats default to 100/100/100. Malformed fields
+  are rejected by the protocol; invalid ranges, steps, or budgets produce `INVALID_STATS` without reserving a slot.
 - `WELCOME`: returns connection UUID, server-assigned player UUID, slot, and nickname.
 - `INPUT`: sends a monotonically sequenced complete left/right/jump state, never position or velocity.
 - `WORLD_SNAPSHOT`: broadcasts arena/platform geometry, players (including health, character choice, stress and `slowed`), items,

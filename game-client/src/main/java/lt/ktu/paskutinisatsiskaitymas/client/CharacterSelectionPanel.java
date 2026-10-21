@@ -17,12 +17,16 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.BiConsumer;
+import java.util.EnumMap;
 import javax.swing.ButtonGroup;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JToggleButton;
+import javax.swing.JSlider;
 import javax.swing.SwingConstants;
 import lt.ktu.paskutinisatsiskaitymas.protocol.Hello;
+import lt.ktu.paskutinisatsiskaitymas.protocol.StatAllocation;
 
 /** EDT-owned portrait picker. Programmatic selection never emits a user action. */
 final class CharacterSelectionPanel extends JPanel {
@@ -31,6 +35,13 @@ final class CharacterSelectionPanel extends JPanel {
     private final Map<String, JToggleButton> cards = new LinkedHashMap<>();
     private Consumer<String> selectionListener = character -> { };
     private String selectedCharacter = Hello.DEFAULT_CHARACTER;
+    private final Map<SelectableStat, JSlider> sliders = new EnumMap<>(SelectableStat.class);
+    private final Map<SelectableStat, JLabel> values = new EnumMap<>(SelectableStat.class);
+    private final JLabel budget = new JLabel("", SwingConstants.CENTER);
+    private final JLabel budgetHint = new JLabel(" ", SwingConstants.CENTER);
+    private BiConsumer<SelectableStat, Integer> statChangeListener = (stat, value) -> { };
+    private StatAllocation stats = StatAllocation.DEFAULT;
+    private boolean synchronizing;
 
     CharacterSelectionPanel() {
         super(new GridBagLayout());
@@ -41,16 +52,16 @@ final class CharacterSelectionPanel extends JPanel {
         constraints.gridx = 0;
         constraints.weightx = 1;
         constraints.fill = GridBagConstraints.HORIZONTAL;
-        constraints.insets = new Insets(0, 24, 10, 24);
+        constraints.insets = new Insets(0, 24, 4, 24);
         JLabel title = new JLabel("Choose your character", SwingConstants.CENTER);
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 24f));
+        title.setFont(title.getFont().deriveFont(Font.BOLD, 22f));
         title.setForeground(Color.WHITE);
         constraints.gridy = 0;
         add(title, constraints);
-        JLabel hint = new JLabel("Select a portrait, then click Connect above.", SwingConstants.CENTER);
+        JLabel hint = new JLabel("Choose a portrait and adjust your stats, then click Connect.", SwingConstants.CENTER);
         hint.setForeground(new Color(180, 193, 210));
         constraints.gridy = 1;
-        constraints.insets = new Insets(0, 24, 24, 24);
+        constraints.insets = new Insets(0, 24, 8, 24);
         add(hint, constraints);
 
         JPanel row = new JPanel(new GridLayout(1, Hello.CHARACTERS.size(), 12, 0));
@@ -70,9 +81,111 @@ final class CharacterSelectionPanel extends JPanel {
             });
         }
         constraints.gridy = 2;
-        constraints.insets = new Insets(0, 24, 0, 24);
+        constraints.insets = new Insets(0, 24, 8, 24);
         add(row, constraints);
+        constraints.gridy = 3;
+        constraints.insets = new Insets(0, 32, 0, 32);
+        add(createStatsPanel(), constraints);
         setSelectedCharacter(selectedCharacter);
+        setStats(stats);
+    }
+
+    private JPanel createStatsPanel() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setOpaque(false);
+        GridBagConstraints cell = new GridBagConstraints();
+        cell.insets = new Insets(1, 0, 1, 8);
+        cell.fill = GridBagConstraints.HORIZONTAL;
+        for (SelectableStat stat : SelectableStat.values()) {
+            cell.gridy = stat.ordinal();
+            cell.gridx = 0;
+            cell.weightx = 0;
+            JLabel label = new JLabel(stat.label());
+            label.setForeground(Color.WHITE);
+            panel.add(label, cell);
+            JSlider slider = new JSlider(50, 150, 100);
+            slider.setOpaque(false);
+            slider.setMinorTickSpacing(5);
+            slider.setSnapToTicks(true);
+            slider.setToolTipText("50–150%, steps of 5; shared 300-point budget");
+            slider.getAccessibleContext().setAccessibleName(stat.label());
+            label.setLabelFor(slider);
+            sliders.put(stat, slider);
+            cell.gridx = 1;
+            cell.weightx = 1;
+            panel.add(slider, cell);
+            JLabel value = new JLabel("100%", SwingConstants.RIGHT);
+            value.setPreferredSize(new Dimension(44, 20));
+            value.setForeground(ACCENT);
+            values.put(stat, value);
+            cell.gridx = 2;
+            cell.weightx = 0;
+            panel.add(value, cell);
+            slider.addChangeListener(event -> sliderChanged(stat));
+        }
+        cell.gridx = 0;
+        cell.gridy = 3;
+        cell.gridwidth = 3;
+        budget.setForeground(Color.WHITE);
+        panel.add(budget, cell);
+        cell.gridy = 4;
+        budgetHint.setForeground(ACCENT);
+        panel.add(budgetHint, cell);
+        return panel;
+    }
+
+    private void sliderChanged(SelectableStat stat) {
+        if (synchronizing) {
+            return;
+        }
+        if (!isEnabled()) {
+            setStats(stats);
+            return;
+        }
+        JSlider slider = sliders.get(stat);
+        int requested = Math.round(slider.getValue() / 5f) * 5;
+        int allowed = Math.min(150, stat.value(stats) + CharacterSelection.remainingPoints(stats));
+        int value = Math.max(50, Math.min(requested, allowed));
+        boolean blocked = requested > allowed;
+        synchronizing = true;
+        try {
+            slider.setValue(value);
+        } finally {
+            synchronizing = false;
+        }
+        StatAllocation preview = stat.withValue(stats, value);
+        showStats(preview);
+        budgetHint.setText(blocked ? "Lower another stat to free points" : " ");
+        if (!slider.getValueIsAdjusting() && !preview.equals(stats)) {
+            stats = preview;
+            statChangeListener.accept(stat, value);
+            budgetHint.setText(blocked ? "Lower another stat to free points" : " ");
+        }
+    }
+
+    void setStatChangeListener(BiConsumer<SelectableStat, Integer> listener) {
+        statChangeListener = Objects.requireNonNull(listener, "listener");
+    }
+
+    void setStats(StatAllocation allocation) {
+        CharacterSelection.validateStats(allocation);
+        synchronizing = true;
+        try {
+            stats = allocation;
+            sliders.forEach((stat, slider) -> {
+                slider.setValueIsAdjusting(false);
+                slider.setValue(stat.value(allocation));
+            });
+            showStats(allocation);
+            budgetHint.setText(" ");
+        } finally {
+            synchronizing = false;
+        }
+    }
+
+    private void showStats(StatAllocation allocation) {
+        values.forEach((stat, label) -> label.setText(stat.value(allocation) + "%"));
+        budget.setText("Points remaining: " + CharacterSelection.remainingPoints(allocation) + " / 150");
     }
 
     void setSelectionListener(Consumer<String> listener) {
@@ -92,6 +205,10 @@ final class CharacterSelectionPanel extends JPanel {
     public void setEnabled(boolean enabled) {
         super.setEnabled(enabled);
         cards.values().forEach(card -> card.setEnabled(enabled));
+        sliders.values().forEach(slider -> slider.setEnabled(enabled));
+        if (!enabled) {
+            setStats(stats);
+        }
     }
 
     /** Standard Swing button semantics with a card face and an explicit keyboard-focus outline. */
@@ -101,8 +218,8 @@ final class CharacterSelectionPanel extends JPanel {
         private CharacterCard(String character, Image portrait) {
             super(character);
             this.portrait = portrait;
-            setPreferredSize(new Dimension(160, 216));
-            setMinimumSize(new Dimension(112, 216));
+            setPreferredSize(new Dimension(160, 160));
+            setMinimumSize(new Dimension(112, 160));
             setContentAreaFilled(false);
             setBorderPainted(false);
             setRolloverEnabled(true);
@@ -122,9 +239,9 @@ final class CharacterSelectionPanel extends JPanel {
                 g.setStroke(new BasicStroke(isSelected() ? 3f : 1f));
                 g.drawRoundRect(2, 2, getWidth() - 5, getHeight() - 5, 16, 16);
 
-                int size = Math.min(96, getWidth() - 24);
+                int size = Math.min(80, getWidth() - 24);
                 int x = (getWidth() - size) / 2;
-                int y = 26;
+                int y = 14;
                 g.setColor(BACKGROUND);
                 g.fillRoundRect(x, y, size, size, 8, 8);
                 if (portrait != null) {
@@ -143,11 +260,11 @@ final class CharacterSelectionPanel extends JPanel {
                 }
                 g.setFont(getFont().deriveFont(Font.BOLD, 13f));
                 g.setColor(isEnabled() ? Color.WHITE : new Color(160, 173, 190));
-                centered(g, getText(), 154);
+                centered(g, getText(), 118);
                 if (isSelected()) {
                     g.setFont(getFont().deriveFont(Font.PLAIN, 12f));
                     g.setColor(ACCENT);
-                    centered(g, "Selected", 181);
+                    centered(g, "Selected", 141);
                 }
                 if (hasFocus() && isEnabled()) {
                     g.setColor(Color.WHITE);

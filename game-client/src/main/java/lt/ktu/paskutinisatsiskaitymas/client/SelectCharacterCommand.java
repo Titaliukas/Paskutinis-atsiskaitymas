@@ -6,7 +6,7 @@ import java.util.Objects;
 final class SelectCharacterCommand implements UndoableCommand {
     private final CharacterSelection selection;
     private final String character;
-    private String previousCharacter;
+    private CharacterSelection.State previous;
     private boolean executed;
 
     SelectCharacterCommand(CharacterSelection selection, String character) {
@@ -19,9 +19,9 @@ final class SelectCharacterCommand implements UndoableCommand {
         if (executed) {
             throw new IllegalStateException("Command has already executed");
         }
-        String previous = selection.selectedCharacter();
+        CharacterSelection.State before = selection.snapshot();
         selection.select(character);
-        previousCharacter = previous;
+        previous = before;
         executed = true;
     }
 
@@ -30,7 +30,7 @@ final class SelectCharacterCommand implements UndoableCommand {
         if (!executed) {
             throw new IllegalStateException("Command has not executed");
         }
-        selection.select(previousCharacter);
+        selection.restore(previous);
         executed = false;
     }
 }

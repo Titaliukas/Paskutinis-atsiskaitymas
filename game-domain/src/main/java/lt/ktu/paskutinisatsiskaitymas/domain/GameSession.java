@@ -51,8 +51,13 @@ public final class GameSession {
     }
     
     public void addPlayer(Player player, int slot, CharacterType characterType) {
+        addPlayer(player, slot, characterType, CharacterBuild.DEFAULT);
+    }
+
+    public void addPlayer(Player player, int slot, CharacterType characterType, CharacterBuild build) {
         Objects.requireNonNull(player, "player");
         Objects.requireNonNull(characterType, "characterType");
+        Objects.requireNonNull(build, "build");
 
         if (characters.size() >= GameConstants.MAX_PLAYERS) {
             throw new IllegalStateException("The match already has four players");
@@ -76,7 +81,8 @@ public final class GameSession {
                 slot,
                 new Position(GameConstants.spawnX(slot), spawnY),
                 true,
-                characterType
+                characterType,
+                build
         ));
 
         targetCharacters.put((int) nextTargetId++, characters.get(player.id()).id());

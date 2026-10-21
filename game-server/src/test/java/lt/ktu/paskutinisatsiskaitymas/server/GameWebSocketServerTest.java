@@ -28,6 +28,20 @@ class GameWebSocketServerTest {
     private GameWebSocketServer server;
     private HttpClient http;
 
+    @Test
+    void customBuildIsAppliedOverTheActualWebSocketJoinAndInputPath() throws Exception {
+        Peer peer = connect("/game");
+        peer.send(new Hello("Custom", "GOGIS", new StatAllocation(125, 125, 50)));
+        Welcome welcome = peer.receive(Welcome.class, value -> true);
+        WorldSnapshot joined = peer.receive(WorldSnapshot.class, value -> !value.players().isEmpty());
+        assertEquals(125, player(joined, welcome).health());
+        assertEquals(125, player(joined, welcome).maxHealth());
+        peer.send(new InputState(0, false, true, false, false, false));
+        WorldSnapshot moved = peer.receive(WorldSnapshot.class,
+                value -> !value.players().isEmpty() && player(value, welcome).velocityX() > 0);
+        assertEquals(260 * 1.25, player(moved, welcome).velocityX(), 1e-9);
+    }
+
     @BeforeEach
     void start() throws Exception {
         server = new GameWebSocketServer(new InetSocketAddress("127.0.0.1", 0));

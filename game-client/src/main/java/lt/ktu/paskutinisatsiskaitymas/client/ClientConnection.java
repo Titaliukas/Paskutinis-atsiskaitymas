@@ -15,6 +15,7 @@ import lt.ktu.paskutinisatsiskaitymas.protocol.InputState;
 import lt.ktu.paskutinisatsiskaitymas.protocol.JsonMessageCodec;
 import lt.ktu.paskutinisatsiskaitymas.protocol.ProtocolException;
 import lt.ktu.paskutinisatsiskaitymas.protocol.Welcome;
+import lt.ktu.paskutinisatsiskaitymas.protocol.StatAllocation;
 
 /** Asynchronous network adapter. Never blocks Swing, renders, or owns authoritative game state. */
 public final class ClientConnection implements AutoCloseable {
@@ -46,6 +47,10 @@ public final class ClientConnection implements AutoCloseable {
     }
 
     public synchronized void connect(URI address, String nickname, String character) {
+        connect(address, nickname, character, StatAllocation.DEFAULT);
+    }
+
+    public synchronized void connect(URI address, String nickname, String character, StatAllocation stats) {
         if (closed) {
             throw new IllegalStateException("Client has closed");
         }
@@ -55,7 +60,7 @@ public final class ClientConnection implements AutoCloseable {
         }
         final String hello;
         try {
-            hello = codec.encode(new Hello(nickname, character));
+            hello = codec.encode(new Hello(nickname, character, stats));
         } catch (ProtocolException exception) {
             throw new IllegalArgumentException("Cannot encode HELLO", exception);
         }
