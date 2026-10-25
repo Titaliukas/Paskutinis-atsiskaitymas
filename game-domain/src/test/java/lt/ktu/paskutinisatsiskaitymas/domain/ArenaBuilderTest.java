@@ -65,7 +65,7 @@ class ArenaBuilderTest {
         Arena arena = director.construct(new CombatArenaBuilder());
         assertEquals(ArenaType.COMBAT, arena.type());
         double[][] geometry = {{45, 215, 870, 6}, {333, 344, 294, 6},
-            {330, 280, 120, 6}, {0, 421, 960, 119}};
+            {210, 280, 120, 6}, {0, 421, 960, 119}};
         assertEquals(geometry.length, arena.platforms().size());
         for (int i = 0; i < geometry.length; i++) {
             Platform p = arena.platforms().get(i);

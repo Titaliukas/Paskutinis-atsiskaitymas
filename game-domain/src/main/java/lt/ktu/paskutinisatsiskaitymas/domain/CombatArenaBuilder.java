@@ -13,7 +13,7 @@ public final class CombatArenaBuilder implements IArenaBuilder {
     public static final double CANOPY_X = 333;
     public static final double CANOPY_Y = 344;
     public static final double CANOPY_WIDTH = 294;
-    public static final double SERVICE_X = 330;
+    public static final double SERVICE_X = 210;
     public static final double SERVICE_Y = 280;
     public static final double SERVICE_WIDTH = 120;
     public static final double GROUND_Y = 421;

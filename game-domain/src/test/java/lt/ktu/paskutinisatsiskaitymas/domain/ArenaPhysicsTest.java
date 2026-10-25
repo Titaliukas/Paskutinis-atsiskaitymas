@@ -64,8 +64,8 @@ class ArenaPhysicsTest {
             assertStanding(character, 421);
             jump(character, combat, MovementInput.NONE, 40);
             assertStanding(character, 344);
-            jump(character, combat, LEFT, 12);
-            step(character, combat, MovementInput.NONE, 32);
+            jump(character, combat, LEFT, 28);
+            step(character, combat, MovementInput.NONE, 16);
             assertStanding(character, 280);
             jump(character, combat, MovementInput.NONE, 44);
             assertStanding(character, 215);
