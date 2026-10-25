@@ -9,8 +9,8 @@ class GameSessionPlatformTest {
     private final UUID playerId = UUID.randomUUID();
 
     @Test
-    void defaultArenaContainsCopiesAboveGround() {
-        var platforms = GameSession.createDefault().arena().platforms();
+    void prototypeFixtureContainsCopiesAboveGround() {
+        var platforms = TestArenas.prototypeSession().arena().platforms();
 
         assertEquals(4, platforms.size());
         assertPlatform(platforms.get(0), GameConstants.CENTER_PLATFORM_X,
@@ -70,7 +70,7 @@ class GameSessionPlatformTest {
     }
 
     private GameSession sessionWithPlayer(int slot) {
-        GameSession session = GameSession.createDefault();
+        GameSession session = TestArenas.prototypeSession();
         session.addPlayer(new Player(playerId, "Player"), slot, CharacterType.values()[0]);
         return session;
     }

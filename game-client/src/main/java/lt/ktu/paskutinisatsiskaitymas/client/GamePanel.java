@@ -1,6 +1,8 @@
 package lt.ktu.paskutinisatsiskaitymas.client;
 
 import java.awt.Color;
+import java.awt.BasicStroke;
+import java.awt.geom.AffineTransform;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
@@ -36,13 +38,14 @@ final class GamePanel extends JPanel {
     private static final int CARD_HEIGHT = 92;
     private static final Color CARD_BACKGROUND = new Color(17, 23, 34, 225);
     private static final Color SHIELD_RING = new Color(120, 200, 255);
-    private static final double SHIELD_SIZE = 32.0;
+    private static final double SHIELD_SIZE = 20.0;
     private static final Color PROJECTILE = new Color(255, 190, 60);
     private static final Color MELEE_SWING = new Color(255, 255, 255, 150);
     private static final Color HEALTH_BACK = new Color(40, 40, 40, 200);
     private static final Color HEALTH_FILL = new Color(90, 220, 110);
     private final Map<UUID, Boolean> facingRight = new HashMap<>();
     private final Map<String, CharacterSkin> skins = new HashMap<>();
+    private final boolean debugGeometry = Boolean.getBoolean("game.debug.geometry");
     private final AssetManager assets = AssetManager.getInstance();
     private WorldSnapshot snapshot;
     private UUID localPlayerId;
@@ -130,12 +133,30 @@ final class GamePanel extends JPanel {
 
             g.setColor(SKY);
             g.fill(new Rectangle2D.Double(offsetX, offsetY, arenaWidth, arenaHeight));
-            g.setColor(PLATFORM);
-            snapshot.arena().platforms().forEach(platform -> g.fill(new Rectangle2D.Double(
-                    offsetX + platform.x() * scale,
-                    offsetY + platform.y() * scale,
-                    platform.width() * scale,
-                    platform.height() * scale)));
+            Image background = assets.arenaBackground(snapshot.arena().arenaType());
+            if (background != null) {
+                g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+                AffineTransform transform = AffineTransform.getTranslateInstance(offsetX, offsetY);
+                transform.scale(arenaWidth / background.getWidth(null), arenaHeight / background.getHeight(null));
+                g.drawImage(background, transform, null);
+            }
+            if (background == null) {
+                g.setColor(PLATFORM);
+                g.setStroke(new BasicStroke(1));
+                snapshot.arena().platforms().forEach(platform -> {
+                    Rectangle2D bounds = new Rectangle2D.Double(offsetX + platform.x() * scale,
+                            offsetY + platform.y() * scale, platform.width() * scale, platform.height() * scale);
+                    g.fill(bounds);
+                });
+            }
+            Graphics2D world = (Graphics2D) g.create();
+            try {
+                world.translate(offsetX, offsetY);
+                world.scale(scale, scale);
+                ArenaGeometryRenderer.draw(world, snapshot.arena(), debugGeometry);
+            } finally {
+                world.dispose();
+            }
             for (PlayerSnapshot player : snapshot.players()) {
                 drawPlayer(g, player, scale, offsetX, offsetY);
             }
@@ -152,7 +173,7 @@ final class GamePanel extends JPanel {
                 drawProjectile(g, projectile, scale, offsetX, offsetY);
             }
             drawPlayerCards(g);
-            drawNotification(g);
+            drawNotification(g, scale, offsetX, offsetY);
         } finally {
             g.dispose();
         }
@@ -171,6 +192,10 @@ final class GamePanel extends JPanel {
         }
         boolean facesRight = facingRight.getOrDefault(player.playerId(), true);
 
+        if (player.grounded() && ArenaGeometryRenderer.supported(snapshot.arena(), player.x(),
+                player.y() + player.height(), player.width())) {
+            drawContactShadow(g, body);
+        }
         CharacterSkin skin = skinFor(player.character());
         if (skin != null) {
             skin.body().draw(g, body, facesRight);
@@ -237,11 +262,29 @@ final class GamePanel extends JPanel {
 
     /** Cards use panel coordinates and stable slots, independently of list order and world movement. */
     private void drawPlayerCards(Graphics2D g) {
-        int width = Math.min(248, (getWidth() - 3 * CARD_MARGIN) / 2);
+        double worldScale = Math.min(getWidth() / snapshot.arena().width(), getHeight() / snapshot.arena().height());
+        double hudScale = Math.min(1, worldScale);
+        double groundY = snapshot.arena().platforms().stream()
+                .filter(p -> p.x() == 0 && p.width() == snapshot.arena().width())
+                .mapToDouble(p -> p.y()).max().orElse(0);
+        double offsetY = (getHeight() - snapshot.arena().height() * worldScale) / 2;
+        double belowGround = getHeight() - offsetY - groundY * worldScale;
+        // Keep the bottom cards entirely in the decorative base, including a margin above and below.
+        double bottomScale = Math.min(hudScale, belowGround / (CARD_HEIGHT + 2.0 * CARD_MARGIN));
         for (PlayerSnapshot player : snapshot.players()) {
-            int x = player.slot() % 2 == 0 ? CARD_MARGIN : getWidth() - CARD_MARGIN - width;
-            int y = player.slot() < 2 ? CARD_MARGIN : getHeight() - CARD_MARGIN - CARD_HEIGHT;
-            drawPlayerCard(g, player, x, y, width);
+            double cardScale = player.slot() < 2 ? hudScale : Math.max(0.1, bottomScale);
+            int width = Math.min(248, (int) ((getWidth() - 3 * CARD_MARGIN) / (2 * cardScale)));
+            double margin = player.slot() < 2 ? CARD_MARGIN : CARD_MARGIN * cardScale;
+            double x = player.slot() % 2 == 0 ? margin : getWidth() - margin - width * cardScale;
+            double y = player.slot() < 2 ? margin : getHeight() - margin - CARD_HEIGHT * cardScale;
+            Graphics2D card = (Graphics2D) g.create();
+            try {
+                card.translate(x, y);
+                card.scale(cardScale, cardScale);
+                drawPlayerCard(card, player, 0, 0, width);
+            } finally {
+                card.dispose();
+            }
         }
     }
 
@@ -290,17 +333,18 @@ final class GamePanel extends JPanel {
         }
     }
 
-    private void drawNotification(Graphics2D g) {
+    private void drawNotification(Graphics2D g, double scale, double offsetX, double offsetY) {
         if (notification == null) {
             return;
         }
         String text = ellipsize(g, notification, getWidth() - 2 * CARD_MARGIN - 16);
         FontMetrics metrics = g.getFontMetrics();
         int width = metrics.stringWidth(text) + 16;
-        int x = (getWidth() - width) / 2;
-        int y = CARD_MARGIN + CARD_HEIGHT + 10;
+        int height = metrics.getHeight() + 8;
+        int x = (int) Math.round(offsetX + 480 * scale - width / 2.0);
+        int y = (int) Math.round(offsetY + 480 * scale - height / 2.0);
         g.setColor(CARD_BACKGROUND);
-        g.fillRoundRect(x, y, width, metrics.getHeight() + 8, 6, 6);
+        g.fillRoundRect(x, y, width, height, 6, 6);
         g.setColor(Color.WHITE);
         g.drawString(text, x + 8, y + 4 + metrics.getAscent());
     }
@@ -319,6 +363,10 @@ final class GamePanel extends JPanel {
     }
 
     private void drawNPC(Graphics2D g, NPCSnapshot npc, double scale, double offsetX, double offsetY) {
+        if (ArenaGeometryRenderer.supported(snapshot.arena(), npc.x(), npc.y() + npc.height(), npc.width())) {
+            drawContactShadow(g, new Rectangle2D.Double(offsetX + npc.x() * scale, offsetY + npc.y() * scale,
+                    npc.width() * scale, npc.height() * scale));
+        }
         NPCPresentation.PoseStyle style = npcPresentation.style(npc);
         Image image = assets.getImage(style.assetKey());
         if (image == null) {
@@ -380,11 +428,17 @@ final class GamePanel extends JPanel {
         SpriteDrawing.draw(g, icon, body, facesRight);
     }
 
+    private void drawContactShadow(Graphics2D g, Rectangle2D body) {
+        g.setColor(new Color(13, 20, 24, 65));
+        double height = body.getHeight() / 16;
+        g.fill(new Ellipse2D.Double(body.getCenterX() - body.getWidth() * 0.34,
+                body.getMaxY() - height / 2, body.getWidth() * 0.68, height));
+    }
+
     private void drawShieldIconAboveHead(Graphics2D g, Rectangle2D body, double scale, boolean facesRight) {
         double iconSize = SHIELD_SIZE * scale;
-        double horizontalOffset = (body.getWidth() / 2) * (facesRight ? 1 : -1);
-        double centerX = body.getCenterX() + horizontalOffset;
-        double centerY = body.getCenterY();
+        double centerX = body.getCenterX() + body.getWidth() * 0.75 * (facesRight ? 1 : -1);
+        double centerY = body.getY() - iconSize / 2 - 3 * scale;
 
         Image icon = assets.getImage("SHIELD");
         if (icon != null) {
@@ -399,7 +453,7 @@ final class GamePanel extends JPanel {
     private void drawItem(Graphics2D g2d, ItemSnapshot item, double scale, double offsetX, double offsetY) {
         g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
 
-        double itemSize = 32.0; 
+        double itemSize = 22.0;
         int width = (int) Math.round(itemSize * scale);
         int height = (int) Math.round(itemSize * scale);
 

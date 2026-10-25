@@ -3,8 +3,12 @@ package lt.ktu.paskutinisatsiskaitymas.client;
 import com.studiohartman.jamepad.ControllerManager;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.GridLayout;
+import java.awt.Insets;
+import java.awt.Rectangle;
+import java.awt.Toolkit;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.net.URI;
@@ -33,6 +37,7 @@ final class ConnectionWindow extends JFrame {
     private final GamePanel gamePanel = new GamePanel();
     private final CardLayout screenLayout = new CardLayout();
     private final JPanel screens = new JPanel(screenLayout);
+    private final GameWindowSizing gameWindowSizing = new GameWindowSizing();
     private final ClientConnection connection;
     private final JComboBox<InputDevice> inputDevice = new JComboBox<>();
     /** Shared SDL controller access, or null when the native library could not be loaded. */
@@ -149,7 +154,7 @@ final class ConnectionWindow extends JFrame {
         });
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         pack();
-        setMinimumSize(new java.awt.Dimension(720, 500));
+        setMinimumSize(new Dimension(720, 500));
         setLocationByPlatform(true);
     }
 
@@ -170,8 +175,31 @@ final class ConnectionWindow extends JFrame {
             input.reset();
             gamePanel.clearGame();
         } else if (update.state() == ConnectionStatus.State.CONNECTED) {
+            if (gameWindowSizing.onStatus(update.state())) {
+                sizeForGame();
+            }
             gamePanel.requestFocusInWindow();
         }
+    }
+
+    private void sizeForGame() {
+        // Validate the visible card first. pack() would still include the form and both cards' preferences.
+        validate();
+        Dimension overhead = new Dimension(getWidth() - gamePanel.getWidth(),
+                getHeight() - gamePanel.getHeight());
+        var configuration = getGraphicsConfiguration();
+        Rectangle workArea = new Rectangle(configuration.getBounds());
+        Insets reserved = Toolkit.getDefaultToolkit().getScreenInsets(configuration);
+        workArea.x += reserved.left;
+        workArea.y += reserved.top;
+        workArea.width -= reserved.left + reserved.right;
+        workArea.height -= reserved.top + reserved.bottom;
+        Rectangle target = GameWindowSizing.bounds(getBounds(), workArea, overhead);
+        // A fixed minimum must not override the proportional fit on a smaller monitor.
+        Dimension minimum = getMinimumSize();
+        setMinimumSize(new Dimension(Math.min(minimum.width, target.width), Math.min(minimum.height, target.height)));
+        setBounds(target);
+        validate();
     }
 
     private void updateUndoSelection() {

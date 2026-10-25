@@ -28,26 +28,13 @@ public final class GameSession {
     public GameSession(UUID id, Arena arena) {
         this.id = Objects.requireNonNull(id, "id");
         this.arena = Objects.requireNonNull(arena, "arena");
+        for (NPCSpawn spawn : arena.npcSpawns()) {
+            spawnNPC(spawn.id(), spawn.position(), spawn.leftBoundary(), spawn.rightBoundary());
+        }
     }
 
     public static GameSession createDefault() {
-        Platform template = new Platform(UUID.randomUUID(), new Position(0, 0),
-                GameConstants.PLATFORM_WIDTH, GameConstants.PLATFORM_HEIGHT);
-        Platform center = template.copyAt(new Position(GameConstants.CENTER_PLATFORM_X,
-                GameConstants.UPPER_PLATFORM_Y));
-        Platform left = template.copyAt(new Position(GameConstants.LEFT_PLATFORM_X,
-                GameConstants.LOWER_PLATFORM_Y));
-        Platform right = template.copyAt(new Position(GameConstants.RIGHT_PLATFORM_X,
-                GameConstants.LOWER_PLATFORM_Y));
-        Platform ground = new Platform(UUID.randomUUID(),
-                new Position(GameConstants.GROUND_X, GameConstants.GROUND_Y),
-                GameConstants.GROUND_WIDTH, GameConstants.GROUND_HEIGHT);
-        Arena arena = new Arena("Prototype arena", GameConstants.ARENA_WIDTH,
-                GameConstants.ARENA_HEIGHT, List.of(center, left, right, ground));
-        GameSession session = new GameSession(UUID.randomUUID(), arena);
-        session.spawnNPC(1, new Position(360, GameConstants.GROUND_Y - GameConstants.PLAYER_HEIGHT), 300, 420);
-        session.spawnNPC(2, new Position(580, GameConstants.GROUND_Y - GameConstants.PLAYER_HEIGHT), 530, 650);
-        return session;
+        return new GameSession(UUID.randomUUID(), new ArenaDirector().construct(new CombatArenaBuilder()));
     }
     
     public void addPlayer(Player player, int slot, CharacterType characterType) {
@@ -73,13 +60,15 @@ public final class GameSession {
             throw new IllegalStateException("Session target identities exhausted");
         }
 
-        double spawnY = GameConstants.GROUND_Y - GameConstants.PLAYER_HEIGHT;
+        if (slot < 0 || slot >= arena.playerSpawns().size()) {
+            throw new IllegalArgumentException("Player slot must be between 0 and 3");
+        }
 
         characters.put(player.id(), new GameCharacter(
                 UUID.randomUUID(),
                 player,
                 slot,
-                new Position(GameConstants.spawnX(slot), spawnY),
+                arena.playerSpawns().get(slot),
                 true,
                 characterType,
                 build
@@ -269,8 +258,9 @@ public final class GameSession {
 
         ItemType[] types = ItemType.values();
         ItemType type = types[random.nextInt(types.length)];
-        double spawnX = random.nextDouble() * (arena.width() - GameConstants.PLAYER_WIDTH);
-        double spawnY = GameConstants.GROUND_Y - GameConstants.PLAYER_HEIGHT;
+        double spawnX = Math.max(GameConstants.ITEM_RADIUS, Math.min(arena.width() - GameConstants.ITEM_RADIUS,
+                random.nextDouble() * (arena.width() - GameConstants.PLAYER_WIDTH)));
+        double spawnY = arena.groundY() - GameConstants.PLAYER_HEIGHT;
         Position position = new Position(spawnX, spawnY);
 
         Item item = itemFactory.create(type, position);

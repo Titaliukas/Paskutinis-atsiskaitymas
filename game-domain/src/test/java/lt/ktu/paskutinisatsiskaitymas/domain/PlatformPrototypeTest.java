@@ -6,6 +6,16 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class PlatformPrototypeTest {
     @Test
+    void copiesPreserveServiceRoleWhileKeepingIdentityAndPlacementIndependent() {
+        Platform template = new Platform(UUID.randomUUID(), new Position(0, 0), 120, 6, Platform.Kind.SERVICE);
+        Platform copy = template.copyAt(new Position(450, 280));
+        assertEquals(Platform.Kind.SERVICE, copy.kind());
+        assertNotEquals(template.id(), copy.id());
+        assertEquals(new Position(0, 0), template.position());
+        assertEquals(new Position(450, 280), copy.position());
+    }
+
+    @Test
     void cloneCreatesIndependentPlatformAtSamePosition() {
         Platform original = new Platform(UUID.randomUUID(), new Position(10, 20), 100, 30);
 

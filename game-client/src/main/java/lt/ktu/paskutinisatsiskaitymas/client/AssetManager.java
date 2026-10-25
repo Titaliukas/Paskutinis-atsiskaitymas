@@ -15,6 +15,8 @@ public final class AssetManager {
 
     private AssetManager() {
         Map<String, Image> loaded = new HashMap<>();
+        load(loaded, "ARENA_COMBAT", "assets/combat_arena_v2.png");
+        load(loaded, "ARENA_TRAINING", "assets/training_arena_v2.png");
         load(loaded, "SPEED_BOOST", "assets/SPEED.png");
         load(loaded, "JUMP_BOOST", "assets/JUMP.png");
         load(loaded, "SHIELD", "assets/SHIELD.png");
@@ -47,6 +49,15 @@ public final class AssetManager {
     /** Returns the shared image, or null for an unknown or unavailable asset so rendering can fall back. */
     public Image getImage(String key) {
         return images.get(key);
+    }
+
+    /** Selects by the validated transport identity; never by a display name or domain type. */
+    public Image arenaBackground(String arenaType) {
+        return switch (arenaType) {
+            case "combat" -> getImage("ARENA_COMBAT");
+            case "training" -> getImage("ARENA_TRAINING");
+            default -> null;
+        };
     }
 
     /** Crop a normalized square portrait once; never crop during painting. */

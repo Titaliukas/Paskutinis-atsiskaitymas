@@ -24,7 +24,7 @@ class ProjectilePresentationTest {
                     new ProjectileSnapshot(UUID.randomUUID(), 1, "BOOK", 550, 240, 8, -360, 0, true),
                     new ProjectileSnapshot(UUID.randomUUID(), 1, "DIPLOMA", 670, 240, 8, -340, -120, true));
             WorldSnapshot snapshot = new WorldSnapshot(12,
-                    new ArenaSnapshot(960, 540, List.of(new PlatformSnapshot(0, 480, 960, 60))),
+                    new ArenaSnapshot("combat", 960, 540, List.of(new PlatformSnapshot(0, 480, 960, 60))),
                     List.of(new PlayerSnapshot(playerId, 0, "Slowed player", 180, 416, 42, 64,
                             true, false, 247, 100, 100, 0, "PATASIJUS", true)), List.of(),
                     List.of(new NPCSnapshot(1, 550, 416, 42, 64, "CHASE", false, 0, true)), List.of(), shots);

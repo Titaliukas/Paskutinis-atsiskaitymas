@@ -44,7 +44,7 @@ class GameSessionPhysicsTest {
         Platform ground = new Platform(UUID.randomUUID(),
                 new Position(GameConstants.GROUND_X, GameConstants.GROUND_Y),
                 GameConstants.GROUND_WIDTH, GameConstants.GROUND_HEIGHT);
-        GameSession session = new GameSession(UUID.randomUUID(), new Arena("Ground only",
+        GameSession session = new GameSession(UUID.randomUUID(), TestArenas.geometry("Ground only",
                 GameConstants.ARENA_WIDTH, GameConstants.ARENA_HEIGHT, List.of(ground)));
         session.addPlayer(new Player(firstId, "First"), 0, CharacterType.values()[0]);
         session.advance(Map.of(firstId, new MovementInput(false, false, true)), GameConstants.TICK_SECONDS);
@@ -90,8 +90,8 @@ class GameSessionPhysicsTest {
             ids[slot] = UUID.randomUUID();
             session.addPlayer(new Player(ids[slot], "Player " + slot), slot, CharacterType.values()[0]);
         }
-        assertEquals(GameConstants.FIRST_SPAWN_X, state(session, ids[0]).x());
-        assertEquals(GameConstants.SECOND_SPAWN_X, state(session, ids[1]).x());
+        assertEquals(session.arena().playerSpawns().get(0).x(), state(session, ids[0]).x());
+        assertEquals(session.arena().playerSpawns().get(1).x(), state(session, ids[1]).x());
         var states = session.characters();
         assertEquals(4, states.stream().map(GameCharacterState::x).distinct().count());
         for (GameCharacterState character : states) {
@@ -124,7 +124,7 @@ class GameSessionPhysicsTest {
     }
 
     private GameSession sessionWithFirstPlayer() {
-        GameSession session = GameSession.createDefault();
+        GameSession session = TestArenas.prototypeSession();
         session.addPlayer(new Player(firstId, "First"), 0, CharacterType.values()[0]);
         return session;
     }

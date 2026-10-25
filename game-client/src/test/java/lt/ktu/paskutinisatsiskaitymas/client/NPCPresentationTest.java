@@ -89,8 +89,12 @@ class NPCPresentationTest {
                     new NPCSnapshot(4, 640, 416, 42, 64, "FLEE", true, 0, false),
                     new NPCSnapshot(5, 810, 416, 42, 64, "FLEE", false, 0, false));
             WorldSnapshot snapshot = new WorldSnapshot(0,
-                    new ArenaSnapshot(960, 540, List.of(new PlatformSnapshot(0, 480, 960, 60))),
+                    new ArenaSnapshot("training", 960, 540, List.of(new PlatformSnapshot(0, 480, 960, 60))),
                     List.of(), List.of(), npcs, List.of(), List.of());
+            panel.setSnapshot(new WorldSnapshot(0, snapshot.arena(), List.of(), List.of(), List.of(), List.of(), List.of()));
+            BufferedImage backdrop = new BufferedImage(960, 540, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D backdropGraphics = backdrop.createGraphics();
+            try { panel.paint(backdropGraphics); } finally { backdropGraphics.dispose(); }
             panel.setSnapshot(snapshot);
             BufferedImage image = new BufferedImage(960, 540, BufferedImage.TYPE_INT_ARGB);
             Graphics2D graphics = image.createGraphics();
@@ -106,8 +110,8 @@ class NPCPresentationTest {
                 panel.removeNotify();
             }
             assertEquals(npcs, snapshot.npcs());
-            assertEquals(0xff263044, image.getRGB(100, 450), "Transparent backgrounds retain arena sky");
-            assertEquals(0xff534537, image.getRGB(650, 510), "Ground remains visible below the poses");
+            assertEquals(backdrop.getRGB(100, 450), image.getRGB(100, 450), "Transparent sprite margins retain arena background");
+            assertEquals(backdrop.getRGB(650, 510), image.getRGB(650, 510), "Background remains visible below the poses");
         });
     }
 }

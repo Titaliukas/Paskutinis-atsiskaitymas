@@ -114,9 +114,9 @@ class GameSessionNPCTest {
     }
 
     @Test
-    void productionNPCsDetectPlayersInSlotsTwoAndThreeUsingExistingTargets() {
+    void sessionNPCsDetectPlayersInSlotsTwoAndThreeUsingExistingTargets() {
         for (int slot : new int[]{2, 3}) {
-            GameSession session = GameSession.createDefault();
+            GameSession session = TestArenas.prototypeSession();
             UUID id = UUID.randomUUID();
             session.addPlayer(new Player(id, "Player " + slot), slot, CharacterType.values()[0]);
             for (int tick = 0; tick < 80; tick++) {

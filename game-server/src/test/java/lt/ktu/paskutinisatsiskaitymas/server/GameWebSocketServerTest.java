@@ -44,7 +44,7 @@ class GameWebSocketServerTest {
 
     @BeforeEach
     void start() throws Exception {
-        server = new GameWebSocketServer(new InetSocketAddress("127.0.0.1", 0));
+        server = new GameWebSocketServer(new InetSocketAddress("127.0.0.1", 0), ArenaSelection.create("combat", null));
         server.start();
         server.awaitStarted(Duration.ofSeconds(5));
         http = HttpClient.newHttpClient();
@@ -66,6 +66,24 @@ class GameWebSocketServerTest {
     }
 
     @Test
+    void trainingSelectionReachesTheRealLoopAndWireWithoutNPCs() throws Exception {
+        server.close();
+        assertTrue(server.isGameLoopTerminated());
+        server = new GameWebSocketServer(new InetSocketAddress("127.0.0.1", 0),
+                ArenaSelection.create("training", null));
+        server.start();
+        server.awaitStarted(Duration.ofSeconds(5));
+        Peer peer = connect("/game");
+        peer.send(new Hello("Training"));
+        peer.receive(Welcome.class, value -> true);
+        WorldSnapshot snapshot = peer.receive(WorldSnapshot.class, value -> value.players().size() == 1);
+        assertEquals("training", snapshot.arena().arenaType());
+        assertEquals(List.of(new PlatformSnapshot(0, 448, 960, 92)), snapshot.arena().platforms());
+        assertTrue(snapshot.npcs().isEmpty());
+        assertEquals(384, snapshot.players().getFirst().y());
+    }
+
+    @Test
     void twoPlayersReceiveSnapshotsAndMoveIndependently() throws Exception {
         Peer first = connect("/game");
         Peer second = connect("/game");
@@ -78,10 +96,11 @@ class GameWebSocketServerTest {
 
         WorldSnapshot initial = first.receive(WorldSnapshot.class, value -> value.players().size() == 2);
         assertEquals(List.of(
-                new PlatformSnapshot(400, 280, 160, 20),
-                new PlatformSnapshot(140, 380, 160, 20),
-                new PlatformSnapshot(660, 380, 160, 20),
-                new PlatformSnapshot(0, 480, 960, 60)), initial.arena().platforms());
+                new PlatformSnapshot(45, 215, 870, 6),
+                new PlatformSnapshot(333, 344, 294, 6),
+                new PlatformSnapshot(210, 280, 120, 6, "service"),
+                new PlatformSnapshot(0, 421, 960, 119)), initial.arena().platforms());
+        assertEquals("combat", initial.arena().arenaType());
         assertEquals(2, initial.npcs().size());
         assertTrue(initial.npcs().stream().allMatch(npc -> List.of("PATROL", "CHASE", "ATTACK", "FLEE")
                 .contains(npc.activity())));
@@ -228,7 +247,7 @@ class GameWebSocketServerTest {
         peer.send(new Hello("Replacement"));
         assertEquals("ALREADY_CONNECTED", peer.receive(ErrorMessage.class,
                 value -> value.code().equals("ALREADY_CONNECTED")).code());
-        peer.send(new WorldSnapshot(0, new ArenaSnapshot(1, 1, List.of()), List.of(), List.of(), List.of(), List.of(), List.of()));
+        peer.send(new WorldSnapshot(0, new ArenaSnapshot("combat", 1, 1, List.of()), List.of(), List.of(), List.of(), List.of(), List.of()));
         assertEquals("UNEXPECTED_MESSAGE", peer.receive(ErrorMessage.class,
                 value -> value.code().equals("UNEXPECTED_MESSAGE")).code());
     }

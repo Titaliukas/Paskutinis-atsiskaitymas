@@ -2,6 +2,8 @@ package lt.ktu.paskutinisatsiskaitymas.domain;
 
 import java.util.EnumSet;
 import java.util.Map;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /** Deterministic demonstration of production session/controller behavior, without networking or sleeps. */
@@ -9,8 +11,12 @@ public final class NPCStrategyDemo {
     private NPCStrategyDemo() { }
 
     public static void main(String[] args) {
-        GameSession session = GameSession.createDefault();
-        session.removeNPC(2);
+        Arena demoArena = new Arena("NPC Strategy demo", ArenaType.TRAINING, 960, 540,
+                List.of(new Platform(UUID.randomUUID(), new Position(0, 480), 960, 60)),
+                List.of(new Position(180, 416), new Position(738, 416),
+                        new Position(60, 416), new Position(858, 416)),
+                List.of(new NPCSpawn(1, new Position(360, 416), 300, 420)), 480, Optional.empty());
+        GameSession session = new GameSession(UUID.randomUUID(), demoArena);
         session.addPlayer(new Player(UUID.fromString("00000000-0000-0000-0000-000000000001"), "Demo player"), 0, CharacterType.PATASIJUS);
         EnumSet<NPCActivity> seen = EnumSet.noneOf(NPCActivity.class);
         NPCActivity previous = null;

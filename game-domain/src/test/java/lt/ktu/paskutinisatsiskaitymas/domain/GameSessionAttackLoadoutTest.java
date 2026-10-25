@@ -86,7 +86,7 @@ class GameSessionAttackLoadoutTest {
     private static GameSession sessionWithTwoPlayers(CharacterType sourceType) {
         Platform ground = new Platform(UUID.randomUUID(), new Position(0, GameConstants.GROUND_Y),
                 GameConstants.GROUND_WIDTH, GameConstants.GROUND_HEIGHT);
-        GameSession session = new GameSession(UUID.randomUUID(), new Arena("Attack test",
+        GameSession session = new GameSession(UUID.randomUUID(), TestArenas.geometry("Attack test",
                 GameConstants.ARENA_WIDTH, GameConstants.ARENA_HEIGHT, List.of(ground)));
         session.addPlayer(new Player(UUID.randomUUID(), "Source"), 0, sourceType);
         session.addPlayer(new Player(UUID.randomUUID(), "Target"), 1, CharacterType.PATASIJUS);

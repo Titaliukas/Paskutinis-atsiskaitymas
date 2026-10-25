@@ -5,12 +5,19 @@ import java.util.Objects;
 
 /** Axis-aligned solid platform in world coordinates. */
 public final class Platform implements Prototype<Platform> {
+    public enum Kind { STANDARD, SERVICE }
+    private final Kind kind;
     private final UUID id;
     private Position position;
     private final double width;
     private final double height;
 
     public Platform(UUID id, Position position, double width, double height) {
+        this(id, position, width, height, Kind.STANDARD);
+    }
+
+    public Platform(UUID id, Position position, double width, double height, Kind kind) {
+        this.kind = Objects.requireNonNull(kind, "kind");
         this.id = Objects.requireNonNull(id, "id");
         this.position = Objects.requireNonNull(position, "position");
         if (!Double.isFinite(width) || !Double.isFinite(height) || width <= 0 || height <= 0) {
@@ -20,6 +27,7 @@ public final class Platform implements Prototype<Platform> {
         this.height = height;
     }
 
+    public Kind kind() { return kind; }
     public UUID id() { return id; }
     public Position position() { return position; }
     public double width() { return width; }
@@ -27,7 +35,7 @@ public final class Platform implements Prototype<Platform> {
 
     @Override
     public Platform clone() {
-        return new Platform(UUID.randomUUID(), position, width, height);
+        return new Platform(UUID.randomUUID(), position, width, height, kind);
     }
 
     /** Copies this platform to a new location without moving the original. */

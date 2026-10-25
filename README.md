@@ -4,9 +4,11 @@ A small playable four-player platform prototype for a university Object-Oriented
 The Java 25 server owns movement and collision state; Swing clients send keyboard intent and render authoritative
 JSON snapshots with Java2D sprites and primitive fallbacks.
 
-The implemented scope is intentionally narrow: one 960×540 arena, one ground platform, two colored player
-rectangles, separate spawn positions, horizontal movement, jumping, gravity, arena/ground collision, and safe
-disconnect/reconnect. There is no combat, scoring, enemies, items, persistence, authentication, or match result.
+Each server runs one selected 960×540 arena: **Combat** (default, four surfaces, two student NPCs and a paired
+side passage) or **Training** (stadium background, ground only, no NPCs or passage). Both support four players,
+character/stat selection, combat, items, stress, respawn and safe reconnect. There are no lobbies, rooms,
+persistence, authentication or match results. See [Builder and arenas](docs/builder-arenas.md) for the approved
+UML mapping, coordinates and verification.
 
 ## Stack and architecture
 
@@ -77,11 +79,18 @@ reconnection, and shutdown tests, then produces:
 
 Open five terminals in the repository root after building.
 
-Terminal 1 — server:
+Terminal 1 — choose one server configuration:
 
 ```sh
-java -jar game-server/target/game-server.jar
+# Combat (also the default without -Dgame.arena)
+java -Dgame.arena=combat -jar game-server/target/game-server.jar
+# Or Training
+java -Dgame.arena=training -jar game-server/target/game-server.jar
 ```
+
+Alternatively use `GAME_ARENA=training java -jar game-server/target/game-server.jar`. The `game.arena` JVM
+property overrides `GAME_ARENA`; only `combat` and `training` are accepted. An invalid value fails startup.
+Stop the current server before starting the other arena on the same port.
 
 Terminal 2 — first client:
 
@@ -109,6 +118,10 @@ java -jar game-client/target/game-client.jar ws://localhost:8080/game Dora
 
 Click a character's portrait card in the **Choose your character** screen, then click **Connect** above.
 The highlighted card is marked **Selected**; Tab and Space also let you choose a card with the keyboard.
+On the first successful join, the window is fitted to a 960×540 (16:9) GamePanel, reduced proportionally if needed
+for the current monitor's usable work area. Frame decorations, form, margins and status are measured separately
+in logical Swing units. Later snapshots, repeated status messages and reconnects retain your chosen window size;
+manual resizing remains available, with letterboxing when you choose a different aspect ratio.
 Portraits come from the shared `AssetManager` cache. Below them, sliders adjust maximum health, movement speed,
 and jump height from **50–150%** in steps of **5**. Each starts at **100%** and shares a **300-point budget**:
 lower one stat to free points before increasing another. Unused points are allowed.
@@ -130,7 +143,7 @@ Each character has a different attack role (J: ranged, K: melee):
 | JURGELINIS | 16 damage and slows to 30% speed for 4 seconds | 16 damage and knockback |
 | GOGIS | 20 damage and slows to 65% speed for 2 seconds | 22 damage and knockback |
 
-The two green student NPCs show authoritative activity labels and switch among four poses. Stop the direct server
+Combat's two student NPCs show authoritative activity labels and switch among four poses; Training has no NPCs. Stop the direct server
 with `Ctrl+C`. One to three clients also work; unused corners remain clear.
 
 ## Start the server with Docker Compose
@@ -139,6 +152,8 @@ with `Ctrl+C`. One to three clients also work; unused corners remain clear.
 cp .env.example .env
 docker compose up --build -d game-server
 docker compose logs -f game-server
+# To use Training instead (restart/recreate the server):
+GAME_ARENA=training docker compose up -d game-server
 ```
 
 Press `Ctrl+C` to stop following logs, then start up to four Swing clients with the commands above. Compose uses
@@ -184,22 +199,41 @@ macOS and Linux are bundled in the client JAR. Plug the controller in before sta
 dead zone, so a resting stick does not move the character, and unplugging the controller stops all input. If SDL
 cannot load, the dropdown offers only the keyboard.
 
-The default arena has a ground platform at `(0,480)` and three `160 × 20` raised platforms at `(140,380)`,
-`(660,380)`, and `(400,280)`. Jump onto either lower platform, then toward the center platform. Players pass
-through a platform from below and land when falling onto its top. The raised platforms are copies made with
-`Platform.copyAt(Position)` from one template; each copy has its own UUID.
+Combat v2 surfaces are roof `(45,215,870)`, canopy `(333,344,294)`, service platform `(210,280,120)` and
+ground `(0,421,960)` (X, top Y, width). Walk under the canopy, jump onto it, jump onto the service platform,
+then onto the roof with the default build. The 129-unit canopy-to-roof gap needs the service platform; shared
+jump/gravity constants are unchanged. The old side ledges were removed. Platforms catch downward movement and
+allow upward passage. At ground level, paired concrete edge openings transfer players to the opposite edge;
+the full body must fit inside Y=343–421. Training uses its v2 stadium background and one ground edge at Y=448.
+Both original v1 and v2 PNG files are preserved. Subtle platform rims and the service platform/openings are
+painted from snapshot geometry. Small-window HUD cards scale down to leave the openings visible.
+
+Enable thin geometry outlines on a client:
+
+```sh
+java -Dgame.debug.geometry=true -jar game-client/target/game-client.jar ws://localhost:8080/game Alice
+```
 
 ## Manual playable test
 
-1. Start one server and Alice and Bob clients, then click **Connect** in both.
-2. Confirm both windows display the same arena, platform, and two named rectangles.
-3. Focus Alice's game panel. Hold `D`, release it, then press `Space`. Confirm only Alice moves and jumps in both
-   windows, stops on release, lands on the platform, and cannot leave the arena.
-4. Focus Bob's panel and repeat using `A` and `W`. Confirm Bob moves independently in both windows.
-5. Start a third client and click **Connect**. Confirm it reports `SERVER_FULL` while Alice and Bob remain active.
-6. Disconnect or close Alice. Confirm Alice disappears without stopping Bob.
-7. Connect the third client again. Confirm it receives the freed slot, appears at that slot's spawn, and can move.
-8. Stop the server. Confirm clients report disconnection instead of freezing or crashing.
+1. Start Combat and four clients; connect and check the four distinct spawns and corner HUD cards.
+2. Try a fifth client: it receives `SERVER_FULL`. Disconnect one player and reconnect to reuse the freed slot.
+3. With default stats, walk under the canopy, jump onto it, then the service platform and roof. Repeat from the other side.
+4. Walk outward into each ground-level opening. Check opposite-side arrival, continued movement, stable stress/health and no bouncing.
+5. Try both edges outside the opening height and at roof height: they remain closed. Check combat, items and respawn.
+6. Resize the window, including a non-16:9 size; compare debug outlines against the background.
+7. Restart the server with Training. Check stadium, one ground surface, four spawns, closed edges and no NPCs.
+8. Stop the server and verify clients disconnect without freezing.
+
+Automated offscreen GamePanel previews from actual server snapshots can be reproduced after `clean verify`:
+
+```sh
+./scripts/render-arenas.sh
+```
+
+42 PNG and seven source JSON files cover ground, canopy, service platform, roof and both openings in
+`game-client/target/arena-previews/`, at 960×540, 640×360 and letterboxed
+640×400, with normal and debug variants. This verifies rendering without opening a desktop game window.
 
 ## Play over a LAN
 
@@ -237,6 +271,9 @@ reverse proxy are required before exposing the server outside a trusted network.
 
 | Setting                            | Applies to        | Default                    | Purpose                                 |
 | ---------------------------------- | ----------------- | -------------------------- | --------------------------------------- |
+| `-Dgame.arena=<TYPE>`     | Server JVM        | `combat`                   | Arena; overrides GAME_ARENA             |
+| `GAME_ARENA` environment variable  | Server / Compose  | `combat`                   | Arena recipe for this server process    |
+| `-Dgame.debug.geometry=true`       | Client JVM        | `false`                    | Thin collision outlines                 |
 | `-Dgame.server.port=<PORT>`        | Direct server JVM | unset                      | Highest-precedence listening port       |
 | `SERVER_PORT` environment variable | Direct server JVM | `8080`                     | Listening port without the JVM property |
 | `SERVER_PORT` in `.env`            | Compose host      | `8080`                     | Host port mapped to container port 8080 |
@@ -251,7 +288,7 @@ java -jar game-client/target/game-client.jar ws://localhost:9090/game Alice
 ```
 
 Alternatively use `java -Dgame.server.port=9090 -jar game-server/target/game-server.jar`. Direct Java execution
-does not read `.env`; `.env` controls Compose's published host port.
+does not read `.env`; `.env` controls Compose's published host port and arena selection.
 
 ## Protocol summary
 
@@ -262,7 +299,7 @@ The `/game` endpoint accepts JSON text messages with explicit stable types:
   are rejected by the protocol; invalid ranges, steps, or budgets produce `INVALID_STATS` without reserving a slot.
 - `WELCOME`: returns connection UUID, server-assigned player UUID, slot, and nickname.
 - `INPUT`: sends a monotonically sequenced complete left/right/jump state, never position or velocity.
-- `WORLD_SNAPSHOT`: broadcasts arena/platform geometry, players (including health, character choice, stress and `slowed`), items,
+- `WORLD_SNAPSHOT`: broadcasts validated `arenaType` (`combat` or `training`), arena/platform geometry, players (including health, character choice, stress and `slowed`), items,
   NPC geometry/activity/facing/attack sequences and `stunned`, player `attacks`, and NPC `projectiles`
   at 20 Hz. Each NPC projectile
   carries its UUID, source NPC ID, explicit `projectileType` (`BOOK` or `DIPLOMA`), center, radius,
@@ -322,10 +359,19 @@ After building with Java 25, run from the repository root:
 java -cp game-domain/target/game-domain.jar lt.ktu.paskutinisatsiskaitymas.domain.NPCStrategyDemo
 ```
 
-This drives the production session/controller without networking or sleeps. It prints PATROL, CHASE, the
+This drives the production session/controller with an explicit flat demonstration arena, without networking or sleeps. It prints PATROL, CHASE, the
 ATTACK attempt resolved within a tick, FLEE, actual player stress, and the return to PATROL on the same NPC.
 A successful ATTACK can be shorter than a snapshot interval; the client latches its image for 180 ms using the
 monotonic attempt sequence while keeping the server activity label truthful.
 
 Current limitations: direct snapshot rendering may look less smooth on slow networks; there is no prediction,
 interpolation, multi-frame animation, sound, menu, match lifecycle, or Internet security layer.
+
+## Builder demonstration
+
+```sh
+java -cp game-domain/target/game-domain.jar lt.ktu.paskutinisatsiskaitymas.domain.BuilderDemo
+```
+
+Uses the real Director with Combat, Training and Combat again, showing that reusing a builder does not accumulate
+surfaces or NPC recipes. See [docs/builder-arenas.md](docs/builder-arenas.md) for responsibilities and UML additions.

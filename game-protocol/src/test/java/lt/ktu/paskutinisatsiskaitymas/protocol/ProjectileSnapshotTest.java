@@ -15,7 +15,7 @@ class ProjectileSnapshotTest {
     }
 
     private WorldSnapshot world(List<ProjectileSnapshot> projectiles) {
-        return new WorldSnapshot(123, new ArenaSnapshot(960, 540, List.of()),
+        return new WorldSnapshot(123, new ArenaSnapshot("combat", 960, 540, List.of()),
                 List.of(new PlayerSnapshot(UUID.randomUUID(), 0, "Player", 180, 416, 42, 64,
                         true, false, 247, 100, 100, 0, "PATASIJUS", true)), List.of(),
                 List.of(new NPCSnapshot(1, 350, 416, 42, 64, "CHASE", true, 0, true)), List.of(), projectiles);
@@ -71,7 +71,7 @@ class ProjectileSnapshotTest {
                 -395.12345678912345, 100, 100, 123456.12345678912345, "PATASIJUS", true)).toList();
         var items = IntStream.range(0, 3).mapToObj(index -> new ItemSnapshot(UUID.randomUUID(),
                 "SPEED_BOOST", 123.12345678912345, 456.12345678912345)).toList();
-        WorldSnapshot world = new WorldSnapshot(Long.MAX_VALUE, new ArenaSnapshot(960, 540,
+        WorldSnapshot world = new WorldSnapshot(Long.MAX_VALUE, new ArenaSnapshot("combat", 960, 540,
                 List.of(new PlatformSnapshot(400, 280, 160, 20), new PlatformSnapshot(140, 380, 160, 20),
                         new PlatformSnapshot(660, 380, 160, 20), new PlatformSnapshot(0, 480, 960, 60))),
                 players, items, List.of(new NPCSnapshot(1, 350.12345678912345, 416, 42, 64,
