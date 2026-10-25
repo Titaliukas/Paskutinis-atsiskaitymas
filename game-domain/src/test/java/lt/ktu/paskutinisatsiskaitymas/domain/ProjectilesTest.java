@@ -111,7 +111,7 @@ class ProjectilesTest {
 
     @Test
     void platformAbsorbsBeforePlayerAndCeilingAndGroundAbsorbWithoutCloning() {
-        Arena blocked = new Arena("Blocked", 960, 540, List.of(
+        Arena blocked = TestArenas.geometry("Blocked", 960, 540, List.of(
                 new Platform(UUID.randomUUID(), new Position(250, 200), 10, 100)));
         projectiles.spawn(source.state(), target, ProjectileType.BOOK);
         GameCharacter behind = player(300, 200);
@@ -128,7 +128,7 @@ class ProjectilesTest {
     @Test
     void tangentialRoundedCornerDoesNotCollideWithTheExpandedBoxCorner() {
         NPC high = npc(1, 100, 61); // Shot center y=93, seven units above platform top.
-        Arena arena = new Arena("Corner", 960, 540, List.of(
+        Arena arena = TestArenas.geometry("Corner", 960, 540, List.of(
                 new Platform(UUID.randomUUID(), new Position(200, 100), 20, 20)));
         projectiles.spawn(high.state(), new NPCTarget(7, 800, 61, 42, 64), ProjectileType.BOOK);
         projectiles.advance(arena, Map.of(1, high), List.of(), (193.0 - 121) / 360);
@@ -139,7 +139,7 @@ class ProjectilesTest {
 
     @Test
     void sixSecondLifetimeExpiresBeforeAnyWallInLargeArenaAndCapNeverExceedsEight() {
-        Arena large = new Arena("Large", 10000, 1000, List.of());
+        Arena large = TestArenas.geometry("Large", 10000, 1000, List.of());
         for (int i = 0; i < 8; i++) {
             assertTrue(projectiles.spawn(source.state(), target, ProjectileType.BOOK));
         }

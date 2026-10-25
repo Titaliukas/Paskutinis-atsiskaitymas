@@ -16,7 +16,7 @@ class ClientMessageRouterTest {
         Welcome welcome = new Welcome(UUID.randomUUID(), UUID.randomUUID(), 0, "Player");
         ErrorMessage error = new ErrorMessage("INVALID_MESSAGE", "Invalid JSON");
         WorldSnapshot snapshot = new WorldSnapshot(1,
-                new ArenaSnapshot(960, 540, List.of(new PlatformSnapshot(0, 480, 960, 60))), List.of(), List.of(),
+                new ArenaSnapshot("combat", 960, 540, List.of(new PlatformSnapshot(0, 480, 960, 60))), List.of(), List.of(),
                 List.of(new NPCSnapshot(1, 300, 416, 42, 64, "CHASE", true, 0, false)), List.of(), List.of());
         router.route(welcome, received::add, received::add, received::add, received::add);
         router.route(snapshot, received::add, received::add, received::add, received::add);

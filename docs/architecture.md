@@ -107,35 +107,39 @@ working-tree baseline.
 
 ## World and collision model
 
-World origin `(0,0)` is the arena's top-left. X increases rightward and Y downward. Constants live in
-`GameConstants`:
+World origin `(0,0)` is the arena's top-left. X increases rightward and Y downward. Both arenas are 960×540;
+players are 42×64; simulation runs at 60 Hz and snapshots at 20 Hz. Shared movement constants remain 260 units/s,
+600 units/s upward jump speed and 1500 units/s² gravity. Geometry and four spawns belong to the selected
+`Arena`, built by `ArenaDirector` with `CombatArenaBuilder` or `TrainingArenaBuilder`. The old prototype constants
+remain for regression fixtures only; gameplay spawning no longer uses global `GROUND_Y`/`spawnX`.
 
-- Arena: `960 × 540` world units
-- Ground: `(0,480)`, size `960 × 60`
-- Raised platforms: `(140,380)`, `(660,380)`, and `(400,280)`, each `160 × 20`
-- Player: `42 × 64`
-- Fixed simulation: 60 ticks/second; snapshots: 20/second
-- Horizontal speed: 260 units/second
-- Jump speed: 600 units/second upward
-- Gravity: 1500 units/second² downward
+Each tick derives horizontal velocity from input and resolves a grounded jump. Vertical displacement uses
+`v*dt + g*dt²/2`, then updates velocity by `g*dt`. The previous semi-implicit formula reached only 115 units at
+60 Hz, below the required 116-unit first step; constant-acceleration integration restores the intended 120-unit
+jump without changing speeds, gravity or builds. Downward crossing selects the smallest matching platform top,
+regardless of list order. Upward passage remains open; the building facade is not a wall.
 
-Each tick derives horizontal velocity from retained left/right state, applies a grounded jump edge, integrates
-gravity, clamps horizontal and vertical arena boundaries, and resolves downward crossing of the platform top.
-Platforms can be jumped through from below. The default arena lists the center platform first, then the two
-lower platforms, then ground, so a downward crossing chooses the highest matching surface.
-There is no client prediction or interpolation in this prototype.
+`Arena.sidePassage` describes optional paired openings by top and support height. Player integration checks the
+whole body, outward input and boundary crossing before horizontal clamp. Combat exits lead to X=918 or X=0;
+normal landing resolves grounded on the opposite side. The next step moves inward, avoiding immediate bounce.
+NPCs/projectiles/items retain their existing boundary rules. The server performs all transitions and publishes
+positions normally. See [Builder and arenas](builder-arenas.md) for coordinates, rules and tests.
 
-`Platform` implements the domain `Prototype<Platform>` interface. Its public `clone()` creates a platform with
-the same position and dimensions but a fresh UUID. `copyAt(Position)` clones the platform and changes only the
-copy's position, leaving the original in place. Position changes are private to this operation. The default arena
-uses one `160 × 20` template to create its three raised platforms with `copyAt(Position)`; the template itself
-is not placed in the arena.
+`Platform` still implements `Prototype<Platform>`: `clone()` assigns a fresh UUID; `copyAt(Position)` only changes
+the new copy. Builders place detached copies of platform recipes. Arena collection copies, immutable positions
+and NPC spawn descriptions separate configuration from independently owned session entities/controllers.
+
+The client receives validated `ArenaSnapshot.arenaType` (`combat` or `training`) and uses cached background images.
+A single centered arena rectangle and scale map image and world geometry together, preserving black letterboxing.
+Nearest-neighbor background scaling retains pixel-art edges. Normal mode omits collision fills when art exists;
+`-Dgame.debug.geometry=true` enables thin outlines. Missing art keeps the sky/platform fallback. The four HUD cards
+still use panel coordinates and render after the world.
 
 ## NPC ownership and Strategy
 
 `GameSession` privately owns `NPCs: Map<Integer, NPC>` and `NPCControllers: Map<Integer, NPCBehaviorController>`.
-Spawn/removal maintains a matched pair per ID, and outward views are detached immutable records/lists. The default
-session spawns two students. Numeric NPC IDs and numeric targets are distinct namespaces. A session-owned map
+Spawn/removal maintains a matched pair per ID, and outward views are detached immutable records/lists. Combat spawns one student on its roof and one on ground; Training has no NPCs.
+`GameSession` consumes immutable `NPCSpawn` recipes through its existing `spawnNPC`/Strategy construction. Numeric NPC IDs and numeric targets are distinct namespaces. A session-owned map
 connects monotonic target IDs to existing character UUIDs; disconnect clears the map entry and stale controller
 references. Player/network UUIDs remain unchanged.
 
@@ -256,11 +260,13 @@ and shuts down its HTTP client when the window closes.
 The Maven Wrapper pins Maven 3.9.11. Compiler release, Enforcer, CI, Docker, VS Code, and documentation use Java
 25. The multi-stage Dockerfile runs the full reactor verification and copies only the shaded server JAR into a
 non-root Java 25 runtime. Compose uses project `paskutinis-atsiskaitymas`, service `game-server`, image
-`paskutinis-atsiskaitymas-server:local`, and host `SERVER_PORT` mapped to container port 8080.
+`paskutinis-atsiskaitymas-server:local`, host `SERVER_PORT` mapped to container port 8080, and `GAME_ARENA` defaulting
+to `combat`. `ArenaSelection` is the single startup switch; its selected product reaches GameRuntime/GameSession
+before the owner loop starts. No live world state is changed by WebSocket callbacks.
 
 ## Extension points
 
 Future slices can add more platform geometry to `Arena`, new application commands, versioned snapshot fields,
-and client interpolation without changing transport ownership. Existing Singleton, three-product ItemFactory,
-Observer delivery and platform Prototype remain intact. Player combat, projectiles, health/death, scoring,
-multiple arenas, persistence, authentication, match results and unrelated patterns remain outside this slice.
+and client interpolation without changing transport ownership. Existing Singleton, ItemFactory, Observer, platform Prototype, Strategy, Adapter, Abstract Factory, Decorator and
+Command behavior remain intact. Player combat, projectiles and respawn are already implemented. Scoring,
+persistence, authentication, match results, runtime arena switching, lobbies/rooms and unrelated patterns remain outside this slice.

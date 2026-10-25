@@ -4,6 +4,7 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.List;
+import lt.ktu.paskutinisatsiskaitymas.domain.Arena;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import lt.ktu.paskutinisatsiskaitymas.protocol.ErrorMessage;
@@ -24,13 +25,19 @@ public final class GameWebSocketServer extends WebSocketServer implements AutoCl
     private static final System.Logger LOG = System.getLogger(GameWebSocketServer.class.getName());
     private final JsonMessageCodec codec = new JsonMessageCodec();
     private final PlayerSlots slots = new PlayerSlots();
-    private final GameRuntime runtime = new GameRuntime(this::broadcastSnapshot, this::broadcastEvent);
-    private final MessageRouter router = new MessageRouter(runtime.commands(), slots);
+    private final GameRuntime runtime;
+    private final MessageRouter router;
     private final CompletableFuture<Void> started = new CompletableFuture<>();
 
     public GameWebSocketServer(InetSocketAddress address) {
+        this(address, ArenaSelection.fromEnvironment());
+    }
+
+    public GameWebSocketServer(InetSocketAddress address, Arena arena) {
         // Bound frames and reassembled messages as well as decoded JSON text.
         super(address, 2, List.of(new Draft_6455(List.of(), JsonMessageCodec.MAX_MESSAGE_CHARACTERS * 4)));
+        runtime = new GameRuntime(this::broadcastSnapshot, this::broadcastEvent, arena);
+        router = new MessageRouter(runtime.commands(), slots);
         setConnectionLostTimeout(30);
     }
 

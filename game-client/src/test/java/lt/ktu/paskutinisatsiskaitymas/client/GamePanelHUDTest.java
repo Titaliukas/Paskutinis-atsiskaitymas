@@ -36,7 +36,7 @@ class GamePanelHUDTest {
     }
 
     private WorldSnapshot world(List<PlayerSnapshot> players) {
-        return new WorldSnapshot(1, new ArenaSnapshot(960, 540,
+        return new WorldSnapshot(1, new ArenaSnapshot("combat", 960, 540,
                 List.of(new PlatformSnapshot(0, 480, 960, 60))), players, List.of(),
                 List.of(new NPCSnapshot(1, 400, 416, 42, 64, "PATROL", true, 0, false)), List.of(), List.of());
     }

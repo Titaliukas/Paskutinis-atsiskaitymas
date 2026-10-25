@@ -74,16 +74,34 @@ public final class GameCharacter {
         }
 
         double previousBottom = y + GameConstants.PLAYER_HEIGHT;
+        // Constant-acceleration displacement retains the intended 120-unit default jump at 60 Hz.
+        double nextY = y + velocityY * seconds + 0.5 * GameConstants.GRAVITY * seconds * seconds;
         velocityY += GameConstants.GRAVITY * seconds;
-        x = clamp(x + (velocityX + knockbackX) * seconds, 0, arena.width() - GameConstants.PLAYER_WIDTH);
+        double nextX = x + (velocityX + knockbackX) * seconds;
+        if (arena.sidePassage().isPresent()) {
+            SidePassage passage = arena.sidePassage().orElseThrow();
+            // Check the complete swept body before clamp. Only intentional outward movement can cross.
+            boolean walkingOnSupport = grounded && !input.jumpRequested()
+                    && Math.abs(previousBottom - passage.supportY()) < COLLISION_EPSILON;
+            double crossingBottom = walkingOnSupport ? previousBottom
+                    : Math.max(previousBottom, nextY + GameConstants.PLAYER_HEIGHT);
+            boolean fitsOpening = passage.containsBody(Math.min(y, nextY), crossingBottom);
+            if (fitsOpening && direction < 0 && velocityX + knockbackX < 0 && nextX < 0) {
+                nextX = arena.width() - GameConstants.PLAYER_WIDTH;
+            } else if (fitsOpening && direction > 0 && velocityX + knockbackX > 0
+                    && nextX > arena.width() - GameConstants.PLAYER_WIDTH) {
+                nextX = 0;
+            }
+        }
+        x = clamp(nextX, 0, arena.width() - GameConstants.PLAYER_WIDTH);
         knockbackX *= Math.max(0.0, 1.0 - KNOCKBACK_DECAY_PER_SECOND * seconds);
         if (Math.abs(knockbackX) < 1.0) {
             knockbackX = 0;
         }
-        double nextY = y + velocityY * seconds;
         grounded = false;
 
         if (velocityY >= 0) {
+            double landingTop = Double.POSITIVE_INFINITY;
             for (Platform platform : arena.platforms()) {
                 double nextBottom = nextY + GameConstants.PLAYER_HEIGHT;
                 boolean crossesTop = previousBottom <= platform.top() + COLLISION_EPSILON
@@ -91,11 +109,13 @@ public final class GameCharacter {
                 boolean overlapsHorizontally = x + GameConstants.PLAYER_WIDTH > platform.left()
                         && x < platform.right();
                 if (crossesTop && overlapsHorizontally) {
-                    nextY = platform.top() - GameConstants.PLAYER_HEIGHT;
-                    velocityY = 0;
-                    grounded = true;
-                    break;
+                    landingTop = Math.min(landingTop, platform.top());
                 }
+            }
+            if (Double.isFinite(landingTop)) {
+                nextY = landingTop - GameConstants.PLAYER_HEIGHT;
+                velocityY = 0;
+                grounded = true;
             }
         }
 

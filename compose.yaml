@@ -8,5 +8,6 @@ services:
       - "${SERVER_PORT:-8080}:8080"
     environment:
       SERVER_PORT: "8080"
+      GAME_ARENA: "${GAME_ARENA:-combat}"
     init: true
     stop_grace_period: 10s

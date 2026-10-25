@@ -1,6 +1,8 @@
 package lt.ktu.paskutinisatsiskaitymas.server;
 
 import java.util.Objects;
+import java.util.UUID;
+import lt.ktu.paskutinisatsiskaitymas.domain.Arena;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -24,8 +26,8 @@ final class GameRuntime implements AutoCloseable {
     private static final System.Logger LOG = System.getLogger(GameRuntime.class.getName());
     private final BoundedCommandQueue<GameCommand> commands =
             new BoundedCommandQueue<>(COMMAND_QUEUE_CAPACITY);
-    private final MatchController match = new MatchController(GameSession.createDefault());
-    private final AuthoritativeGameLoop loop = new AuthoritativeGameLoop(commands, match);
+    private final MatchController match;
+    private final AuthoritativeGameLoop loop;
     private final Consumer<WorldSnapshot> broadcaster;
     private final AtomicBoolean started = new AtomicBoolean();
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(runnable -> {
@@ -36,7 +38,9 @@ final class GameRuntime implements AutoCloseable {
     private final StatsObserver stats = new StatsObserver();
 
 
-    GameRuntime(Consumer<WorldSnapshot> broadcaster,  Consumer<GameEventMessage> eventBroadcaster) {
+    GameRuntime(Consumer<WorldSnapshot> broadcaster, Consumer<GameEventMessage> eventBroadcaster, Arena arena) {
+        match = new MatchController(new GameSession(UUID.randomUUID(), arena));
+        loop = new AuthoritativeGameLoop(commands, match);
         this.broadcaster = Objects.requireNonNull(broadcaster, "broadcaster");
         Objects.requireNonNull(eventBroadcaster, "eventBroadcaster");
         match.session().subscribe(new EventLogObserver());

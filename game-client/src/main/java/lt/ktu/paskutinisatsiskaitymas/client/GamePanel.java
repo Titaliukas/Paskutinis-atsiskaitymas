@@ -1,6 +1,8 @@
 package lt.ktu.paskutinisatsiskaitymas.client;
 
 import java.awt.Color;
+import java.awt.BasicStroke;
+import java.awt.geom.AffineTransform;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
@@ -43,6 +45,7 @@ final class GamePanel extends JPanel {
     private static final Color HEALTH_FILL = new Color(90, 220, 110);
     private final Map<UUID, Boolean> facingRight = new HashMap<>();
     private final Map<String, CharacterSkin> skins = new HashMap<>();
+    private final boolean debugGeometry = Boolean.getBoolean("game.debug.geometry");
     private final AssetManager assets = AssetManager.getInstance();
     private WorldSnapshot snapshot;
     private UUID localPlayerId;
@@ -130,12 +133,26 @@ final class GamePanel extends JPanel {
 
             g.setColor(SKY);
             g.fill(new Rectangle2D.Double(offsetX, offsetY, arenaWidth, arenaHeight));
-            g.setColor(PLATFORM);
-            snapshot.arena().platforms().forEach(platform -> g.fill(new Rectangle2D.Double(
-                    offsetX + platform.x() * scale,
-                    offsetY + platform.y() * scale,
-                    platform.width() * scale,
-                    platform.height() * scale)));
+            Image background = assets.arenaBackground(snapshot.arena().arenaType());
+            if (background != null) {
+                g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+                AffineTransform transform = AffineTransform.getTranslateInstance(offsetX, offsetY);
+                transform.scale(arenaWidth / background.getWidth(null), arenaHeight / background.getHeight(null));
+                g.drawImage(background, transform, null);
+            }
+            if (background == null || debugGeometry) {
+                g.setColor(debugGeometry ? Color.MAGENTA : PLATFORM);
+                g.setStroke(new BasicStroke(1));
+                snapshot.arena().platforms().forEach(platform -> {
+                    Rectangle2D bounds = new Rectangle2D.Double(offsetX + platform.x() * scale,
+                            offsetY + platform.y() * scale, platform.width() * scale, platform.height() * scale);
+                    if (debugGeometry) {
+                        g.draw(bounds);
+                    } else {
+                        g.fill(bounds);
+                    }
+                });
+            }
             for (PlayerSnapshot player : snapshot.players()) {
                 drawPlayer(g, player, scale, offsetX, offsetY);
             }

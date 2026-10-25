@@ -16,7 +16,7 @@ final class SnapshotMapper {
     private SnapshotMapper() { }
 
     static WorldSnapshot map(long tick, GameSession session) {
-        ArenaSnapshot arena = new ArenaSnapshot(session.arena().width(), session.arena().height(),
+        ArenaSnapshot arena = new ArenaSnapshot(session.arena().type().id(), session.arena().width(), session.arena().height(),
                 session.arena().platforms().stream()
                         .map(platform -> new PlatformSnapshot(platform.position().x(), platform.position().y(),
                                 platform.width(), platform.height()))

@@ -23,7 +23,7 @@ class JsonMessageCodecTest {
                 new Ping("request-1"), new Pong("request-1"),
                 new InputState(7, true, false, true, true, true),
                 new WorldSnapshot(42,
-                        new ArenaSnapshot(960, 540, List.of(new PlatformSnapshot(0, 480, 960, 60))),
+                        new ArenaSnapshot("combat", 960, 540, List.of(new PlatformSnapshot(0, 480, 960, 60))),
                         List.of(new PlayerSnapshot(PLAYER_ID, 0, "Player", 180, 416, 42, 64, true, false, 0, 80, 100, 20, "WARRIOR", false)),
                         List.of(new ItemSnapshot(PLAYER_ID, "SPEED_BOOST", 300, 400)),
                         List.of(new NPCSnapshot(1, 350.25, 416, 42, 64, "FLEE", true, 7, false)),
@@ -120,7 +120,7 @@ class JsonMessageCodecTest {
         var players = IntStream.range(0, 4)
                 .mapToObj(slot -> new PlayerSnapshot(UUID.randomUUID(), slot, "Player " + slot,
                         60 + slot * 200, 416, 42, 64, true, false, 0, 100, 100, 120 + slot * 0.5, "WARRIOR", false)).toList();
-        WorldSnapshot snapshot = new WorldSnapshot(1, new ArenaSnapshot(960, 540, List.of()),
+        WorldSnapshot snapshot = new WorldSnapshot(1, new ArenaSnapshot("combat", 960, 540, List.of()),
                 players, List.of(), List.of(), List.of(), List.of());
         assertEquals(snapshot, codec.decode(codec.encode(snapshot)));
         for (int slot : new int[]{2, 3}) {
@@ -138,7 +138,7 @@ class JsonMessageCodecTest {
         var tooMany = new ArrayList<>(players);
         tooMany.add(players.getFirst());
         assertThrows(IllegalArgumentException.class, () -> new WorldSnapshot(1,
-                new ArenaSnapshot(960, 540, List.of()), tooMany, List.of(), List.of(), List.of(), List.of()));
+                new ArenaSnapshot("combat", 960, 540, List.of()), tooMany, List.of(), List.of(), List.of(), List.of()));
     }
 
     @Test

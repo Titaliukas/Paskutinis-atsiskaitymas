@@ -114,20 +114,23 @@ increase; a sub-precision increment returns false rather than reporting a hit wi
 explicit gameplay interpretation of the diagram, visible in detached player snapshots and corner cards. No health, death, respawn, salary, player combat,
 projectiles, score or persistence was added. NPC attacks cannot collect items or alter their strategies on clients.
 
-Default configuration in `GameConstants` and `GameSession.createDefault()`:
+Current NPC behavior constants remain in `GameConstants`; spawn recipes are now built by `CombatArenaBuilder`
+(`GameSession.createDefault()` delegates to the Combat Director path). Training has no NPCs. The deterministic
+Strategy demo and existing behavior regression fixtures use an explicit flat arena to preserve their scenarios.
+See [Builder and arenas](builder-arenas.md).
+
 
 | Setting | Value |
 | --- | --- |
-| NPCs / initial left X | 1 at 360, 2 at 580; upright hitbox 42×64, feet at ground Y=480 |
-| Patrol left-edge intervals | NPC 1: [300,420]; NPC 2: [530,650] |
+| NPCs / initial position | 1 at (360,158) on roof Y=222; 2 at (580,403) on ground Y=467; body 42×64 |
+| Patrol left-edge intervals | NPC 1: [52,867]; NPC 2: [530,650] |
 | Speed / chase multiplier / flee multiplier | 95 units/s / 1.5 / 1.8 (player speed is 260) |
 | Detection radius / duration | 200 units / 0.6 seconds |
 | Attack range / damage / cooldown | 18 units / 10 stress / 1.2 seconds |
 | Safe distance / max chase / max flee | 170 units / 4 seconds / 1.5 seconds |
 
 Players can run faster than NPCs, jump out of range, and use existing shields. Detection delay and fleeing leave
-room to observe the cycle rather than immediately trapping the player. The one existing arena/platform remains
-unchanged. A later capacity/HUD task widens the player limit to four under the supplied PNG's unchanged `0..*` multiplicities; it does not alter the NPC algorithms or R1–R5 markers.
+room to observe the cycle rather than immediately trapping the player. Arena geometry is now supplied by Builder recipes. A later capacity/HUD task widens the player limit to four under the supplied PNG's unchanged `0..*` multiplicities; it does not alter the NPC algorithms or R1–R5 markers.
 
 ## UML-to-code audit: attributes
 
@@ -308,8 +311,8 @@ Use a standalone Java 25 JDK and the Maven Wrapper, from the repository root:
 java -cp game-domain/target/game-domain.jar lt.ktu.paskutinisatsiskaitymas.domain.NPCStrategyDemo
 ```
 
-The main uses the production default session, removes NPC 2 only for a readable demonstration, joins a stationary
-real player and advances fixed `1/60` second steps. It prints the cycle on NPC 1, records actual attack sequence
+The main uses an explicit flat demonstration arena with NPC 1 at (360,416), patrol [300,420], and joins a stationary
+real player at (180,416) and advances fixed `1/60` second steps. It prints the cycle on NPC 1, records actual attack sequence
 and stress, and asserts that all four strategies were exercised before returning to patrol. A successful ATTACK
 is resolved within a tick, so the demo explicitly reports that transient operation rather than pretending it
 persisted as a post-tick state. It runs without sockets/workers/sleeps and completes before random item spawning.

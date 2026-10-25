@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class NPCStrategyTest {
     static Arena arena() {
-        return new Arena("Test", 960, 540, List.of(new Platform(UUID.randomUUID(), new Position(0, 480), 960, 60)));
+        return TestArenas.geometry("Test", 960, 540, List.of(new Platform(UUID.randomUUID(), new Position(0, 480), 960, 60)));
     }
 
     static NPC npc(double x) {

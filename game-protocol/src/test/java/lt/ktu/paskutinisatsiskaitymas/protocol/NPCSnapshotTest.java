@@ -8,7 +8,7 @@ class NPCSnapshotTest {
     private final JsonMessageCodec codec = new JsonMessageCodec();
 
     private WorldSnapshot world(NPCSnapshot npc) {
-        return new WorldSnapshot(7, new ArenaSnapshot(960, 540, List.of()), List.of(), List.of(), List.of(npc), List.of(), List.of());
+        return new WorldSnapshot(7, new ArenaSnapshot("combat", 960, 540, List.of()), List.of(), List.of(), List.of(npc), List.of(), List.of());
     }
 
     @Test
@@ -30,7 +30,7 @@ class NPCSnapshotTest {
         assertThrows(IllegalArgumentException.class, () -> new NPCSnapshot(1, 0, 0, 42, 64, "PATROL", true, -1, false));
         NPCSnapshot npc = new NPCSnapshot(1, 10, 20, 42, 64, "PATROL", true, 0, false);
         assertThrows(IllegalArgumentException.class, () -> new WorldSnapshot(0,
-                new ArenaSnapshot(960, 540, List.of()), List.of(), List.of(), List.of(npc, npc), List.of(), List.of()));
+                new ArenaSnapshot("combat", 960, 540, List.of()), List.of(), List.of(), List.of(npc, npc), List.of(), List.of()));
         String json = codec.encode(world(npc));
         for (String invalid : List.of(json.replace("PATROL", "UNKNOWN"),
                 json.replace("\"id\":1", "\"id\":-1"),
