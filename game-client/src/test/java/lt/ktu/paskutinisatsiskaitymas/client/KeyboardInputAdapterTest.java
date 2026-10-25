@@ -115,4 +115,19 @@ class KeyboardInputAdapterTest {
         assertTrue(List.of(source.getKeyListeners()).contains(adapter));
         assertThrows(NullPointerException.class, () -> input.setListener(null));
     }
+
+    @Test
+    void closeDetachesFromTheSource() {
+        int focusListeners = source.getFocusListeners().length;
+        input.close();
+        assertFalse(List.of(source.getKeyListeners()).contains(adapter));
+        assertEquals(focusListeners - 1, source.getFocusListeners().length);
+    }
+
+    @Test
+    void createsKeyboardAdapterForKeyboardDevice() {
+        InputSource created = InputDevice.KEYBOARD.create(source, null);
+        assertInstanceOf(KeyboardInputAdapter.class, created);
+        created.close();
+    }
 }

@@ -16,6 +16,11 @@
       <artifactId>game-protocol</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- Xbox and PlayStation controllers through SDL2; native libraries for Windows, macOS and Linux are bundled. -->
+    <dependency>
+      <groupId>com.badlogicgames.jamepad</groupId>
+      <artifactId>jamepad</artifactId>
+    </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter</artifactId>
@@ -78,6 +83,7 @@
                   <mainClass>lt.ktu.paskutinisatsiskaitymas.client.GameClientMain</mainClass>
                   <manifestEntries>
                     <Multi-Release>true</Multi-Release>
+                    <Enable-Native-Access>ALL-UNNAMED</Enable-Native-Access>
                   </manifestEntries>
                 </transformer>
               </transformers>
