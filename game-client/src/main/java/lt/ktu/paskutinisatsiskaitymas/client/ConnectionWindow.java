@@ -1,5 +1,6 @@
 package lt.ktu.paskutinisatsiskaitymas.client;
 
+import com.studiohartman.jamepad.ControllerManager;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.FlowLayout;
@@ -9,6 +10,7 @@ import java.awt.event.WindowEvent;
 import java.net.URI;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -32,7 +34,10 @@ final class ConnectionWindow extends JFrame {
     private final CardLayout screenLayout = new CardLayout();
     private final JPanel screens = new JPanel(screenLayout);
     private final ClientConnection connection;
-    private final InputSource input;
+    private final JComboBox<InputDevice> inputDevice = new JComboBox<>();
+    /** Shared SDL controller access, or null when the native library could not be loaded. */
+    private final ControllerManager controllers = createControllerManager();
+    private InputSource input;
 
     ConnectionWindow(String initialAddress, String initialNickname) {
         super("Paskutinis atsiskaitymas — Connection");
@@ -62,16 +67,26 @@ final class ConnectionWindow extends JFrame {
                 SwingUtilities.invokeLater(() -> gamePanel.setSnapshot(snapshot));
             }
         });
-        input = new KeyboardInputAdapter(gamePanel);
+        input = InputDevice.KEYBOARD.create(gamePanel, controllers);
         input.setListener(connection::sendInput);
+        for (InputDevice device : InputDevice.values()) {
+            if (!device.gamepad() || controllers != null) {
+                inputDevice.addItem(device);
+            }
+        }
+        inputDevice.setToolTipText(controllers != null ? InputDevice.KEYBOARD.controlsHint()
+                : "Controller support is unavailable on this system; the keyboard still works");
+        inputDevice.addActionListener(event -> switchInput((InputDevice) inputDevice.getSelectedItem()));
         connection.addObserver(new NotificationObserver(gamePanel));
         address = new JTextField(initialAddress, 28);
         nickname = new JTextField(initialNickname, 28);
-        JPanel fields = new JPanel(new GridLayout(2, 2, 8, 6));
+        JPanel fields = new JPanel(new GridLayout(3, 2, 8, 6));
         fields.add(new JLabel("Server address"));
         fields.add(address);
         fields.add(new JLabel("Player nickname"));
         fields.add(nickname);
+        fields.add(new JLabel("Input"));
+        fields.add(inputDevice);
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         buttons.add(undoSelection);
         buttons.add(connect);
@@ -125,6 +140,10 @@ final class ConnectionWindow extends JFrame {
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent event) {
+                input.close();
+                if (controllers != null) {
+                    controllers.quitSDLGamepad();
+                }
                 connection.close();
             }
         });
@@ -157,5 +176,30 @@ final class ConnectionWindow extends JFrame {
 
     private void updateUndoSelection() {
         undoSelection.setEnabled(characterPicker.isEnabled() && selectionHistory.canUndo());
+    }
+
+    /** Swaps the adapter. Everything else keeps talking to InputSource, so nothing else changes. */
+    private void switchInput(InputDevice device) {
+        input.reset(); // release anything held on the old device so the character does not keep moving
+        input.close();
+        input = device.create(gamePanel, controllers);
+        input.setListener(connection::sendInput);
+        inputDevice.setToolTipText(device.controlsHint());
+        status.putClientProperty("html.disable", Boolean.TRUE);
+        status.setText(device.controlsHint());
+        gamePanel.requestFocusInWindow();
+    }
+
+    /** Loads SDL for controllers; returns null if the native library is unavailable so the keyboard still works. */
+    private static ControllerManager createControllerManager() {
+        try {
+            ControllerManager manager = new ControllerManager();
+            manager.initSDLGamepad();
+            return manager;
+        } catch (RuntimeException | LinkageError exception) {
+            System.getLogger(ConnectionWindow.class.getName())
+                    .log(System.Logger.Level.WARNING, "Controller support unavailable", exception);
+            return null;
+        }
     }
 }

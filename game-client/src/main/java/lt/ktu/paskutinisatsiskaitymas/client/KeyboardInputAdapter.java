@@ -3,6 +3,7 @@ package lt.ktu.paskutinisatsiskaitymas.client;
 import java.awt.Component;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
+import java.awt.event.FocusListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.util.HashSet;
@@ -13,17 +14,20 @@ import java.util.function.Consumer;
 /** Adapts Swing press/release transitions to complete input state without relying on key-repeat timing. */
 final class KeyboardInputAdapter implements InputSource, KeyListener {
     private final Set<Integer> pressed = new HashSet<>();
+    private final Component source;
+    private final FocusListener focusReset = new FocusAdapter() {
+        @Override
+        public void focusLost(FocusEvent event) {
+            reset();
+        }
+    };
     private PlayerInput last = PlayerInput.NONE;
     private Consumer<PlayerInput> listener = input -> { };
 
     KeyboardInputAdapter(Component source) {
+        this.source = Objects.requireNonNull(source, "source");
         source.addKeyListener(this);
-        source.addFocusListener(new FocusAdapter() {
-            @Override
-            public void focusLost(FocusEvent event) {
-                reset();
-            }
-        });
+        source.addFocusListener(focusReset);
     }
 
     @Override
@@ -57,6 +61,12 @@ final class KeyboardInputAdapter implements InputSource, KeyListener {
     public void reset() {
         pressed.clear();
         publishIfChanged();
+    }
+
+    @Override
+    public void close() {
+        source.removeKeyListener(this);
+        source.removeFocusListener(focusReset);
     }
 
     private boolean isControl(int keyCode) {

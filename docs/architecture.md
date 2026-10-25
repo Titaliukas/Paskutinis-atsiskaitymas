@@ -206,6 +206,18 @@ panel, which displays Waiting for arena until the first snapshot arrives. Discon
 picker. Connection status callbacks already on the EDT update controls immediately; worker callbacks are
 dispatched onto the EDT.
 
+For the Adapter pattern, the client reads every input device through the `InputSource` target (`currentInput`,
+`setListener`, `reset`, `close`), which yields the complete `PlayerInput` state. `KeyboardInputAdapter` adapts Swing
+`KeyListener` events. `GamepadInputAdapter` adapts Jamepad's polling `ControllerManager`: a 16 ms Swing timer polls
+on the EDT and publishes only changes. `XboxInputAdapter` and `PlayStationInputAdapter` choose their controller by
+the name SDL reports and map its buttons. SDL reports both pads with the same button positions, so the two differ in
+detection and button naming rather than in polling logic. `GamepadReading` copies the used Jamepad fields so the
+mapping is testable without native SDL. `InputDevice` backs the connection form's Input dropdown and is the single
+place that creates an adapter. `ConnectionWindow` swaps adapters by resetting and closing the old one; nothing else
+in the client changes. The shared `ControllerManager` is initialised once, guarded so a missing native library
+leaves only the keyboard, and shut down when the window closes. The client manifest sets
+`Enable-Native-Access: ALL-UNNAMED` for SDL's JNI library. The server does not depend on Jamepad.
+
 The client uses an `AssetManager` singleton to load bundled character sprites and item icons once per client JVM.
 Startup initializes it before creating the Swing UI. `GamePanel` uses its images for rendering, while
 `ConnectionWindow` uses the same cached `PATASIJUS` image for its window icon. The cache is private and immutable

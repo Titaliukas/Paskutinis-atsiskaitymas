@@ -9,4 +9,7 @@ interface InputSource {
     void setListener(Consumer<PlayerInput> onChange);
 
     void reset();
+
+    /** Stops reading the device (detaches listeners, stops polling). The source is not used afterwards. */
+    void close();
 }

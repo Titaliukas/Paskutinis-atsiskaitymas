@@ -29,7 +29,7 @@ game-server ───> game-protocol
 | `game-application` | Commands, retained input, bounded queue, match controller, and fixed-step loop              |
 | `game-protocol`    | Validated transport DTOs and JSON codec; no domain entities                                 |
 | `game-server`      | Connections, four player slots, command translation, scheduling, and snapshots              |
-| `game-client`      | Connection form, keyboard state, asynchronous networking, and Java2D rendering              |
+| `game-client`      | Connection form, keyboard and controller input, asynchronous networking, Java2D rendering  |
 
 The server and clients are separate programs because the headless server owns authoritative state while every
 player needs an independent desktop UI. They remain in one repository so both processes use the same versioned
@@ -165,15 +165,24 @@ The selected character and stat allocation are sent in `HELLO` when connecting. 
 applies it in the game loop, and keeps it across respawns. Temporary boosts and slows still compose with the build.
 All four characters currently share the same health, speed, and jump defaults; attack damage remains character-specific.
 
-| Action     | Keys           |
-| ---------- | -------------- |
-| Move left  | `A`            |
-| Move right | `D`            |
-| Jump       | `Space` or `W` |
+Pick the device in the **Input** dropdown of the connection form. It can be changed at any time, also mid-game.
+
+| Action     | Keyboard                 | Xbox controller               | PlayStation controller           |
+| ---------- | ------------------------ | ----------------------------- | -------------------------------- |
+| Move left  | `A` or `Left`            | Left stick                    | Left stick                       |
+| Move right | `D` or `Right`           | Left stick                    | Left stick                       |
+| Jump       | `Space`, `W` or `Up`     | `A`                           | `Cross`                          |
+| Ranged     | `J`                      | `X` or `RB`                   | `Square` or `R1`                 |
+| Melee      | `K`                      | `B` or `LB`                   | `Circle` or `L1`                 |
 
 The client tracks both press and release, so movement does not depend on operating-system key repeat. Click the
 game area if keys do not respond. Releasing every movement key stops the character. Holding both left and right
 produces no horizontal movement.
+
+Controllers are read through [Jamepad](https://github.com/libgdx/Jamepad) (SDL2), whose native libraries for Windows,
+macOS and Linux are bundled in the client JAR. Plug the controller in before starting the client. The stick has a
+dead zone, so a resting stick does not move the character, and unplugging the controller stops all input. If SDL
+cannot load, the dropdown offers only the keyboard.
 
 The default arena has a ground platform at `(0,480)` and three `160 × 20` raised platforms at `(140,380)`,
 `(660,380)`, and `(400,280)`. Jump onto either lower platform, then toward the center platform. Players pass

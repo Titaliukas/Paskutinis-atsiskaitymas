@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Adapter class diagram</title>
+<style>
+  :root { --bg: #ffffff; --text: #1f1f1f; --muted: #5f5e5a; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #1e1e1c; --text: #e8e6df; --muted: #a8a69e; } }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--text);
+         font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  h1 { font-size: 18px; font-weight: 500; margin: 0 0 4px; }
+  p { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+  #diagram { overflow-x: auto; }
+  #diagram svg { max-width: none !important; }
+</style>
+</head>
+<body>
+<h1>Adapter pattern: input devices</h1>
+<p>Target <b>InputSource</b> · Adapters <b>KeyboardInputAdapter</b>, <b>XboxInputAdapter</b>, <b>PlayStationInputAdapter</b>
+· Adaptees <b>KeyListener</b> (Swing) and <b>ControllerManager</b> (Jamepad) · Client <b>ConnectionWindow</b>.
+Adapters and adaptees list every method, so their method counts can be compared.</p>
+<div id="diagram">Loading diagram…</div>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+mermaid.initialize({ startOnLoad: false, theme: dark ? 'dark' : 'default', themeVariables: { fontSize: '13px' } });
+const source = `classDiagram
+  direction TB
+
+  class ConnectionWindow {
+    -input : InputSource
+    -connection : ClientConnection
+    -switchInput(device : InputDevice)
+  }
+
+  class ClientConnection {
+    ~sendInput(input : PlayerInput)
+  }
+
+  class InputDevice {
+    <<enumeration>>
+    KEYBOARD
+    XBOX
+    PLAYSTATION
+    ~create() InputSource
+  }
+
+  class InputSource {
+    <<interface>>
+    +currentInput() PlayerInput
+    +setListener(onChange)
+    +reset()
+    +close()
+  }
+
+  class PlayerInput {
+    <<record>>
+    -left : boolean
+    -right : boolean
+    -jump : boolean
+    -ranged : boolean
+    -melee : boolean
+  }
+
+  class KeyListener {
+    <<interface, Swing>>
+    +keyPressed(e : KeyEvent)
+    +keyReleased(e : KeyEvent)
+    +keyTyped(e : KeyEvent)
+  }
+
+  class KeyboardInputAdapter {
+    -pressed : Set~Integer~
+    -last : PlayerInput
+    +keyPressed(e : KeyEvent)
+    +keyReleased(e : KeyEvent)
+    +keyTyped(e : KeyEvent)
+    +currentInput() PlayerInput
+    +setListener(onChange)
+    +reset()
+    +close()
+    -isControl(keyCode : int) boolean
+    -publishIfChanged()
+  }
+
+  class ControllerManager {
+    <<Jamepad>>
+    +initSDLGamepad()
+    +update() boolean
+    +getState(index : int) ControllerState
+    +quitSDLGamepad()
+  }
+
+  class GamepadInputAdapter {
+    <<abstract>>
+    -manager : ControllerManager
+    -timer : Timer
+    -last : PlayerInput
+    ~matches(name : String)* boolean
+    ~map(reading)* PlayerInput
+    ~start()
+    -poll()
+    -firstMatchingController()
+    ~update(reading)
+    ~movesLeft(reading)$ boolean
+    ~movesRight(reading)$ boolean
+    ~nameContainsAny(name, fragments)$ boolean
+    +currentInput() PlayerInput
+    +setListener(onChange)
+    +reset()
+    +close()
+    -publishIfChanged(current : PlayerInput)
+  }
+
+  class XboxInputAdapter {
+    ~matches(name : String) boolean
+    ~map(reading) PlayerInput
+  }
+
+  class PlayStationInputAdapter {
+    ~matches(name : String) boolean
+    ~map(reading) PlayerInput
+  }
+
+  note for KeyListener "Adaptee: 3 methods"
+  note for KeyboardInputAdapter "Adapter: 9 methods"
+  note for ControllerManager "Adaptee: 4 methods"
+  note for GamepadInputAdapter "Adapter: 14 methods"
+
+  ConnectionWindow --> "1" InputSource : input
+  ConnectionWindow --> "1" ClientConnection : connection
+  ConnectionWindow ..> InputDevice : use
+  InputDevice ..> InputSource : create
+  InputSource ..> PlayerInput : returns
+  ClientConnection ..> PlayerInput : use
+
+  InputSource <|.. KeyboardInputAdapter
+  InputSource <|.. GamepadInputAdapter
+  KeyListener <|.. KeyboardInputAdapter
+  GamepadInputAdapter <|-- XboxInputAdapter
+  GamepadInputAdapter <|-- PlayStationInputAdapter
+  GamepadInputAdapter --> "1" ControllerManager : manager
+
+  KeyboardInputAdapter ..> PlayerInput : create
+  GamepadInputAdapter ..> PlayerInput : create
+`;
+try {
+  const { svg } = await mermaid.render('adapter-uml', source);
+  document.getElementById('diagram').innerHTML = svg;
+} catch (error) {
+  document.getElementById('diagram').textContent = 'Could not render the diagram: ' + error.message;
+}
+</script>
+</body>
+</html>

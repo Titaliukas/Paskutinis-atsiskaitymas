@@ -1,0 +1,1 @@
+# Jamepad loads this file at startup. It adds no mappings, so SDL's built-in Xbox and PlayStation mappings are used.
