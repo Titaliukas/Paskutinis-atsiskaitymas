@@ -122,8 +122,8 @@ See [Builder and arenas](builder-arenas.md).
 
 | Setting | Value |
 | --- | --- |
-| NPCs / initial position | 1 at (360,158) on roof Y=222; 2 at (580,403) on ground Y=467; body 42×64 |
-| Patrol left-edge intervals | NPC 1: [52,867]; NPC 2: [530,650] |
+| NPCs / initial position | 1 at (360,151) on roof Y=215; 2 at (580,357) on ground Y=421; body 42×64 |
+| Patrol left-edge intervals | NPC 1: [45,873]; NPC 2: [530,650] |
 | Speed / chase multiplier / flee multiplier | 95 units/s / 1.5 / 1.8 (player speed is 260) |
 | Detection radius / duration | 200 units / 0.6 seconds |
 | Attack range / damage / cooldown | 18 units / 10 stress / 1.2 seconds |

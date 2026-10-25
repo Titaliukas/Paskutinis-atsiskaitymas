@@ -115,21 +115,22 @@ remain for regression fixtures only; gameplay spawning no longer uses global `GR
 
 Each tick derives horizontal velocity from input and resolves a grounded jump. Vertical displacement uses
 `v*dt + g*dt²/2`, then updates velocity by `g*dt`. The previous semi-implicit formula reached only 115 units at
-60 Hz, below the required 116-unit first step; constant-acceleration integration restores the intended 120-unit
+60 Hz, below the old v1 116-unit first step; constant-acceleration integration restores the intended 120-unit
 jump without changing speeds, gravity or builds. Downward crossing selects the smallest matching platform top,
 regardless of list order. Upward passage remains open; the building facade is not a wall.
 
 `Arena.sidePassage` describes optional paired openings by top and support height. Player integration checks the
 whole body, outward input and boundary crossing before horizontal clamp. Combat exits lead to X=918 or X=0;
-normal landing resolves grounded on the opposite side. The next step moves inward, avoiding immediate bounce.
-NPCs/projectiles/items retain their existing boundary rules. The server performs all transitions and publishes
+normal landing resolves grounded on the opposite ground edge. The next step moves inward, avoiding immediate bounce.
+Combat v2 uses a ground-level interval Y=343–421; Training has no passage. NPCs/projectiles/items retain their existing boundary rules. The server performs all transitions and publishes
 positions normally. See [Builder and arenas](builder-arenas.md) for coordinates, rules and tests.
 
 `Platform` still implements `Prototype<Platform>`: `clone()` assigns a fresh UUID; `copyAt(Position)` only changes
 the new copy. Builders place detached copies of platform recipes. Arena collection copies, immutable positions
 and NPC spawn descriptions separate configuration from independently owned session entities/controllers.
 
-The client receives validated `ArenaSnapshot.arenaType` (`combat` or `training`) and uses cached background images.
+The client receives validated `ArenaSnapshot.arenaType` (`combat` or `training`) and uses cached v2 background images. `PlatformSnapshot.kind` identifies the service platform and
+`ArenaSnapshot.sidePassage` carries optional transport-only opening geometry.
 A single centered arena rectangle and scale map image and world geometry together, preserving black letterboxing.
 Nearest-neighbor background scaling retains pixel-art edges. Normal mode omits collision fills when art exists;
 `-Dgame.debug.geometry=true` enables thin outlines. Missing art keeps the sky/platform fallback. The four HUD cards

@@ -3,6 +3,8 @@ package lt.ktu.paskutinisatsiskaitymas.server;
 import lt.ktu.paskutinisatsiskaitymas.domain.GameConstants;
 import lt.ktu.paskutinisatsiskaitymas.domain.GameSession;
 import lt.ktu.paskutinisatsiskaitymas.protocol.ArenaSnapshot;
+import lt.ktu.paskutinisatsiskaitymas.protocol.SidePassageSnapshot;
+import java.util.Locale;
 import lt.ktu.paskutinisatsiskaitymas.protocol.AttackSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.PlatformSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.PlayerSnapshot;
@@ -19,8 +21,9 @@ final class SnapshotMapper {
         ArenaSnapshot arena = new ArenaSnapshot(session.arena().type().id(), session.arena().width(), session.arena().height(),
                 session.arena().platforms().stream()
                         .map(platform -> new PlatformSnapshot(platform.position().x(), platform.position().y(),
-                                platform.width(), platform.height()))
-                        .toList());
+                                platform.width(), platform.height(), platform.kind().name().toLowerCase(Locale.ROOT)))
+                        .toList(), session.arena().sidePassage()
+                        .map(p -> new SidePassageSnapshot(p.openingTop(), p.supportY())).orElse(null));
         var players = session.characters().stream()
                 .map(character -> new PlayerSnapshot(character.playerId(), character.slot(), character.nickname(),
                         character.x(), character.y(), GameConstants.PLAYER_WIDTH,

@@ -5,22 +5,20 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-/** Combat recipe in world coordinates, measured from the unchanged 1672 x 941 background. */
+/** Combat recipe in world coordinates, measured from the unchanged 1672 x 941 v2 background. */
 public final class CombatArenaBuilder implements IArenaBuilder {
-    public static final double ROOF_X = 52;
-    public static final double ROOF_Y = 222;
-    public static final double ROOF_WIDTH = 857;
-    public static final double CANOPY_X = 339;
-    public static final double CANOPY_Y = 309;
-    public static final double CANOPY_WIDTH = 281;
-    public static final double LEFT_LEDGE_X = 0;
-    public static final double RIGHT_LEDGE_X = 785;
-    public static final double LEDGE_Y = 351;
-    public static final double LEFT_LEDGE_WIDTH = 183;
-    public static final double RIGHT_LEDGE_WIDTH = 175;
-    public static final double GROUND_Y = 467;
+    public static final double ROOF_X = 45;
+    public static final double ROOF_Y = 215;
+    public static final double ROOF_WIDTH = 870;
+    public static final double CANOPY_X = 333;
+    public static final double CANOPY_Y = 344;
+    public static final double CANOPY_WIDTH = 294;
+    public static final double SERVICE_X = 450;
+    public static final double SERVICE_Y = 280;
+    public static final double SERVICE_WIDTH = 120;
+    public static final double GROUND_Y = 421;
     public static final double SURFACE_THICKNESS = 6;
-    public static final double OPENING_TOP = 275;
+    public static final double OPENING_TOP = 343;
     private double width;
     private double height;
     private final List<Platform> platforms = new ArrayList<>();
@@ -51,10 +49,9 @@ public final class CombatArenaBuilder implements IArenaBuilder {
         platforms.add(roof.copyAt(new Position(ROOF_X, ROOF_Y)));
         Platform canopy = new Platform(UUID.randomUUID(), new Position(0, 0), CANOPY_WIDTH, SURFACE_THICKNESS);
         platforms.add(canopy.copyAt(new Position(CANOPY_X, CANOPY_Y)));
-        Platform ledge = new Platform(UUID.randomUUID(), new Position(0, 0), LEFT_LEDGE_WIDTH, SURFACE_THICKNESS);
-        platforms.add(ledge.copyAt(new Position(LEFT_LEDGE_X, LEDGE_Y)));
-        Platform rightLedge = new Platform(UUID.randomUUID(), new Position(0, 0), RIGHT_LEDGE_WIDTH, SURFACE_THICKNESS);
-        platforms.add(rightLedge.copyAt(new Position(RIGHT_LEDGE_X, LEDGE_Y)));
+        Platform service = new Platform(UUID.randomUUID(), new Position(0, 0),
+                SERVICE_WIDTH, SURFACE_THICKNESS, Platform.Kind.SERVICE);
+        platforms.add(service.copyAt(new Position(SERVICE_X, SERVICE_Y)));
         Platform ground = new Platform(UUID.randomUUID(), new Position(0, 0),
                 GameConstants.ARENA_WIDTH, GameConstants.ARENA_HEIGHT - GROUND_Y);
         platforms.add(ground.copyAt(new Position(0, GROUND_Y)));
@@ -82,6 +79,6 @@ public final class CombatArenaBuilder implements IArenaBuilder {
     @Override
     public Arena build() {
         return new Arena("Combat arena", ArenaType.COMBAT, width, height, platforms, playerSpawns,
-                npcSpawns, GROUND_Y, Optional.of(new SidePassage(OPENING_TOP, LEDGE_Y)));
+                npcSpawns, GROUND_Y, Optional.of(new SidePassage(OPENING_TOP, GROUND_Y)));
     }
 }

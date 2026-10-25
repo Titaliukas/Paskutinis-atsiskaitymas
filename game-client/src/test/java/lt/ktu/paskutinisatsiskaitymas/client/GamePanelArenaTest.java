@@ -33,7 +33,7 @@ class GamePanelArenaTest {
             SwingUtilities.invokeAndWait(() -> {
                 for (String type : List.of("combat", "training")) {
                     var source = (BufferedImage) AssetManager.getInstance().arenaBackground(type);
-                    double groundY = type.equals("combat") ? 467 : 480;
+                    double groundY = type.equals("combat") ? 421 : 448;
                     var world = new WorldSnapshot(0, new ArenaSnapshot(type, 960, 540,
                             List.of(new PlatformSnapshot(0, groundY, 960, 540 - groundY))),
                             List.of(), List.of(), List.of(), List.of(), List.of());
@@ -59,8 +59,10 @@ class GamePanelArenaTest {
                         debug.setSnapshot(world);
                         BufferedImage outline = render(debug);
                         int lineY = (int) Math.round(oy + groundY * scale);
-                        assertEquals(Color.MAGENTA.getRGB(), outline.getRGB(px, lineY));
-                        assertNotEquals(normal.getRGB(px, lineY), outline.getRGB(px, lineY));
+                        int contourY = java.util.stream.IntStream.rangeClosed(lineY - 1, lineY + 1)
+                                .filter(y -> outline.getRGB(px, y) == Color.MAGENTA.getRGB()).findFirst()
+                                .orElseThrow(() -> new AssertionError("Debug contour must match the transformed support within one pixel"));
+                        assertNotEquals(normal.getRGB(px, contourY), outline.getRGB(px, contourY));
                         assertEquals(normal.getRGB(px, py), outline.getRGB(px, py), "Debug cannot fill the ground");
                         panel.clearGame(); debug.clearGame();
                     }

@@ -39,6 +39,15 @@ class ArenaSelectionTest {
             assertEquals(session.arena().platforms().size(), snapshot.arena().platforms().size());
             assertEquals(session.arena().npcSpawns().size(), snapshot.npcs().size());
             assertEquals(4, snapshot.players().size());
+            if (type.equals("combat")) {
+                var passage = snapshot.arena().sidePassage();
+                assertNotNull(passage);
+                assertEquals(session.arena().sidePassage().orElseThrow().openingTop(), passage.openingTop());
+                assertEquals(session.arena().groundY(), passage.supportY());
+                assertEquals("service", snapshot.arena().platforms().get(2).kind());
+            } else {
+                assertNull(snapshot.arena().sidePassage());
+            }
             assertEquals(snapshot, codec.decode(codec.encode(snapshot)));
         }
     }

@@ -78,9 +78,9 @@ class GameWebSocketServerTest {
         peer.receive(Welcome.class, value -> true);
         WorldSnapshot snapshot = peer.receive(WorldSnapshot.class, value -> value.players().size() == 1);
         assertEquals("training", snapshot.arena().arenaType());
-        assertEquals(List.of(new PlatformSnapshot(0, 480, 960, 60)), snapshot.arena().platforms());
+        assertEquals(List.of(new PlatformSnapshot(0, 448, 960, 92)), snapshot.arena().platforms());
         assertTrue(snapshot.npcs().isEmpty());
-        assertEquals(416, snapshot.players().getFirst().y());
+        assertEquals(384, snapshot.players().getFirst().y());
     }
 
     @Test
@@ -96,11 +96,10 @@ class GameWebSocketServerTest {
 
         WorldSnapshot initial = first.receive(WorldSnapshot.class, value -> value.players().size() == 2);
         assertEquals(List.of(
-                new PlatformSnapshot(52, 222, 857, 6),
-                new PlatformSnapshot(339, 309, 281, 6),
-                new PlatformSnapshot(0, 351, 183, 6),
-                new PlatformSnapshot(785, 351, 175, 6),
-                new PlatformSnapshot(0, 467, 960, 73)), initial.arena().platforms());
+                new PlatformSnapshot(45, 215, 870, 6),
+                new PlatformSnapshot(333, 344, 294, 6),
+                new PlatformSnapshot(450, 280, 120, 6, "service"),
+                new PlatformSnapshot(0, 421, 960, 119)), initial.arena().platforms());
         assertEquals("combat", initial.arena().arenaType());
         assertEquals(2, initial.npcs().size());
         assertTrue(initial.npcs().stream().allMatch(npc -> List.of("PATROL", "CHASE", "ATTACK", "FLEE")

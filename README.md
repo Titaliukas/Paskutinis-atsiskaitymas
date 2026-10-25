@@ -4,7 +4,7 @@ A small playable four-player platform prototype for a university Object-Oriented
 The Java 25 server owns movement and collision state; Swing clients send keyboard intent and render authoritative
 JSON snapshots with Java2D sprites and primitive fallbacks.
 
-Each server runs one selected 960×540 arena: **Combat** (default, five surfaces, two student NPCs and a paired
+Each server runs one selected 960×540 arena: **Combat** (default, four surfaces, two student NPCs and a paired
 side passage) or **Training** (stadium background, ground only, no NPCs or passage). Both support four players,
 character/stat selection, combat, items, stress, respawn and safe reconnect. There are no lobbies, rooms,
 persistence, authentication or match results. See [Builder and arenas](docs/builder-arenas.md) for the approved
@@ -199,12 +199,14 @@ macOS and Linux are bundled in the client JAR. Plug the controller in before sta
 dead zone, so a resting stick does not move the character, and unplugging the controller stops all input. If SDL
 cannot load, the dropdown offers only the keyboard.
 
-Combat surfaces are roof `(52,222,857)`, canopy `(339,309,281)`, left ledge `(0,351,183)`, right ledge
-`(785,351,175)` and ground `(0,467,960)` (X, top Y, width). Jump from ground onto a side ledge, move toward
-its inner edge, jump toward the canopy, then jump onto the roof. Platforms allow upward passage and catch
-falling bodies. At side-ledge height, walking outward through either arena edge transfers the player to the
-opposite ledge; ground/roof edges remain closed. Training has only ground at Y=480. Physics uses arena data;
-the normal renderer uses bundled backgrounds without brown collision rectangles.
+Combat v2 surfaces are roof `(45,215,870)`, canopy `(333,344,294)`, service platform `(450,280,120)` and
+ground `(0,421,960)` (X, top Y, width). Walk under the canopy, jump onto it, jump onto the service platform,
+then onto the roof with the default build. The 129-unit canopy-to-roof gap needs the service platform; shared
+jump/gravity constants are unchanged. The old side ledges were removed. Platforms catch downward movement and
+allow upward passage. At ground level, paired concrete edge openings transfer players to the opposite edge;
+the full body must fit inside Y=343–421. Training uses its v2 stadium background and one ground edge at Y=448.
+Both original v1 and v2 PNG files are preserved. Subtle platform rims and the service platform/openings are
+painted from snapshot geometry. Small-window HUD cards scale down to leave the openings visible.
 
 Enable thin geometry outlines on a client:
 
@@ -216,9 +218,9 @@ java -Dgame.debug.geometry=true -jar game-client/target/game-client.jar ws://loc
 
 1. Start Combat and four clients; connect and check the four distinct spawns and corner HUD cards.
 2. Try a fifth client: it receives `SERVER_FULL`. Disconnect one player and reconnect to reuse the freed slot.
-3. With default stats, jump onto a side ledge, jump toward the canopy, then jump onto the roof. Repeat from the other side.
-4. Walk outward at each side ledge. Check opposite-side arrival, continued movement, stable stress/health and no bouncing.
-5. Try both edges on the bottom ground and at roof height: they remain closed. Check combat, items and respawn.
+3. With default stats, walk under the canopy, jump onto it, then the service platform and roof. Repeat from the other side.
+4. Walk outward into each ground-level opening. Check opposite-side arrival, continued movement, stable stress/health and no bouncing.
+5. Try both edges outside the opening height and at roof height: they remain closed. Check combat, items and respawn.
 6. Resize the window, including a non-16:9 size; compare debug outlines against the background.
 7. Restart the server with Training. Check stadium, one ground surface, four spawns, closed edges and no NPCs.
 8. Stop the server and verify clients disconnect without freezing.
@@ -229,7 +231,8 @@ Automated offscreen GamePanel previews from actual server snapshots can be repro
 ./scripts/render-arenas.sh
 ```
 
-PNG and source JSON files appear in `game-client/target/arena-previews/`, at 960×540, 640×360 and letterboxed
+42 PNG and seven source JSON files cover ground, canopy, service platform, roof and both openings in
+`game-client/target/arena-previews/`, at 960×540, 640×360 and letterboxed
 640×400, with normal and debug variants. This verifies rendering without opening a desktop game window.
 
 ## Play over a LAN

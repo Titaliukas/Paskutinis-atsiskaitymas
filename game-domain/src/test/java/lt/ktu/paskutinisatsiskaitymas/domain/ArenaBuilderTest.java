@@ -53,7 +53,7 @@ class ArenaBuilderTest {
         assertEquals(960, training.width());
         assertEquals(540, training.height());
         assertEquals(1, training.platforms().size());
-        assertEquals(new Position(0, 480), training.platforms().getFirst().position());
+        assertEquals(new Position(0, 448), training.platforms().getFirst().position());
         assertEquals(960, training.platforms().getFirst().width());
         assertTrue(training.npcSpawns().isEmpty());
         assertTrue(training.sidePassage().isEmpty());
@@ -61,21 +61,23 @@ class ArenaBuilderTest {
     }
 
     @Test
-    void combatHasExactlyFiveMeasuredSurfacesAndTwoNPCsOnRoofAndGround() {
+    void combatHasExactlyFourMeasuredSurfacesAndTwoNPCsOnRoofAndGround() {
         Arena arena = director.construct(new CombatArenaBuilder());
         assertEquals(ArenaType.COMBAT, arena.type());
-        double[][] geometry = {{52, 222, 857, 6}, {339, 309, 281, 6},
-            {0, 351, 183, 6}, {785, 351, 175, 6}, {0, 467, 960, 73}};
+        double[][] geometry = {{45, 215, 870, 6}, {333, 344, 294, 6},
+            {450, 280, 120, 6}, {0, 421, 960, 119}};
         assertEquals(geometry.length, arena.platforms().size());
         for (int i = 0; i < geometry.length; i++) {
             Platform p = arena.platforms().get(i);
             assertArrayEquals(geometry[i], new double[]{p.left(), p.top(), p.width(), p.height()});
         }
-        assertEquals(5, arena.platforms().stream().map(Platform::id).distinct().count());
+        assertEquals(4, arena.platforms().stream().map(Platform::id).distinct().count());
         assertEquals(2, arena.npcSpawns().size());
-        assertEquals(158, arena.npcSpawns().get(0).position().y());
-        assertEquals(403, arena.npcSpawns().get(1).position().y());
-        assertEquals(new SidePassage(275, 351), arena.sidePassage().orElseThrow());
+        assertEquals(151, arena.npcSpawns().get(0).position().y());
+        assertEquals(357, arena.npcSpawns().get(1).position().y());
+        assertEquals(new SidePassage(343, 421), arena.sidePassage().orElseThrow());
+        assertEquals(Platform.Kind.SERVICE, arena.platforms().get(2).kind());
+        assertEquals(1, arena.platforms().stream().filter(p -> p.kind() == Platform.Kind.SERVICE).count());
         assertSpawnsSafe(arena);
         for (NPCSpawn spawn : arena.npcSpawns()) {
             Platform support = arena.platforms().stream()
@@ -94,7 +96,7 @@ class ArenaBuilderTest {
         Arena detached = new Arena("Renamed", combat.type(), 960, 540, platforms, players, npcs,
                 combat.groundY(), combat.sidePassage());
         platforms.clear(); players.clear(); npcs.clear();
-        assertEquals(5, detached.platforms().size());
+        assertEquals(4, detached.platforms().size());
         assertEquals(4, detached.playerSpawns().size());
         assertEquals(2, detached.npcSpawns().size());
         GameSession first = new GameSession(UUID.randomUUID(), detached);
@@ -103,8 +105,8 @@ class ArenaBuilderTest {
         for (int i = 0; i < 300; i++) {
             first.advance(Map.of(), GameConstants.TICK_SECONDS);
             var roof = first.npcs().getFirst().state();
-            assertEquals(158, roof.preciseY(), 1e-6);
-            assertTrue(roof.preciseX() >= 52 && roof.preciseX() + 42 <= 909);
+            assertEquals(151, roof.preciseY(), 1e-6);
+            assertTrue(roof.preciseX() >= 45 && roof.preciseX() + 42 <= 915);
         }
         first.removeNPC(1);
         assertEquals(before, second.npcs());

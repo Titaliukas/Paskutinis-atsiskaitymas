@@ -15,8 +15,8 @@ public final class AssetManager {
 
     private AssetManager() {
         Map<String, Image> loaded = new HashMap<>();
-        load(loaded, "ARENA_COMBAT", "assets/combat_arena_v1.png");
-        load(loaded, "ARENA_TRAINING", "assets/training_arena_v1.png");
+        load(loaded, "ARENA_COMBAT", "assets/combat_arena_v2.png");
+        load(loaded, "ARENA_TRAINING", "assets/training_arena_v2.png");
         load(loaded, "SPEED_BOOST", "assets/SPEED.png");
         load(loaded, "JUMP_BOOST", "assets/JUMP.png");
         load(loaded, "SHIELD", "assets/SHIELD.png");

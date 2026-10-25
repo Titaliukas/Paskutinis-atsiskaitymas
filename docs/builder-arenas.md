@@ -13,7 +13,7 @@ produktus. Gyvas pasaulis lieka `GameSession`, jo Strategy valdikliuose ir esamo
 | --- | --- |
 | `IArenaBuilder` | Sutartis: `reset`, `buildBounds`, `buildPlatforms`, `buildPlayerSpawns`, `buildNPCSpawns`, `build` |
 | `ArenaDirector` | Visada vykdo šią seką; nežino koordinačių ar NPC kiekio |
-| `CombatArenaBuilder` | Penki paviršiai, keturios žaidėjų vietos, du NPC aprašai ir porinės šonų angos |
+| `CombatArenaBuilder` | Keturi paviršiai, keturios žaidėjų vietos, du NPC aprašai ir porinės šonų angos |
 | `TrainingArenaBuilder` | Stadionas, viena žemė, keturios vietos, be NPC ir perėjimo |
 | `Arena` | Galutinis nekintamas produktas: ribos, geometrija, pradžios vietos ir perėjimo duomenys |
 | `NPCSpawn` | NPC identifikatorius, viršutinio kairiojo kūno kampo pozicija ir patruliavimo ribos |
@@ -28,99 +28,123 @@ Produktas perduodamas į `GameWebSocketServer` → `GameRuntime` → `GameSessio
 `GameSession.createDefault()` taip pat naudoja Director su Combat builderiu.
 Sesija inicializacijos metu kiekvienam `NPCSpawn` kviečia esamą `spawnNPC(...)`; antros elgesio sistemos nėra.
 
-## Arenų duomenys ir vaizdo koordinatės
+## v2 resursai ir koordinatės
 
-Abu originalūs kliento PNG patikrinti: **1672 × 941**. Pasaulis **960 × 540**:
+Naudojami `assets/training_arena_v2.png` ir `assets/combat_arena_v2.png`, abu **1672 × 941**.
+Resursai jau buvo repozitorijoje ir baitas į baitą sutampa su `backgrounds/training_arena_v2 copy.png` bei
+`backgrounds/combat_arena_v2 copy.png`. Užduotyje nurodytų vardų be ` copy` tame kataloge nebuvo.
+Kopijuoti iš naujo nereikėjo. Nei originalai, nei v1 resursai, nei patvirtintas SVG nekeisti.
+
+Pasaulis lieka **960 × 540**, o koordinatės skaičiuojamos taip:
 
 ```text
 worldX = imageX * 960 / 1672
 worldY = imageY * 540 / 941
 ```
 
-Combat geometrija sutikrinta su švariu fonu ir pateiktu žymėjimu. Žymėjimas lieka tik projektavimo nuoroda;
-raudonos/mėlynos linijos, užrašai ir geltona dangaus žymė į resursus nekopijuojami. Originalūs PNG ir patvirtintas
-`class_after_builder.svg` nekeičiami.
+| Arena / paviršius | World X | Viršaus world Y | Plotis | Storis | Atitinkamas image Y |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Combat stogas | 45 | 215 | 870 | 6 | 374.66 |
+| Combat įėjimo stogelis | 333 | 344 | 294 | 6 | 599.44 |
+| Combat aptarnavimo pakyla | 450 | 280 | 120 | 6 | 487.93 (piešiama kode) |
+| Combat žemė | 0 | 421 | 960 | 119 | 733.65 |
+| Training žemė | 0 | 448 | 960 | 92 | 780.68 |
 
-| Combat paviršius | World X | Viršaus world Y | Plotis | Storis | Atitinkamas image X / Y |
-| --- | ---: | ---: | ---: | ---: | --- |
-| Pastato stogas | 52 | 222 | 857 | 6 | 90.6 / 386.9 |
-| Įėjimo stogelis | 339 | 309 | 281 | 6 | 590.4 / 538.5 |
-| Kairė šoninė platforma | 0 | 351 | 183 | 6 | 0 / 611.7 |
-| Dešinė šoninė platforma | 785 | 351 | 175 | 6 | 1367.2 / 611.7 |
-| Apatinė žemė | 0 | 467 | 960 | 73 | 0 / 813.8 |
+Tai sveikų world vienetų suapvalinimai pagal tikras PNG briaunas: stogo imageY≈375, stogelio≈599–600,
+Combat pagrindo≈734 ir Training priekinės tako/žolės briaunos≈781. Skirtumai nuo šių matavimų nesiekia
+vieno world vieneto. Training veikėjo pėdos remiasi į priekinį tako kraštą; žemiau matomas gruntas yra dekoracija.
+Ankstesnės ilgos šoninės platformos Y=351 **pašalintos**. Nebenaudojami v1 atramų aukščiai 222/309/351/467/480.
+Vartai, žibintai, skulptūra, krūmai, langai ir antena neprideda kolizijos; pastato fasadas nėra siena.
 
-Ploni paviršiai praleidžia iš apačios ir sulaiko leidžiantis. Fasadas netampa siena. Nusileidimas tikrina visus
-kertamus paviršius ir parenka mažiausią Y, todėl sąrašo tvarka nelemia nusileidimo aukščio.
-Šoninės platformos sulygiuotos Y=351; mėlyna jungianti rodyklė nėra platforma.
-Platformų receptai išdėstomi per esamą Prototype `copyAt(...)`; senųjų prototipinių platformų ar papildomų laiptelių nėra.
+Visos platformos lieka vienkryptės: leidžiantis sustojama ant aukščiausio kertamo paviršiaus, o šokant iš apačios
+prasiskverbiama pro jį. `Platform.copyAt(...)` ir atskiri UUID išlaikyti; kopija išsaugo ir platformos paskirtį.
 
-Training žemė yra `(0,480)`, plotis 960, storis 60. Tai priekinė žolė žemiau stadiono turėklo, apie imageY=836.4.
-Tai sąmoningai pasirinkta horizontali žaidimo atrama perspektyviniame stadione. Pakeltų platformų nėra.
-
-Abiejų arenų žaidėjų X pagal slotus: **180, 738, 60, 858**. Kūno viršus yra žemės Y − 64:
-Combat **403**, Training **416**. Kiekvienas kūnas telpa ribose, pradžioje nesikerta su kitais ar NPC.
-`GameCharacter` išsaugo gautą pradinę poziciją ir po mirties į ją grįžta.
+Abiejų arenų žaidėjų X pagal slotus: **180, 738, 60, 858**. Combat kūno Y yra **357**, Training **384**.
+Visi keturi kūnai 42×64 telpa pasaulyje, nesikerta tarpusavyje ar su NPC ir nėra prie angų (jų vidinė grafika
+siekia maždaug X=44 ir X=916). `GameCharacter` saugo gautą pradinę poziciją ir į ją atgimsta.
 
 | Combat NPC | Pradinė pozicija | Patruliavimo kairiojo kūno krašto ribos | Atrama |
 | --- | --- | --- | --- |
-| 1 | (360,158) | [52,867] | Stogas Y=222; dešinė riba = 909 − 42 |
-| 2 | (580,403) | [530,650] | Žemė Y=467 |
+| 1 | (360,151) | [45,873] | Stogas Y=215; 915 − kūno plotis 42 |
+| 2 | (580,357) | [530,650] | Žemė Y=421 |
 
-Training nepakeičia kovos, daiktų ar build sistemos. Daiktų centrai lieka ties žemės Y − veikėjo aukštis,
-išlaikant ankstesnę rinkimo prie viršutinės kūno dalies semantiką. X apribotas taip, kad visas 16 vienetų spindulys
-tilptų pasaulyje; daiktą galima surinkti stovint ant pasirinktos arenos žemės.
+Training turi tik žemę, keturias vietas ir 0 NPC. Combat turi tiksliai 2 NPC, sukuriamus per esamą
+`spawnNPC(...)` ir Strategy valdiklius. Sesijos nesidalija gyvais NPC ar valdikliais.
+Daiktai toliau atsiranda pagal `Arena.groundY − 64` ir esamą rinkimo semantiką; jų 16 vienetų surinkimo
+spindulys nepakeistas. Tik ikonos grafinis dydis sumažintas iki **22 world units**, shield žymė iki **20**.
 
-## Šoninio perėjimo taisyklės
+## Pagalbinė platforma ir šuolių kelias
 
-Combat `SidePassage(openingTop=275, supportY=351)` aprašo abi susietas angas. 76 vienetų aukštis talpina 42×64 kūną.
-Įprastai einančio kūno viršus yra 287, pėdos 351. Tikrinamas kūnas ir jo vertikalus poslinkis per žingsnį;
-stovint ant atramos ignoruojamas tik gravitacijos poslinkis, kurį tą patį žingsnį pašalins nusileidimas.
+Stogelio ir stogo aukščių skirtumas **129**, o standartinio 100/100/100 build šuolis pasiekia **120**.
+Todėl pridedama vienintelė 120×6 aptarnavimo pakyla `(450,280)`: ji turi tikrą koliziją ir kode piešiamą
+siaurą pilką tūrį su briauna bei mažais laikikliais. PNG nekeičiamas. Pradinių X ir pločio koreguoti neprireikė:
+simuliacija patvirtino kelią iš abiejų arenos pusių.
 
-- Kairėn nukreiptas įvedimas ir judėjimas už X=0 perkelia į **X=918**.
-- Dešinėn nukreiptas įvedimas ir kūno judėjimas už X=918 perkelia į **X=0**.
-- Tikrinama prieš horizontalų clamp. Kryptis turi sutapti su kraštu; vien knockback be įvedimo nepakanka.
-- Išsaugomas vertikalus poslinkis/greitis; einantis veikėjas įprastu nusileidimu lieka ant priešingos platformos.
-- Pakeičiamas tik X. Tapatybė, build, health, stress, efektai, cooldown ir pradinė atgimimo vieta išlieka.
-  Laikmačiai toliau natūraliai mažėja per įprastą tick.
-- Atsiradęs veikėjas juda į arenos vidų. Kitas tick nekerta išėjimo krašto; stovėjimas neperkelia.
-- Angos ribų netelpantis kūnas, apatinė žemė, stogas ir visos Training pozicijos lieka uždaros.
-- NPC, daiktų ir sviedinių kraštų elgsena nesikeičia. Klientas gauna įprastą autoritetingos pozicijos snapshot.
+`ArenaPhysicsTest` tikrais 1/60 s žingsniais patikrina:
 
-Jokios kliento teleportavimo komandos, laikmačio ar papildomo valdymo šablono nereikia.
+1. Iš X=180 arba X=858 žaidėjas prieina žeme po stogeliu (51 žingsnis dešinėn arba 106 kairėn).
+2. Vertikalus šuolis pasiekia stogelį Y=344 (40 žingsnių).
+3. Papildomas tiesioginis šuolis **nepasiekia stogo** ir baigiasi ant stogelio.
+4. Šuolis 24 žingsnius dešinėn ir dar 20 be horizontalios įvesties užbaigiamas ant pakylos Y=280.
+5. Vertikalus šuolis užbaigiamas ant stogo Y=215 (44 žingsniai).
 
-## Šuolio kelias
+Gravitacija 1500, šuolio greitis 600, build sistema ir kūno matmenys 42×64 nepakeisti.
+Išlaikytas ankstesnis pastovaus pagreičio poslinkis `v*dt + g*dt²/2`. Tiesioginis žemės → stogo šuolis
+neįmanomas. Mažesnio šuolio build gali turėti natūralių pasiekiamumo apribojimų.
 
-Greitis 600, gravitacija 1500 ir 100/100/100 build teoriškai duoda 120 vienetų šuolį.
-Ankstesnis pusiau implicitinis Euler integravimas 60 Hz dažniu duodavo tik **115**, todėl **116** vienetų
-žemė → šoninė platforma pakopa buvo nepasiekiama. `GameCharacter` dabar skaičiuoja tikslų pastovaus pagreičio
-poslinkį `v*dt + g*dt²/2` ir tada greitį `v + g*dt`. Gravitacija, greitis ir statistikų biudžetas nepakeisti.
+## Combat perėjimas žemės lygyje
 
-`ArenaPhysicsTest` abiem pusėmis realiais 1/60 s žingsniais patikrina:
+Serverio `SidePassage(openingTop=343, supportY=421)` aprašo **78** vienetų aukščio porines angas.
+Įprastai einančio kūno viršus yra 357, pėdos 421. Tikrinamas visas kūnas ir jo vertikalus poslinkis per žingsnį.
+Stovint ant atramos atsižvelgiama į tame pačiame žingsnyje išsprendžiamą nusileidimą.
 
-1. Iš X=180 arba X=858 šokama nuo žemės ant šoninės platformos (30 žingsnių).
-2. Dešinėje prieinama prie vidinio krašto (16 žingsnių kairėn); kairėje X=180 jau yra prie krašto.
-3. Šokama link stogelio (44 žingsniai; galutiniai X≈370.67 arba X=598).
-4. Šokama tiesiai aukštyn ant stogo (38 žingsniai).
+- Kairėn nukreipta įvestis ir judėjimas už X=0 perkelia į **X=918**.
+- Dešinėn nukreipta įvestis ir judėjimas už X=918 perkelia į **X=0**.
+- Tikrinama prieš horizontalų clamp; vien knockback be kryptingos įvesties nepakanka.
+- Po perkėlimo kūnas telpa viduje ir įprasta fizika remiasi į žemę. Tolimesnis judesys veda į arenos vidų,
+  todėl nėra momentinio grįžimo. Stovėjimas prie krašto neperkelia.
+- Sveikata, stress, build, efektai, cooldown, tapatybė ir atgimimo vieta nesikeičia; laikmačiai tik natūraliai tiksena.
+- Už angos aukščio bei visur Training kraštai uždari. NPC, daiktų ir sviedinių taisyklės nepakeistos.
 
-Tiesioginis šuolis nuo apatinės žemės iki stogo neįmanomas ir patikrintas atskirai. Mažesnio šuolio build
-natūraliai gali nepasiekti šio kelio. NPC integravimas ir elgsena dėl šio žaidėjų pataisymo nekeičiami.
+Angos klientui perduodamos kaip `ArenaSnapshot.sidePassage`. Tamsus vidus, 3 vienetų pilkas rėmas ir du
+prislopinti melsvai pilki krypties ženklai piešiami **prieš veikėjus**, virš žemės, pagal tą patį intervalą.
+Grafika iš dalies nukirsta arenos kraštu; jos plotis yra dekoratyvi angos aukščio proporcija. Rėmas neturi kolizijos.
+Klientas neturi teleportavimo komandos ir nekopijuoja fizikos konstantų.
 
-## Papildymai prie patvirtintos UML
+## Briaunos, mastelis ir HUD
 
-Patvirtinti dalyviai ir Director/Builder/Product ryšiai išlaikyti. SVG nekeistas.
+Stogo, stogelio ir žemės viršų sustiprina 1 world vieneto prislopinta šviesi briauna bei 2 vienetų permatomas
+šešėlis; galai pažymimi trumpais santūriais brūkšniais. Pakyla turi pilną 6 vienetų tūrį.
+`ArenaGeometryRenderer` naudoja tik platformų ir angų snapshot duomenis. Debug atskirai parodo plonus
+magenta kolizijų kontūrus. Trūkstant fono išlieka dangaus ir platformų fallback.
 
-| Papildymas | Paskirtis ir ryšys |
+`AssetManager` kartą užkrauna v2 fonus; vaizdas, kolizijos, briaunos, angos ir kūnai naudoja tą pačią centruotą
+pasaulio–ekrano transformaciją su nearest-neighbor fono masteliu. Nekeičiamas kūno dydis pagal Y.
+Kontaktinis šešėlis piešiamas tik esant realiai atramai: žaidėjui dar reikia `grounded=true`, NPC tikrinama
+snapshot pėdų ir paviršiaus atitiktis. Ore prie pėdų šešėlis neprilimpa.
+
+Keturios HUD kortelės išlaiko slotus, portretus, vardus, stress ir vietinio žaidėjo žymėjimą. Mažesniame lange
+jos proporcingai mažinamos kartu su arenos masteliu (iki 1:1). Apatinių kortelių dydį papildomai riboja
+snapshot pilno pločio žemės paviršius ir dekoratyvus plotas po juo, kad jos neuždengtų angų ar Training pėdų.
+16:9 pradinio lango parinkimas, rankinis lango dydžio keitimas, klaviatūros fokusas ir valdymas nepakeisti.
+
+## UML ir protokolo papildymai
+
+Patvirtinti Builder dalyviai, jų metodai, Director seka ir ryšiai išlaikyti. SVG nekeistas.
+Esami `ArenaType`, `Arena.groundY`, `Arena.sidePassage` ir `NPCSpawn` išlieka.
+
+| Papildymas | Paskirtis |
 | --- | --- |
-| `ArenaType` (`COMBAT`, `TRAINING`) ir `Arena.type` | Stabili domeno tapatybė; pavadinimas tik rodymui |
-| `Arena.groundY` | Aiškus pasirinktos arenos žemės aukštis daiktų atsiradimui; nepriklauso nuo sąrašo tvarkos |
-| `Arena.sidePassage: Optional<SidePassage>` | Produktas turi 0..1 nekintamą porinių angų aprašą |
-| `SidePassage.openingTop/supportY` | Duomenys domeno fizikai; nėra tinklo ar grafikos objektas |
-| `ArenaSnapshot.arenaType: String` | Transporto allowlist: tik `combat` arba `training`; nėra domain enum ar PNG kelias |
-| `ArenaSelection` | Serverio paleidimo konfigūracija; vienintelis konkretaus builderio pasirinkimas |
+| `Platform.Kind` (`STANDARD`, `SERVICE`) | Skiria aptarnavimo pakylą nuo PNG paviršių; nekeičia fizikos |
+| `Platform.kind()` ir penkių parametrų konstruktorius | Prototype kopija išsaugo paskirtį; senas konstruktorius reiškia STANDARD |
+| `PlatformSnapshot.kind` | Validuojama transporto reikšmė `standard` arba `service`, be domain importo kliente |
+| `SidePassageSnapshot(openingTop,supportY)` | Baigtiniai tvarkingai išdėstyti angos aukščiai toje pačioje koordinačių sistemoje |
+| `ArenaSnapshot.sidePassage` | Combat angų aprašas arba aiškus JSON null; Training turi null |
+| `ArenaGeometryRenderer` | Kliento piešimo pagalbininkas, ne antra arenos kūrimo ar fizikos sistema |
 
-`Arena` lieka record su `double` matmenimis, `Platform` lieka su UUID. `NPCSpawn.id` atitinka diagramoje esantį
-Integer, o `position` naudoja esamą `Position` su double. Domain/application neturi UI, tinklo ar Jackson importų;
-client priklauso tik nuo protocol. Protokolo pakeitimas reikalauja kartu atnaujinti serverio ir kliento JAR.
+Jackson reikalauja naujų laukų JSON. Protokolo testai tikrina round trip, trūkstamus / nežinomus laukus ir
+neteisingus intervalus; serverio bei kliento JAR reikia atnaujinti kartu. Domain/application išlieka be Swing,
+AWT, Jackson ir tinklo priklausomybių, client priklauso tik nuo protocol.
 
 ## Paleidimas ir demonstravimas
 
@@ -145,39 +169,46 @@ java -cp game-domain/target/game-domain.jar lt.ktu.paskutinisatsiskaitymas.domai
 java -cp game-domain/target/game-domain.jar lt.ktu.paskutinisatsiskaitymas.domain.NPCStrategyDemo
 ```
 
-Builder demonstracija pateikia Combat (5 paviršiai, 2 NPC), Training (1 paviršius, 0 NPC) ir pakartotinį Combat
+Builder demonstracija pateikia Combat (4 paviršiai, 2 NPC), Training (1 paviršius, 0 NPC) ir pakartotinį Combat
 be kaupimo. Strategy demonstracija dabar turi savo aiškią plokščią areną ir išlaiko ankstesnį keturių strategijų ciklą.
 
-## Patikros ir ribos
+## Patikros ir peržiūros
 
-Automatinės patikros apima Director seką, abiejų builderių produktus, reset, kolekcijų apsaugą, atskirus sesijų
-NPC/valdiklius, patruliavimą ant stogo, pradžios vietas/atgimimą, visų paviršių nusileidimą, kelią iki stogo,
-abi perėjimo kryptis, būsenos išlaikymą, angų ribas, uždarus Training/žemės/stogo kraštus, daiktus, JSON tapatybės
-validaciją, serverio atrankos prioritetus ir abiejų konfigūracijų realų WebSocket kelią. Ankstesnėms elgsenoms
-naudojamos aiškios testinės arenos; testai neišjungti, Enforcer ir Checkstyle lieka įjungti.
-
-`GamePanelArenaTest` tikrina fono parinkimą, pradinių PNG matmenis, pixel-art atvaizdavimą, debug kontūrus ir
-centravimą 960×540, 640×360, 640×400 ir 1000×540 plotuose. Fonai kraunami vieną kartą į `AssetManager`;
-normaliai nepiešiami seni rudi stačiakampiai, o trūkstant fono lieka saugus grafikos fallback.
+`./mvnw -B -ntp clean verify` tikrina Builder produktus ir reset, kolekcijų apsaugą, atskirus NPC/valdiklius,
+visas pradžios ir atgimimo vietas, aukščiausią nusileidimą, abipusį šuolių kelią, abiejų angų kryptis, būsenos
+saugojimą, aukščio ribas, uždarą Training, daiktus, protokolą ir realų WebSocket kelią. Enforcer ir Checkstyle
+įjungti. Ankstesnių elgsenų testinės arenos lieka aiškios; testai neišjungti.
 
 ```sh
 ./scripts/render-arenas.sh
 ```
 
-Šis QA scenarijus paima tikrų builderių → sesijų → `SnapshotMapper` JSON ir piešia tikrą `GamePanel` EDT gijoje.
-`game-client/target/arena-previews/` gauna abiejų arenų 960×540, 640×360 ir 640×400 PNG, įprastus ir debug variantus.
-Tai offscreen automatinė/vizualinė patikra; ji nepakeičia rankinio kelių langų žaidimo bandymo.
-Vienas serveris turi vieną areną visam procesui; nėra lobby, kambarių, Facade, viešos serverio prieigos,
-kliento prognozavimo ar interpoliacijos.
+`game-client/target/arena-previews/` gauna tikrų Builder produktų → sesijų → serverio mapperio JSON ir tikro
+GamePanel EDT piešimo PNG. Atskirų pozų QA sesijose pakeičiama tik pradinė pirmojo žaidėjo vieta, paliekant
+Builder geometriją; pozų aukščiai gaunami iš produkto. Visose peržiūrose lieka 4 HUD kortelės ir Combat NPC.
 
-Patikrinta 2026-10-25 su standalone Temurin Java 25: `./mvnw -B -ntp clean verify` baigėsi **BUILD SUCCESS**.
-Iš viso **205 testai**, 0 failures, 0 errors, 0 skipped: domain 81, application 4, protocol 51, server 16, client 53.
-Enforcer ir Checkstyle įjungti. Abi main demonstracijos įvykdytos; Strategy ciklas baigėsi ties tick=165.
-Visi 12 sugeneruotų GamePanel vaizdų vizualiai peržiūrėti: stogas, stogelis ir šonai sutampa su fonu,
-Training atrama yra priekinėje žolėje, mažesni ir netipinio santykio langai išlaiko tą pačią transformaciją.
-Originalių PNG baitai palyginti su Git HEAD ir sutampa. Atskirai patikrintas tikro serverio main paleidimas:
-numatytasis Combat, Training iš aplinkos, JVM pirmenybė ir klaidingos reikšmės atmetimas; visi procesai uždaryti.
+Scenarijų vardai: `training`, `combat`, `combat-canopy`, `combat-service`, `combat-roof`,
+`combat-left-opening`, `combat-right-opening`. Kiekvienam sugeneruojami 960×540, 640×360 ir 640×400
+(juostų/centravimo patikra) įprastas bei `-debug` variantai: iš viso **42 PNG** ir 7 šaltinio JSON.
+Pavyzdžiai: `combat-service-960x540.png`, `combat-left-opening-640x360-debug.png`.
 
-Rankinis kelių GUI langų žaidimo bandymas neatliktas; WebSocket kelias ir piešimas patikrinti automatiškai.
-Išlaikytos esamos HUD kortelės apačioje dengia dalį ant žemės esančių veikėjų, ypač 640×360 lange;
-HUD išdėstymas ir mastelis šiame etape nekeisti. Tai matoma peržiūrų PNG. Pasaulio fizika nuo šio perdengimo nepriklauso.
+`ArenaDecorationTest` tikrina, kad abi angos neuždengtos keturių HUD kortelių įprastame ir mažame lange,
+kad aptarnavimo platforma matoma, šešėlis priklauso nuo atramos/grounded, o daikto grafika telpa į 22 vienetus.
+`GamePanelArenaTest` tikrina foną, matmenis, debug, resize ir centravimą. Dydžio parinkimo testai išlaikyti.
+
+Vienas serveris turi vieną areną. Nėra lobby, kambarių, Facade, viešos serverio prieigos ar kliento prognozavimo.
+
+Galutinė v2 patikra: **216 testų**, 0 failures, 0 errors, 0 skipped (domain 82, application 4, protocol 53,
+server 16, client 61). `clean verify` baigėsi BUILD SUCCESS su įjungtais Enforcer ir Checkstyle.
+Patikros žurnalas: `target/arena-v2-verify.log`. Builder ir Strategy main demonstracijos įvykdytos.
+42 peržiūros sugeneruotos; visų septynių scenarijų įprasti ir mažesni vaizdai bei pasirinkti debug kontūrai
+vizualiai sutikrinti. Patikrinta, kad PNG ir `ConnectionWindow` / `GameWindowSizing` baitai nepasikeitė.
+
+Abiem arenoms paleistas tikras Swing langas ir tikras serveris: automatinis GUI scenarijus patikrino pradinį
+pasirinkimo ekraną, prisijungimą, 960×540 GamePanel, formos/statuso tilpimą, lango ribas, rankinio dydžio pakeitimo
+imitaciją, disconnect ir reconnect išsaugant vartotojo dydį. Žurnalai: `target/arena-v2-gui-combat.log` ir
+`target/arena-v2-gui-training.log`; visi sukurti procesai uždaryti. OS langus paliko fone, todėl šiame paleidime
+natūralus klaviatūros fokusas nepatvirtintas. Fokusą grąžinantis kodas nepakeistas.
+Rankinis žaidimas su klaviatūra / valdikliu ir kelių žaidėjų rankinis kovos bandymas neatlikti;
+šuolių ir perėjimo fizika patikrinta simuliacijos testais. Žinomų likusių geometrijos ar angų/HUD persidengimų
+patikrintuose 960×540 ir 640×360 dydžiuose nenustatyta. Mažame Training lange apatinės kortelės kompaktiškesnės.

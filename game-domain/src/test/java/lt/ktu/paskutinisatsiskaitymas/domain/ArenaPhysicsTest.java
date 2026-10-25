@@ -52,30 +52,32 @@ class ArenaPhysicsTest {
         }
         GameCharacter falling = character(400, 100, false);
         falling.advance(MovementInput.NONE, unordered, 1);
-        assertEquals(222 - 64, falling.y(), 1e-6, "Must hit roof before canopy/ground in one long step");
+        assertEquals(215 - 64, falling.y(), 1e-6, "Must hit roof before canopy/ground in one long step");
     }
 
     @Test
-    void defaultBuildClimbsGroundLedgeCanopyRoofFromBothSidesInRealSixtyHzSteps() {
+    void defaultBuildClimbsGroundCanopyServiceRoofFromBothSidesInRealSixtyHzSteps() {
         for (boolean fromLeft : new boolean[]{true, false}) {
             Position start = combat.playerSpawns().get(fromLeft ? 0 : 3);
             GameCharacter character = character(start.x(), start.y(), true);
-            jump(character, combat, MovementInput.NONE, 30);
-            assertStanding(character, 351);
-            if (!fromLeft) {
-                step(character, combat, LEFT, 16); // x=788.67, still on the right ledge.
-                assertStanding(character, 351);
-            }
-            jump(character, combat, fromLeft ? RIGHT : LEFT, 44);
-            assertStanding(character, 309);
-            jump(character, combat, MovementInput.NONE, 38);
-            assertStanding(character, 222);
-            System.out.printf("100/100/100 path from %s: ground -> ledge -> canopy -> roof, x=%.2f%n",
+            step(character, combat, fromLeft ? RIGHT : LEFT, fromLeft ? 51 : 106);
+            assertStanding(character, 421);
+            jump(character, combat, MovementInput.NONE, 40);
+            assertStanding(character, 344);
+            // 129 units from canopy to roof exceeds the unchanged 120-unit base jump.
+            jump(character, combat, MovementInput.NONE, 55);
+            assertStanding(character, 344);
+            jump(character, combat, RIGHT, 24);
+            step(character, combat, MovementInput.NONE, 20);
+            assertStanding(character, 280);
+            jump(character, combat, MovementInput.NONE, 44);
+            assertStanding(character, 215);
+            System.out.printf("100/100/100 v2 path from %s: ground -> canopy -> service -> roof, x=%.2f%n",
                     fromLeft ? "left" : "right", character.x());
         }
-        GameCharacter direct = character(450, 403, true);
+        GameCharacter direct = character(700, 357, true);
         jump(direct, combat, MovementInput.NONE, 60);
-        assertStanding(direct, 467); // 245-unit direct roof ascent is intentionally impossible.
+        assertStanding(direct, 421);
     }
 
     @Test
@@ -89,7 +91,7 @@ class ArenaPhysicsTest {
             traveler.advance(outward, combat, DT);
             control.advance(outward, combat, DT);
             assertEquals(fromLeft ? 918 : 0, traveler.x(), 1e-6);
-            assertStanding(traveler, 351);
+            assertStanding(traveler, 421);
             assertEquals(control.state().health(), traveler.state().health());
             assertEquals(control.state().maxHealth(), traveler.state().maxHealth());
             assertEquals(control.state().stressLevel(), traveler.state().stressLevel());
@@ -111,19 +113,19 @@ class ArenaPhysicsTest {
             traveler.advance(outward, combat, DT);
             assertTrue(fromLeft ? traveler.x() < 918 && traveler.x() > 900
                     : traveler.x() > 0 && traveler.x() < 18);
-            assertStanding(traveler, 351);
+            assertStanding(traveler, 421);
             traveler.advance(MovementInput.NONE, combat, 5); // Expire shield before lethal damage.
             assertSame(BaseStats.INSTANCE, traveler.stats());
             traveler.takeDamage(1000);
             assertEquals(fromLeft ? 1 : 917, traveler.x(), "Teleport must retain the original respawn");
-            assertEquals(287, traveler.y());
+            assertEquals(357, traveler.y());
         }
     }
 
     @Test
     void stationaryCharactersAndWrongHeightsAndTrainingRemainClamped() {
         for (Arena arena : List.of(combat, training)) {
-            for (double y : new double[]{arena.groundY() - 64, 158, 200, 260, 274, 288}) {
+            for (double y : new double[]{151, 200, 216, 280, 342, 358}) {
                 for (boolean left : new boolean[]{true, false}) {
                     GameCharacter character = character(left ? 0 : 918, y, true);
                     character.advance(left ? LEFT : RIGHT, arena, DT);
@@ -132,15 +134,18 @@ class ArenaPhysicsTest {
             }
         }
         for (double x : new double[]{0, 918}) {
-            GameCharacter character = character(x, 287, true);
+            GameCharacter character = character(x, 357, true);
             step(character, combat, MovementInput.NONE, 10);
             assertEquals(x, character.x());
-            assertStanding(character, 351);
-            GameCharacter other = character(x, 287, true);
+            assertStanding(character, 421);
+            GameCharacter other = character(x, 357, true);
             other.advance(x == 0 ? LEFT : RIGHT, training, DT);
             assertEquals(x, other.x());
         }
-        GameCharacter knocked = character(0, 287, true);
+        GameCharacter onTrainingGround = character(0, training.groundY() - 64, true);
+        onTrainingGround.advance(LEFT, training, DT);
+        assertEquals(0, onTrainingGround.x());
+        GameCharacter knocked = character(0, 357, true);
         knocked.applyImpulse(-100, 0);
         knocked.advance(MovementInput.NONE, combat, DT);
         assertEquals(0, knocked.x(), "Knockback without outward input must not teleport");
@@ -148,15 +153,15 @@ class ArenaPhysicsTest {
 
     @Test
     void passageAllowsAnAirborneBodyInsideOpeningAndPreservesVerticalMotion() {
-        GameCharacter character = character(0, 282, false);
+        GameCharacter character = character(0, 352, false);
         character.applyImpulse(0, -20);
         character.advance(LEFT, combat, DT);
         assertEquals(918, character.x());
-        assertEquals(282 - 20 * DT + 750 * DT * DT, character.y(), 1e-6);
+        assertEquals(352 - 20 * DT + 750 * DT * DT, character.y(), 1e-6);
         assertEquals(5, character.state().velocityY(), 1e-6);
         assertFalse(character.state().grounded());
         step(character, combat, MovementInput.NONE, 10);
-        assertStanding(character, 351);
+        assertStanding(character, 421);
     }
 
     @Test
@@ -179,7 +184,7 @@ class ArenaPhysicsTest {
 
     private GameCharacter decoratedCharacter(double x) {
         GameCharacter character = new GameCharacter(UUID.randomUUID(), new Player(UUID.randomUUID(), "Traveler"),
-                0, new Position(x, 287), true, CharacterType.GOGIS, new CharacterBuild(90, 110, 100));
+                0, new Position(x, 357), true, CharacterType.GOGIS, new CharacterBuild(90, 110, 100));
         character.takeDamage(7);
         character.applyShield(5);
         character.applySpeedBoost(1.6, 5);

@@ -16,8 +16,11 @@ public final class ArenaPreviewRenderer {
     public static void main(String[] args) throws Exception {
         Path directory = Path.of(args[0]);
         JsonMessageCodec codec = new JsonMessageCodec();
-        for (String type : new String[]{"combat", "training"}) {
-            WorldSnapshot world = (WorldSnapshot) codec.decode(Files.readString(directory.resolve(type + ".json")));
+        // Read only this QA scenario's files; preserve any user snapshots/copies in the output directory.
+        for (String type : new String[]{"training", "combat", "combat-canopy", "combat-service", "combat-roof",
+                "combat-left-opening", "combat-right-opening"}) {
+            Path source = directory.resolve(type + ".json");
+            WorldSnapshot world = (WorldSnapshot) codec.decode(Files.readString(source));
             SwingUtilities.invokeAndWait(() -> {
                 for (boolean debug : new boolean[]{false, true}) {
                     System.setProperty("game.debug.geometry", Boolean.toString(debug));

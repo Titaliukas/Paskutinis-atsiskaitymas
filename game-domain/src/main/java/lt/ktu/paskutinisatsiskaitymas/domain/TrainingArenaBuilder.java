@@ -5,10 +5,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-/** Training recipe in world coordinates, measured from the unchanged 1672 x 941 background. */
+/** Training recipe in world coordinates, measured from the unchanged 1672 x 941 v2 background. */
 public final class TrainingArenaBuilder implements IArenaBuilder {
-    // Foreground grass below the stadium rail: imageY about 836 at 1672 x 941.
-    public static final double GROUND_Y = 480;
+    // Front track/grass edge: imageY about 781 at 1672 x 941 in v2.
+    public static final double GROUND_Y = 448;
     private double width;
     private double height;
     private final List<Platform> platforms = new ArrayList<>();
