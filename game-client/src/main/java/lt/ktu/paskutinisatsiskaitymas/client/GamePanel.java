@@ -173,7 +173,7 @@ final class GamePanel extends JPanel {
                 drawProjectile(g, projectile, scale, offsetX, offsetY);
             }
             drawPlayerCards(g);
-            drawNotification(g);
+            drawNotification(g, scale, offsetX, offsetY);
         } finally {
             g.dispose();
         }
@@ -333,17 +333,18 @@ final class GamePanel extends JPanel {
         }
     }
 
-    private void drawNotification(Graphics2D g) {
+    private void drawNotification(Graphics2D g, double scale, double offsetX, double offsetY) {
         if (notification == null) {
             return;
         }
         String text = ellipsize(g, notification, getWidth() - 2 * CARD_MARGIN - 16);
         FontMetrics metrics = g.getFontMetrics();
         int width = metrics.stringWidth(text) + 16;
-        int x = (getWidth() - width) / 2;
-        int y = CARD_MARGIN + CARD_HEIGHT + 10;
+        int height = metrics.getHeight() + 8;
+        int x = (int) Math.round(offsetX + 480 * scale - width / 2.0);
+        int y = (int) Math.round(offsetY + 480 * scale - height / 2.0);
         g.setColor(CARD_BACKGROUND);
-        g.fillRoundRect(x, y, width, metrics.getHeight() + 8, 6, 6);
+        g.fillRoundRect(x, y, width, height, 6, 6);
         g.setColor(Color.WHITE);
         g.drawString(text, x + 8, y + 4 + metrics.getAscent());
     }

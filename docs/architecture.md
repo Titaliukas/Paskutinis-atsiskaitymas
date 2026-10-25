@@ -83,8 +83,8 @@ local limits and imports no domain constants; application/server reuse the domai
 `GamePanel` privately paints all occupied player cards after world players/NPCs/items, using panel coordinates and
 stable slot corners: 0 top left, 1 top right, 2 bottom left, 3 bottom right. Cards have four accent colors, an
 aspect-preserving portrait, ellipsized nickname, current numeric stress, and a local white border/`(you)`. Width is
-capped at 248 pixels and constrained by panel width; resize recomputes placement. Notifications draw beneath
-the top cards. No child controls or input interception were introduced. Departures clear their corner on the next
+capped at 248 pixels and constrained by panel width; resize recomputes placement. Notifications are centered at arena point `(480,480)`,
+using the world scale and offsets. No child controls or input interception were introduced. Departures clear their corner on the next
 snapshot; `clearGame` clears snapshot/local state and timers. Stress is absent from world labels and is not clamped
 or treated as a percentage/health. Existing damage/shield/NPC behavior remains unchanged.
 
