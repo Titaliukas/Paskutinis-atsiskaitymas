@@ -64,17 +64,18 @@ class ArenaPhysicsTest {
             assertStanding(character, 421);
             jump(character, combat, MovementInput.NONE, 40);
             assertStanding(character, 344);
-            // 129 units from canopy to roof exceeds the unchanged 120-unit base jump.
-            jump(character, combat, MovementInput.NONE, 55);
-            assertStanding(character, 344);
-            jump(character, combat, RIGHT, 24);
-            step(character, combat, MovementInput.NONE, 20);
+            jump(character, combat, LEFT, 12);
+            step(character, combat, MovementInput.NONE, 32);
             assertStanding(character, 280);
             jump(character, combat, MovementInput.NONE, 44);
             assertStanding(character, 215);
             System.out.printf("100/100/100 v2 path from %s: ground -> canopy -> service -> roof, x=%.2f%n",
                     fromLeft ? "left" : "right", character.x());
         }
+        // Outside the service platform, the 129-unit canopy-to-roof gap still exceeds the base jump.
+        GameCharacter fromCanopy = character(550, 280, true);
+        jump(fromCanopy, combat, MovementInput.NONE, 55);
+        assertStanding(fromCanopy, 344);
         GameCharacter direct = character(700, 357, true);
         jump(direct, combat, MovementInput.NONE, 60);
         assertStanding(direct, 421);

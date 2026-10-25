@@ -98,7 +98,7 @@ class GameWebSocketServerTest {
         assertEquals(List.of(
                 new PlatformSnapshot(45, 215, 870, 6),
                 new PlatformSnapshot(333, 344, 294, 6),
-                new PlatformSnapshot(450, 280, 120, 6, "service"),
+                new PlatformSnapshot(330, 280, 120, 6, "service"),
                 new PlatformSnapshot(0, 421, 960, 119)), initial.arena().platforms());
         assertEquals("combat", initial.arena().arenaType());
         assertEquals(2, initial.npcs().size());

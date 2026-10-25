@@ -46,7 +46,7 @@ worldY = imageY * 540 / 941
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Combat stogas | 45 | 215 | 870 | 6 | 374.66 |
 | Combat įėjimo stogelis | 333 | 344 | 294 | 6 | 599.44 |
-| Combat aptarnavimo pakyla | 450 | 280 | 120 | 6 | 487.93 (piešiama kode) |
+| Combat aptarnavimo pakyla | 330 | 280 | 120 | 6 | 487.93 (piešiama kode) |
 | Combat žemė | 0 | 421 | 960 | 119 | 733.65 |
 | Training žemė | 0 | 448 | 960 | 92 | 780.68 |
 
@@ -76,16 +76,16 @@ spindulys nepakeistas. Tik ikonos grafinis dydis sumažintas iki **22 world unit
 ## Pagalbinė platforma ir šuolių kelias
 
 Stogelio ir stogo aukščių skirtumas **129**, o standartinio 100/100/100 build šuolis pasiekia **120**.
-Todėl pridedama vienintelė 120×6 aptarnavimo pakyla `(450,280)`: ji turi tikrą koliziją ir kode piešiamą
-siaurą pilką tūrį su briauna bei mažais laikikliais. PNG nekeičiamas. Pradinių X ir pločio koreguoti neprireikė:
-simuliacija patvirtino kelią iš abiejų arenos pusių.
+Todėl pridedama vienintelė 120×6 aptarnavimo pakyla `(330,280)`: ji turi tikrą koliziją ir kode piešiamą
+siaurą pilką tūrį su briauna bei mažais laikikliais. PNG nekeičiamas. Pakylos X perkeltas iš 450 į 330, t. y. 120 vienetų (per vieną jos plotį) kairėn;
+aukštis Y=280 ir 120×6 matmenys nepakeisti. Simuliacija patvirtino kelią iš abiejų arenos pusių.
 
 `ArenaPhysicsTest` tikrais 1/60 s žingsniais patikrina:
 
 1. Iš X=180 arba X=858 žaidėjas prieina žeme po stogeliu (51 žingsnis dešinėn arba 106 kairėn).
 2. Vertikalus šuolis pasiekia stogelį Y=344 (40 žingsnių).
-3. Papildomas tiesioginis šuolis **nepasiekia stogo** ir baigiasi ant stogelio.
-4. Šuolis 24 žingsnius dešinėn ir dar 20 be horizontalios įvesties užbaigiamas ant pakylos Y=280.
+3. Atskiras tiesioginis šuolis nuo stogelio ties X=550 (už pakylos) **nepasiekia stogo** ir baigiasi ant stogelio.
+4. Šuolis 12 žingsnių kairėn ir dar 32 be horizontalios įvesties užbaigiamas ant pakylos Y=280.
 5. Vertikalus šuolis užbaigiamas ant stogo Y=215 (44 žingsniai).
 
 Gravitacija 1500, šuolio greitis 600, build sistema ir kūno matmenys 42×64 nepakeisti.

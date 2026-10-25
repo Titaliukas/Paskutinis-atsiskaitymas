@@ -199,7 +199,7 @@ macOS and Linux are bundled in the client JAR. Plug the controller in before sta
 dead zone, so a resting stick does not move the character, and unplugging the controller stops all input. If SDL
 cannot load, the dropdown offers only the keyboard.
 
-Combat v2 surfaces are roof `(45,215,870)`, canopy `(333,344,294)`, service platform `(450,280,120)` and
+Combat v2 surfaces are roof `(45,215,870)`, canopy `(333,344,294)`, service platform `(330,280,120)` and
 ground `(0,421,960)` (X, top Y, width). Walk under the canopy, jump onto it, jump onto the service platform,
 then onto the roof with the default build. The 129-unit canopy-to-roof gap needs the service platform; shared
 jump/gravity constants are unchanged. The old side ledges were removed. Platforms catch downward movement and
