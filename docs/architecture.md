@@ -3,6 +3,11 @@
 The project is a Java 25 multi-module Maven build with one headless authoritative server and one Swing desktop
 process per player. Docker is only a server deployment boundary.
 
+Each server process runs one match for up to four players in one arena selected at startup. `ArenaSelection`
+chooses Combat (default) or Training through `game.arena` / `GAME_ARENA`. `GameWebSocketServer` creates one
+`GameRuntime`, which creates one `GameSession` with that arena. All connected players share that session;
+there is no lobby, room management, or runtime arena switching. See [Builder and arenas](builder-arenas.md).
+
 ## Module boundaries
 
 ```text
@@ -16,7 +21,7 @@ game-server ───> game-protocol
 - `game-application` owns validated commands, retained input state, the bounded queue, and fixed-step loop.
 - `game-protocol` owns explicit JSON DTOs only. It contains no domain entities or rules.
 - `game-server` owns connections, four slot reservations, DTO/command translation, scheduling, and snapshots.
-- `game-client` owns connection UI, keyboard state, Java2D rendering, and asynchronous network I/O.
+- `game-client` owns connection UI, keyboard/controller state, Java2D rendering, and asynchronous network I/O.
 
 Maven Enforcer checks project dependencies. Checkstyle rejects infrastructure imports in domain/application,
 inward game-layer imports from protocol/client, and desktop imports from the server. Live domain entities are never
@@ -25,7 +30,7 @@ serialized; the server maps loop-owned state into detached protocol records.
 ## Authoritative command and snapshot flow
 
 ```text
-Swing key press/release
+Keyboard/controller input changes
         │
         ▼
 complete INPUT state ──WebSocket──> MessageRouter
@@ -68,17 +73,11 @@ authoritative facing and a monotonic attack-attempt sequence. The client holds o
 the latest snapshot and renders it directly. Networking remains asynchronous, and all Swing changes occur on the
 event dispatch thread.
 
-## Corner portrait/stress HUD and diagram gate
+## Corner portrait/stress HUD
 
-The supplied authoritative `class_after_strategy.png` allows `GameSession` composition of `0..*` GameCharacters
-and association with `0..*` Players; the Player-to-character identity remains `1` to `1`. Raising the implementation
-limit to four fits these unchanged multiplicities. The older generated `full-class-diagram-after-strategy.puml`
-and `.mmd` proposals say `0..2` for characters and player snapshot values and use the earlier Enemy proposal.
-They conflict with the supplied PNG and cannot accommodate four instances. No diagram was edited or regenerated.
-
-No production model class, public model signature, transport field, inheritance, realization or association was
-added by the capacity/HUD change. Existing slot/count validation widens to 0–3/four. Protocol validation uses
-local limits and imports no domain constants; application/server reuse the domain limit where permitted.
+`GameConstants.MAX_PLAYERS` is 4. `PlayerSlots` reserves slots 0–3, and `GameSession` enforces the same
+capacity. Both arena builders provide four spawn positions. Protocol validation keeps its own transport limits
+without importing domain constants; application/server reuse the domain limit where permitted.
 
 `GamePanel` privately paints all occupied player cards after world players/NPCs/items, using panel coordinates and
 stable slot corners: 0 top left, 1 top right, 2 bottom left, 3 bottom right. Cards have four accent colors, an
@@ -88,22 +87,16 @@ using the world scale and offsets. No child controls or input interception were 
 snapshot; `clearGame` clears snapshot/local state and timers. Stress is absent from world labels and is not clamped
 or treated as a percentage/health. Existing damage/shield/NPC behavior remains unchanged.
 
-`AssetManager.cachePortrait` derives `PATASIJUS_PORTRAIT` once into its existing private images map. PATASIJUS is the actual
-world sprite for every player. The crop scans transparent margins, retains nontransparent width and the upper
-28% of opaque-bounds height, including face and shoulders. The `cachePortrait(..., 0.28)` call controls framing;
-replacing `assets/PATASIJUS.png` and rebuilding/restarting changes both world image and portrait. No other character
-portrait is silently substituted. The cached alpha image is read-only; Java2D preserves aspect and uses
-nearest-neighbor scaling. Missing portraits draw a silhouette.
+`AssetManager` caches a separate square `<CHARACTER>_PORTRAIT` crop for each of PATASIJUS, VACIJUS,
+JURGELINIS and GOGIS. Crop coordinates are configured per source sprite and computed once during cache
+construction. `GamePanel` selects the portrait by `PlayerSnapshot.character`; world rendering uses that
+character's renderer family through `CharacterFactories` and `CharacterSkin`. Java2D preserves portrait aspect
+ratio and uses nearest-neighbor scaling. Missing portraits draw a silhouette.
 
-The four-player/HUD verification completed on standalone Temurin Java 25.0.4.1 with
-`./mvnw -B -ntp clean verify`: 79 tests, zero failures/errors/skips, Enforcer and Checkstyle enabled.
-Real WebSocket tests cover four independent players, fifth-player rejection and freed-slot replacement; domain
-checks confirm NPC targeting of slots 2/3. EDT rendering tests cover fixed corner placement under movement and
-snapshot reordering, stress updates, departures and full clearing at 960×540 and 640×360. Their
-`game-client/target/player-hud-*.png` renders were visually inspected for portrait framing, long names, local
-marking, card spacing and notification placement. The existing NPC main demonstration still produces its original
-cycle. Production class/signature/record inventories and NPC report fragments were checked against the preserved
-working-tree baseline.
+`GameWebSocketServerTest` covers four independent players, fifth-player rejection and freed-slot replacement.
+`ArenaSelectionTest` checks both startup recipes and configuration precedence. Run
+`./mvnw -B -ntp clean verify` for the current reactor verification; test counts from earlier feature reports
+are historical rather than a fixed project total.
 
 ## World and collision model
 
@@ -214,9 +207,10 @@ dispatched onto the EDT.
 For the Adapter pattern, the client reads every input device through the `InputSource` target (`currentInput`,
 `setListener`, `reset`, `close`), which yields the complete `PlayerInput` state. `KeyboardInputAdapter` adapts Swing
 `KeyListener` events. `GamepadInputAdapter` adapts Jamepad's polling `ControllerManager`: a 16 ms Swing timer polls
-on the EDT and publishes only changes. `XboxInputAdapter` and `PlayStationInputAdapter` choose their controller by
-the name SDL reports and map its buttons. SDL reports both pads with the same button positions, so the two differ in
-detection and button naming rather than in polling logic. `GamepadReading` copies the used Jamepad fields so the
+on the EDT and publishes only changes. `XboxInputAdapter`, `PlayStationInputAdapter` and `EightBitDoInputAdapter` choose their controller by
+the name SDL reports and map SDL-normalized button positions. Their differences are detection and control hints;
+polling and lifecycle are inherited. The bundled `gamecontrollerdb.txt` adds a macOS mapping for the
+8BitDo Ultimate 2C Wireless over Bluetooth. `GamepadReading` copies the used Jamepad fields so the
 mapping is testable without native SDL. `InputDevice` backs the connection form's Input dropdown and is the single
 place that creates an adapter. `ConnectionWindow` swaps adapters by resetting and closing the old one; nothing else
 in the client changes. The shared `ControllerManager` is initialised once, guarded so a missing native library

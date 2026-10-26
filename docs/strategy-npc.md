@@ -111,8 +111,10 @@ Only true triggers FLEE. A blocked NPC stays in ATTACK and retries after cooldow
 `GameCharacter.takeDamage(double damage)` increases `stressLevel` on an unshielded hit, returns false without
 change when shielded, and rejects nonpositive/nonfinite damage. Success requires an actual representable stress
 increase; a sub-precision increment returns false rather than reporting a hit without state change. Stress is an
-explicit gameplay interpretation of the diagram, visible in detached player snapshots and corner cards. No health, death, respawn, salary, player combat,
-projectiles, score or persistence was added. NPC attacks cannot collect items or alter their strategies on clients.
+explicit gameplay interpretation of the diagram, visible in detached player snapshots and corner cards. In the
+current implementation, an unshielded hit also reduces health; depletion triggers respawn with the permanent
+build retained and temporary effects cleared. Player combat and NPC projectiles are implemented as well (see
+README). NPC attacks cannot collect items or alter their strategies on clients.
 
 Current NPC behavior constants remain in `GameConstants`; spawn recipes are now built by `CombatArenaBuilder`
 (`GameSession.createDefault()` delegates to the Combat Director path). Training has no NPCs. The deterministic
@@ -130,7 +132,10 @@ See [Builder and arenas](builder-arenas.md).
 | Safe distance / max chase / max flee | 170 units / 4 seconds / 1.5 seconds |
 
 Players can run faster than NPCs, jump out of range, and use existing shields. Detection delay and fleeing leave
-room to observe the cycle rather than immediately trapping the player. Arena geometry is now supplied by Builder recipes. A later capacity/HUD task widens the player limit to four under the supplied PNG's unchanged `0..*` multiplicities; it does not alter the NPC algorithms or R1–R5 markers.
+room to observe the cycle rather than immediately trapping the player. Arena geometry is supplied by Builder
+recipes. The current capacity is up to four players in one shared session per server process. Combat has two
+NPCs; Training has none. Lobby, rooms and runtime arena switching are not implemented. The four-player capacity
+does not change the NPC algorithms or R1–R5 markers.
 
 ## UML-to-code audit: attributes
 

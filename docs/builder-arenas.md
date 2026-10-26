@@ -1,5 +1,9 @@
 # Builder ir dvi arenos
 
+Palaikomi iki 4 žaidėjų. Combat ir Training yra dvi įgyvendintos arenų konfigūracijos, tačiau vienas serverio
+procesas paleidžia vieną sesiją su viena paleidimo metu pasirinkta arena. Visi prisijungę žaidėjai žaidžia toje
+pačioje sesijoje. Lobby, kambariai ir arenos keitimas veikiančiame serveryje neįgyvendinti.
+
 ## Problema ir pasirinkimas
 
 Anksčiau `GameSession.createDefault()` vienoje vietoje kūrė platformas, parinkdavo koordinates ir kurdavo gyvus NPC.
@@ -198,7 +202,8 @@ kad aptarnavimo platforma matoma, šešėlis priklauso nuo atramos/grounded, o d
 
 Vienas serveris turi vieną areną. Nėra lobby, kambarių, Facade, viešos serverio prieigos ar kliento prognozavimo.
 
-Galutinė v2 patikra: **216 testų**, 0 failures, 0 errors, 0 skipped (domain 82, application 4, protocol 53,
+Ankstesnės v2 užduoties patikros įrašas (ne šio dokumentacijos pakeitimo testavimo rezultatas):
+**216 testų**, 0 failures, 0 errors, 0 skipped (domain 82, application 4, protocol 53,
 server 16, client 61). `clean verify` baigėsi BUILD SUCCESS su įjungtais Enforcer ir Checkstyle.
 Patikros žurnalas: `target/arena-v2-verify.log`. Builder ir Strategy main demonstracijos įvykdytos.
 42 peržiūros sugeneruotos; visų septynių scenarijų įprasti ir mažesni vaizdai bei pasirinkti debug kontūrai

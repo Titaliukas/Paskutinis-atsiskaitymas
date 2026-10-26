@@ -1,13 +1,14 @@
 # Paskutinis atsiskaitymas
 
-A small playable four-player platform prototype for a university Object-Oriented Programming Patterns project.
-The Java 25 server owns movement and collision state; Swing clients send keyboard intent and render authoritative
+A small platform game for up to four players, built for a university Object-Oriented Programming Patterns project.
+The Java 25 server owns movement and collision state; Swing clients send keyboard/controller intent and render authoritative
 JSON snapshots with Java2D sprites and primitive fallbacks.
 
 Each server runs one selected 960×540 arena: **Combat** (default, four surfaces, two student NPCs and a paired
-side passage) or **Training** (stadium background, ground only, no NPCs or passage). Both support four players,
+side passage) or **Training** (stadium background, ground only, no NPCs or passage). Both support up to four players,
 character/stat selection, combat, items, stress, respawn and safe reconnect. There are no lobbies, rooms,
-persistence, authentication or match results. See [Builder and arenas](docs/builder-arenas.md) for the approved
+persistence, authentication or match results. The arena is selected at startup for the whole server process;
+clients cannot choose rooms or switch its arena during play. See [Builder and arenas](docs/builder-arenas.md) for the approved
 UML mapping, coordinates and verification.
 
 ## Stack and architecture
@@ -304,7 +305,7 @@ The `/game` endpoint accepts JSON text messages with explicit stable types:
   (`healthPercent`, `speedPercent`, `jumpHeightPercent`). Omitted stats default to 100/100/100. Malformed fields
   are rejected by the protocol; invalid ranges, steps, or budgets produce `INVALID_STATS` without reserving a slot.
 - `WELCOME`: returns connection UUID, server-assigned player UUID, slot, and nickname.
-- `INPUT`: sends a monotonically sequenced complete left/right/jump state, never position or velocity.
+- `INPUT`: sends a monotonically sequenced complete left/right/jump/ranged/melee state, never position or velocity.
 - `WORLD_SNAPSHOT`: broadcasts validated `arenaType` (`combat` or `training`), arena/platform geometry, players (including health, character choice, stress and `slowed`), items,
   NPC geometry/activity/facing/attack sequences and `stunned`, player `attacks`, and NPC `projectiles`
   at 20 Hz. Each NPC projectile
