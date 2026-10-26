@@ -19,7 +19,6 @@ import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
-import javax.swing.SwingUtilities;
 import lt.ktu.paskutinisatsiskaitymas.protocol.Welcome;
 import lt.ktu.paskutinisatsiskaitymas.protocol.WorldSnapshot;
 
@@ -28,8 +27,7 @@ final class ConnectionWindow extends JFrame {
     private final JTextField address;
     private final JTextField nickname;
     private final CharacterSelectionPanel characterPicker = new CharacterSelectionPanel();
-    private final CharacterSelection selection = new CharacterSelection();
-    private final CommandHistory selectionHistory = new CommandHistory();
+    private final GameClientFacade facade = new GameClientFacade();
     private final JButton undoSelection = new JButton("Undo change");
     private final JButton connect = new JButton("Connect");
     private final JButton disconnect = new JButton("Disconnect");
@@ -38,7 +36,6 @@ final class ConnectionWindow extends JFrame {
     private final CardLayout screenLayout = new CardLayout();
     private final JPanel screens = new JPanel(screenLayout);
     private final GameWindowSizing gameWindowSizing = new GameWindowSizing();
-    private final ClientConnection connection;
     private final JComboBox<InputDevice> inputDevice = new JComboBox<>();
     /** Shared SDL controller access, or null when the native library could not be loaded. */
     private final ControllerManager controllers = createControllerManager();
@@ -47,33 +44,26 @@ final class ConnectionWindow extends JFrame {
     ConnectionWindow(String initialAddress, String initialNickname) {
         super("Paskutinis atsiskaitymas — Connection");
         setIconImage(AssetManager.getInstance().getImage("PATASIJUS"));
-        connection = new ClientConnection(new ClientEvents() {
+        facade.addObserver(new ClientEvents() {
             @Override
             public void onConnectionStatus(ConnectionStatus update) {
-                if (SwingUtilities.isEventDispatchThread()) {
-                    showStatus(update);
-                } else {
-                    SwingUtilities.invokeLater(() -> showStatus(update));
-                }
+                showStatus(update);
             }
 
             @Override
             public void onJoined(Welcome welcome) {
-                SwingUtilities.invokeLater(() -> {
-                    selectionHistory.clear();
-                    updateUndoSelection();
-                    gamePanel.setLocalPlayerId(welcome.playerId());
-                    gamePanel.requestFocusInWindow();
-                });
+                updateUndoSelection();
+                gamePanel.setLocalPlayerId(welcome.playerId());
+                gamePanel.requestFocusInWindow();
             }
 
             @Override
             public void onSnapshot(WorldSnapshot snapshot) {
-                SwingUtilities.invokeLater(() -> gamePanel.setSnapshot(snapshot));
+                gamePanel.setSnapshot(snapshot);
             }
         });
         input = InputDevice.KEYBOARD.create(gamePanel, controllers);
-        input.setListener(connection::sendInput);
+        input.setListener(facade::sendInput);
         for (InputDevice device : InputDevice.values()) {
             if (!device.gamepad() || controllers != null) {
                 inputDevice.addItem(device);
@@ -82,7 +72,7 @@ final class ConnectionWindow extends JFrame {
         inputDevice.setToolTipText(controllers != null ? InputDevice.KEYBOARD.controlsHint()
                 : "Controller support is unavailable on this system; the keyboard still works");
         inputDevice.addActionListener(event -> switchInput((InputDevice) inputDevice.getSelectedItem()));
-        connection.addObserver(new NotificationObserver(gamePanel));
+        facade.addObserver(new NotificationObserver(gamePanel));
         address = new JTextField(initialAddress, 28);
         nickname = new JTextField(initialNickname, 28);
         JPanel fields = new JPanel(new GridLayout(3, 2, 8, 6));
@@ -108,39 +98,34 @@ final class ConnectionWindow extends JFrame {
         content.add(status, BorderLayout.SOUTH);
         setContentPane(content);
         disconnect.setEnabled(false);
-        characterPicker.setSelectedCharacter(selection.selectedCharacter());
+        characterPicker.setSelectedCharacter(facade.selectedCharacter());
         undoSelection.setEnabled(false);
         characterPicker.setSelectionListener(selected -> {
-            if (!selection.selectedCharacter().equals(selected)) {
-                selectionHistory.execute(new SelectCharacterCommand(selection, selected));
-                characterPicker.setStats(selection.stats());
-                updateUndoSelection();
-            }
+            facade.selectCharacter(selected);
+            characterPicker.setStats(facade.stats());
+            updateUndoSelection();
         });
         characterPicker.setStatChangeListener((stat, value) -> {
-            if (stat.value(selection.stats()) != value) {
-                selectionHistory.execute(new ChangeStatCommand(selection, stat, value));
-                characterPicker.setStats(selection.stats());
-                updateUndoSelection();
-            }
+            facade.changeStat(stat, value);
+            characterPicker.setStats(facade.stats());
+            updateUndoSelection();
         });
         undoSelection.addActionListener(event -> {
-            selectionHistory.undo();
-            characterPicker.setSelectedCharacter(selection.selectedCharacter());
-            characterPicker.setStats(selection.stats());
+            facade.undoSelection();
+            characterPicker.setSelectedCharacter(facade.selectedCharacter());
+            characterPicker.setStats(facade.stats());
             updateUndoSelection();
         });
         connect.addActionListener(event -> {
             try {
-                connection.connect(URI.create(address.getText().trim()), nickname.getText().trim(),
-                        selection.selectedCharacter(), selection.stats());
+                facade.connect(URI.create(address.getText().trim()), nickname.getText().trim());
             } catch (IllegalArgumentException exception) {
                 showStatus(new ConnectionStatus(ConnectionStatus.State.ERROR, exception.getMessage()));
             }
         });
         disconnect.addActionListener(event -> {
             input.reset();
-            connection.disconnect();
+            facade.disconnect();
         });
         addWindowListener(new WindowAdapter() {
             @Override
@@ -149,7 +134,7 @@ final class ConnectionWindow extends JFrame {
                 if (controllers != null) {
                     controllers.quitSDLGamepad();
                 }
-                connection.close();
+                facade.close();
             }
         });
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
@@ -203,7 +188,7 @@ final class ConnectionWindow extends JFrame {
     }
 
     private void updateUndoSelection() {
-        undoSelection.setEnabled(characterPicker.isEnabled() && selectionHistory.canUndo());
+        undoSelection.setEnabled(characterPicker.isEnabled() && facade.canUndoSelection());
     }
 
     /** Swaps the adapter. Everything else keeps talking to InputSource, so nothing else changes. */
@@ -211,7 +196,7 @@ final class ConnectionWindow extends JFrame {
         input.reset(); // release anything held on the old device so the character does not keep moving
         input.close();
         input = device.create(gamePanel, controllers);
-        input.setListener(connection::sendInput);
+        input.setListener(facade::sendInput);
         inputDevice.setToolTipText(device.controlsHint());
         status.putClientProperty("html.disable", Boolean.TRUE);
         status.setText(device.controlsHint());

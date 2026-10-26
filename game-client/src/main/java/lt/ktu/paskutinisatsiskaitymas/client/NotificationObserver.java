@@ -1,8 +1,8 @@
 package lt.ktu.paskutinisatsiskaitymas.client;
 
-import javax.swing.SwingUtilities;
 import lt.ktu.paskutinisatsiskaitymas.protocol.GameEventMessage;
 
+/** Receives facade events on the EDT. */
 final class NotificationObserver implements ClientEvents {
     private final GamePanel panel;
 
@@ -12,6 +12,6 @@ final class NotificationObserver implements ClientEvents {
 
     @Override
     public void onGameEvent(GameEventMessage event) {
-        SwingUtilities.invokeLater(() -> panel.showNotification(event.text()));
+        panel.showNotification(event.text());
     }
 }

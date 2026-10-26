@@ -166,6 +166,21 @@ DTOs and never expose exceptions or domain objects.
 
 ## Lifecycle and deployment
 
+The client-side Facade is `GameClientFacade`. Its two clients, `ConnectionWindow` and the windowless
+`GameClientFacadeDemo`, each own a separate facade with one `CharacterSelection`, one `CommandHistory`, and one
+`ClientConnection`. No subsystem depends on the facade type or is exposed through a getter. The facade executes
+the existing commands through history, reads selection for `HELLO`, and delegates transport/input/observer
+registration to the connection. Rendering, input-device choice, SDL, sizing and focus remain in the window.
+See the [demo commands](../README.md#facade-demonstration-without-a-game-window).
+
+Facade operations and observer delivery use the EDT, including in the windowless demo. Network callbacks only
+enqueue EDT work, without waiting for it. The internal `WELCOME` observer queues history clearing before client
+observers. A facade generation guards every queued event; lifecycle operations advance it under the connection
+monitor, so an old callback cannot capture a new generation. This supplements the transport's existing generation
+checks and prevents cancelled/previous sessions from changing history or UI. Client observers update the UI
+directly on the EDT, without a second unguarded dispatch. Repeated identical connection statuses (for example,
+closing after disconnecting) are delivered once per observer.
+
 Character and stat selection before joining use a client-local Command pattern. `UndoableCommand` declares
 `execute()` and `undo()`; `SelectCharacterCommand` and `ChangeStatCommand` capture an immutable receiver snapshot
 at execution time and restore it on undo. `CharacterSelection` is the receiver, initially `Hello.DEFAULT_CHARACTER`
@@ -179,13 +194,13 @@ order. Empty-history undo is a no-op; clearing history retains the receiver's cu
 keyboard-focus outline. Missing portraits retain a named placeholder. Three sliders edit maximum health,
 movement speed, and jump height (50–150%, step 5, total at most 300). Unused points are allowed; increases are
 clamped to the available budget. Values preview during a drag and commit once on release; keyboard adjustments
-also commit. `ConnectionWindow` creates commands for actual changes and provides **Undo change**. The panel
+also commit. `ConnectionWindow` requests changes through its facade and provides **Undo change**. The panel
 communicates through callbacks and has no dependency on history. Its programmatic setters update cards and
 sliders without emitting actions, so undo does not create commands. The receiver, history and
 UI are owned by the EDT. Selection, sliders, and undo are disabled while connecting or connected. Receiving `WELCOME`
 clears history on the EDT and makes the current choice the baseline; validation failures, connection failures and
 cancelled attempts preserve history. Disconnecting allows new changes and undo back to that baseline. History is
-per window and lives only for that window's lifetime. Connect reads the receiver's character and stat allocation
+per facade and lives only for that client's lifetime. Connect reads the receiver's character and stat allocation
 for `HELLO`. Its optional `stats` object defaults to 100/100/100 when omitted. The protocol requires exactly three
 integer fields; `CharacterBuild` in the domain validates ranges, steps, and budget. The client mirrors these
 constraints for feedback but has no domain dependency. The server translates the DTO before reserving a slot;
@@ -263,5 +278,5 @@ before the owner loop starts. No live world state is changed by WebSocket callba
 
 Future slices can add more platform geometry to `Arena`, new application commands, versioned snapshot fields,
 and client interpolation without changing transport ownership. Existing Singleton, ItemFactory, Observer, platform Prototype, Strategy, Adapter, Abstract Factory, Decorator and
-Command behavior remain intact. Player combat, projectiles and respawn are already implemented. Scoring,
+Command and Facade behavior remain intact. Player combat, projectiles and respawn are already implemented. Scoring,
 persistence, authentication, match results, runtime arena switching, lobbies/rooms and unrelated patterns remain outside this slice.

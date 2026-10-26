@@ -1,8 +1,10 @@
 # Character selection and stat builds
 
 The Command pattern belongs to the client. `CharacterSelectionPanel` displays portrait cards and sliders and
-reports user requests to `ConnectionWindow`. The window creates commands and invokes `CommandHistory`.
-The panel never calls history directly. Local undo finishes before joining; the server receives only the final build.
+reports user requests to `ConnectionWindow`, which delegates to `GameClientFacade`. The facade creates commands
+and invokes `CommandHistory`. The panel never calls history directly. Local undo finishes before joining; the
+server receives only the final build. `GameClientFacadeDemo` is the second facade client, with its own selection,
+history and connection; see the [runnable demonstration](../README.md#facade-demonstration-without-a-game-window).
 
 ```mermaid
 classDiagram
@@ -17,6 +19,8 @@ classDiagram
             +setEnabled(enabled)
         }
         class ConnectionWindow
+        class GameClientFacade
+        class GameClientFacadeDemo
         class AssetManager
         class CharacterSelection {
             <<receiver>>
@@ -96,12 +100,15 @@ classDiagram
     }
 
     ConnectionWindow *-- CharacterSelectionPanel
-    ConnectionWindow *-- CharacterSelection
-    ConnectionWindow *-- CommandHistory
+    ConnectionWindow *-- GameClientFacade
+    GameClientFacadeDemo ..> GameClientFacade
+    GameClientFacade *-- CharacterSelection
+    GameClientFacade *-- CommandHistory
+    GameClientFacade *-- ClientConnection
     CharacterSelectionPanel ..> ConnectionWindow : selection callbacks
     CharacterSelectionPanel ..> AssetManager : cached portraits
-    ConnectionWindow ..> SelectCharacterCommand : creates
-    ConnectionWindow ..> ChangeStatCommand : creates
+    GameClientFacade ..> SelectCharacterCommand : creates
+    GameClientFacade ..> ChangeStatCommand : creates
     SelectCharacterCommand ..|> UndoableCommand
     ChangeStatCommand ..|> UndoableCommand
     SelectCharacterCommand --> CharacterSelection : resets or restores
@@ -111,7 +118,7 @@ classDiagram
     CharacterSelection ..> SelectionState : snapshot and restore
     CommandHistory o-- UndoableCommand : successful commands in stack
     CharacterSelection --> StatAllocation
-    ConnectionWindow --> ClientConnection : final choice on Connect
+    GameClientFacade --> ClientConnection : final choice on Connect
     ClientConnection ..> Hello : sends JSON
     Hello *-- StatAllocation
     MessageRouter ..> Hello : receives JSON
@@ -137,7 +144,8 @@ classDiagram
 - History undoes commands in reverse order. Empty undo does nothing; clearing history leaves selection intact.
   Programmatic card and slider synchronization emits no callbacks.
 - Connecting disables editing. Failures and cancellations retain history. `WELCOME` clears it, retaining the
-  selected build as the new baseline. Each window owns its history until closed.
+  selected build as the new baseline before notifying clients on the EDT. Each facade owns its history until
+  closed; queued events from cancelled/older sessions are discarded.
 
 ## Budget and server boundary
 

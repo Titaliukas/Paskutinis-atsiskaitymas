@@ -3,7 +3,7 @@ package lt.ktu.paskutinisatsiskaitymas.client;
 import lt.ktu.paskutinisatsiskaitymas.protocol.StatAllocation;
 
 /** Client labels and accessors for the three editable build percentages. */
-enum SelectableStat {
+public enum SelectableStat {
     HEALTH("Maximum health"), SPEED("Movement speed"), JUMP_HEIGHT("Jump height");
 
     private final String label;

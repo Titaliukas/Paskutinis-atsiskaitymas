@@ -168,12 +168,38 @@ Stop and remove this project's server container and network with:
 docker compose down
 ```
 
+## Facade demonstration without a game window
+
+`GameClientFacade` coordinates three private subsystems: `CharacterSelection`, `CommandHistory`, and
+`ClientConnection`. Its two clients are `ConnectionWindow` and `GameClientFacadeDemo`; each owns an independent
+facade. The facade executes the existing selection commands, sends the current build on connect, and delegates
+input and observer registration to the connection. The window retains rendering and input-device/SDL lifecycle.
+
+After `./mvnw -B -ntp clean verify` with Java 25, start the server in one terminal:
+
+```sh
+java -jar game-server/target/game-server.jar
+```
+
+In another terminal, run the second facade client:
+
+```sh
+java -Djava.awt.headless=true -cp game-client/target/game-client.jar \
+  lt.ktu.paskutinisatsiskaitymas.client.GameClientFacadeDemo ws://localhost:8080/game FacadeDemo
+```
+
+Both arguments are optional (defaults: `ws://localhost:8080/game`, `FacadeDemo`). The demo prints character/stat
+changes, restores VACIJUS with 75/125/100 via undo, receives `WELCOME` and a `WORLD_SNAPSHOT`, then disconnects
+and closes its HTTP client. It uses the EDT for facade operations and waits on the main thread for at most 12
+seconds; failure prints an error and exits unsuccessfully. Stop the server with Ctrl+C afterwards. The runnable
+client JAR's main class remains `GameClientMain`.
+
 ## Controls
 
 Character selection uses the Command pattern in `game-client`: `CharacterSelection` is the receiver,
 `SelectCharacterCommand` and `ChangeStatCommand` implement `UndoableCommand.execute()` and `undo()`, and
 `CommandHistory` is the invoker that stores executed commands in a stack. Commands capture an immutable snapshot
-of the previous character and stats. The connection form creates commands only for actual changes; restoring
+of the previous character and stats. `GameClientFacade` creates commands only for actual changes; restoring
 cards and sliders during undo does not create another command. See the [UML and build flow](docs/character-selection.md).
 The picker stays visible but disabled while connecting, switches to the arena after joining, and returns after
 disconnecting or a connection error.

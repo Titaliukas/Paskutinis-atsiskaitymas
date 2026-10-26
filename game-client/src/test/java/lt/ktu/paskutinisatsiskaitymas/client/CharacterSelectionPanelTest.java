@@ -69,26 +69,31 @@ class CharacterSelectionPanelTest {
     @Test
     void undoSynchronizesSlidersAndCardWithoutRecursiveCommands() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
-            CharacterSelectionPanel panel = new CharacterSelectionPanel();
-            CharacterSelection selection = new CharacterSelection();
-            CommandHistory history = new CommandHistory();
-            panel.setStatChangeListener((stat, value) -> history.execute(new ChangeStatCommand(selection, stat, value)));
-            panel.setSelectionListener(character -> {
-                history.execute(new SelectCharacterCommand(selection, character));
-                panel.setStats(selection.stats());
-            });
-            sliders(panel).get(0).setValue(75);
-            cards(panel).get(1).doClick(0);
-            assertEquals(100, sliders(panel).get(0).getValue());
-            history.undo();
-            panel.setSelectedCharacter(selection.selectedCharacter());
-            panel.setStats(selection.stats());
-            assertEquals("PATASIJUS", selected(cards(panel)));
-            assertEquals(75, sliders(panel).get(0).getValue());
-            history.undo();
-            panel.setStats(selection.stats());
-            assertEquals(100, sliders(panel).get(0).getValue());
-            assertFalse(history.canUndo());
+            try (GameClientFacade facade = new GameClientFacade()) {
+                CharacterSelectionPanel panel = new CharacterSelectionPanel();
+                panel.setStatChangeListener(facade::changeStat);
+                panel.setSelectionListener(character -> {
+                    facade.selectCharacter(character);
+                    panel.setStats(facade.stats());
+                });
+                sliders(panel).get(0).setValueIsAdjusting(true);
+                sliders(panel).get(0).setValue(90);
+                sliders(panel).get(0).setValue(80);
+                sliders(panel).get(0).setValue(75);
+                assertFalse(facade.canUndoSelection(), "Drag must not commit until release");
+                sliders(panel).get(0).setValueIsAdjusting(false);
+                cards(panel).get(1).doClick(0);
+                assertEquals(100, sliders(panel).get(0).getValue());
+                facade.undoSelection();
+                panel.setSelectedCharacter(facade.selectedCharacter());
+                panel.setStats(facade.stats());
+                assertEquals("PATASIJUS", selected(cards(panel)));
+                assertEquals(75, sliders(panel).get(0).getValue());
+                facade.undoSelection();
+                panel.setStats(facade.stats());
+                assertEquals(100, sliders(panel).get(0).getValue());
+                assertFalse(facade.canUndoSelection(), "One drag must create exactly one history step");
+            }
         });
     }
     @Test
