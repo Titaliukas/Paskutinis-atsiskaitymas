@@ -10,6 +10,12 @@ class GamepadInputAdapterTest {
     private final XboxInputAdapter xbox = new XboxInputAdapter(null);
     private final PlayStationInputAdapter playStation = new PlayStationInputAdapter(null);
 
+    private final EightBitDoInputAdapter eightBitDo = new EightBitDoInputAdapter(null);
+
+    private List<GamepadInputAdapter> adapters() {
+        return List.of(xbox, playStation, eightBitDo);
+    }
+
     private static GamepadReading idle(String name) {
         return new GamepadReading(name, 0f, false, false, false, false, false, false);
     }
@@ -33,19 +39,30 @@ class GamepadInputAdapterTest {
         for (String name : List.of("Xbox 360 Controller", "Xbox Series X Controller", "XInput Controller")) {
             assertTrue(xbox.matches(name), name);
             assertFalse(playStation.matches(name), name);
+            assertFalse(eightBitDo.matches(name), name);
         }
         for (String name : List.of("PS4 Controller", "PS5 Controller", "DualSense Wireless Controller",
                 "Sony Interactive Entertainment Wireless Controller")) {
             assertTrue(playStation.matches(name), name);
             assertFalse(xbox.matches(name), name);
+            assertFalse(eightBitDo.matches(name), name);
         }
+        for (String name : List.of("8BitDo Ultimate 2C Wireless", "8bitdo", "8BITDO Controller")) {
+            assertTrue(eightBitDo.matches(name), name);
+            assertFalse(xbox.matches(name), name);
+            assertFalse(playStation.matches(name), name);
+        }
+        for (String name : List.of("", "Unknown Controller", "Nintendo Switch Pro Controller", "8Bit Controller")) {
+            assertFalse(eightBitDo.matches(name), name);
+        }
+        assertFalse(eightBitDo.matches(null));
         assertFalse(xbox.matches(null));
         assertFalse(playStation.matches("Nintendo Switch Pro Controller"));
     }
 
     @Test
     void faceButtonsMapToJumpRangedAndMelee() {
-        for (GamepadInputAdapter adapter : List.<GamepadInputAdapter>of(xbox, playStation)) {
+        for (GamepadInputAdapter adapter : adapters()) {
             assertEquals(state(false, false, true, false, false), adapter.map(face(true, false, false, false)));
             assertEquals(state(false, false, false, true, false), adapter.map(face(false, false, true, false)));
             assertEquals(state(false, false, false, false, true), adapter.map(face(false, true, false, false)));
@@ -57,8 +74,13 @@ class GamepadInputAdapterTest {
     void shouldersAreAlternativeAttackButtons() {
         GamepadReading shoulders = new GamepadReading("Xbox One Controller", 0f, false, false, false, false,
                 true, true);
-        assertEquals(state(false, false, false, true, true), xbox.map(shoulders));
-        assertEquals(state(false, false, false, true, true), playStation.map(shoulders));
+        for (GamepadInputAdapter adapter : adapters()) {
+            assertEquals(state(false, false, false, true, true), adapter.map(shoulders));
+            assertEquals(state(false, false, false, true, false), adapter.map(
+                    new GamepadReading("", 0f, false, false, false, false, false, true)));
+            assertEquals(state(false, false, false, false, true), adapter.map(
+                    new GamepadReading("", 0f, false, false, false, false, true, false)));
+        }
     }
 
     @Test
@@ -66,51 +88,61 @@ class GamepadInputAdapterTest {
         // Movement reads only leftStickX; face and shoulder buttons never produce left or right.
         GamepadReading everythingButStick = new GamepadReading("Xbox One Controller", 0f, true, true, true, true,
                 true, true);
-        PlayerInput input = xbox.map(everythingButStick);
-        assertFalse(input.left());
-        assertFalse(input.right());
+        for (GamepadInputAdapter adapter : adapters()) {
+            PlayerInput input = adapter.map(everythingButStick);
+            assertFalse(input.left());
+            assertFalse(input.right());
+        }
     }
 
     @Test
     void stickNeedsToPassTheDeadZone() {
-        assertEquals(PlayerInput.NONE, xbox.map(stick(-0.2f)));
-        assertEquals(PlayerInput.NONE, xbox.map(stick(0.3f)));
-        assertEquals(state(true, false, false, false, false), xbox.map(stick(-0.8f)));
-        assertEquals(state(false, true, false, false, false), xbox.map(stick(0.8f)));
+        for (GamepadInputAdapter adapter : adapters()) {
+            assertEquals(PlayerInput.NONE, adapter.map(stick(-0.2f)));
+            assertEquals(PlayerInput.NONE, adapter.map(stick(0.3f)));
+            assertEquals(state(true, false, false, false, false), adapter.map(stick(-0.8f)));
+            assertEquals(state(false, true, false, false, false), adapter.map(stick(0.8f)));
+        }
     }
 
     @Test
     void publishesOnlyChangesAndTreatsMissingControllerAsNoInput() {
-        List<PlayerInput> published = new ArrayList<>();
-        InputSource input = xbox;
-        input.setListener(published::add);
+        for (GamepadInputAdapter adapter : adapters()) {
+            List<PlayerInput> published = new ArrayList<>();
+            InputSource input = adapter;
+            input.setListener(published::add);
 
-        xbox.update(stick(0.9f));
-        xbox.update(stick(0.95f));
-        xbox.update(idle("Xbox Series X Controller"));
-        xbox.update(stick(-0.9f));
-        xbox.update(null);
+            adapter.update(stick(0.9f));
+            adapter.update(stick(0.95f));
+            adapter.update(idle("Xbox Series X Controller"));
+            adapter.update(stick(-0.9f));
+            adapter.update(null);
 
-        assertEquals(List.of(state(false, true, false, false, false), PlayerInput.NONE,
-                state(true, false, false, false, false), PlayerInput.NONE), published);
-        assertEquals(PlayerInput.NONE, input.currentInput());
+            assertEquals(List.of(state(false, true, false, false, false), PlayerInput.NONE,
+                    state(true, false, false, false, false), PlayerInput.NONE), published);
+            assertEquals(PlayerInput.NONE, input.currentInput());
+        }
     }
 
     @Test
     void resetReleasesHeldInputOnce() {
-        List<PlayerInput> published = new ArrayList<>();
-        InputSource input = playStation;
-        input.setListener(published::add);
-        playStation.update(face(true, false, false, false));
-        input.reset();
-        input.reset();
-        assertEquals(List.of(state(false, false, true, false, false), PlayerInput.NONE), published);
+        for (GamepadInputAdapter adapter : adapters()) {
+            List<PlayerInput> published = new ArrayList<>();
+            InputSource input = adapter;
+            input.setListener(published::add);
+            adapter.update(face(true, false, false, false));
+            input.reset();
+            input.reset();
+            assertEquals(List.of(state(false, false, true, false, false), PlayerInput.NONE), published);
+        }
     }
 
     @Test
     void closeWithoutStartIsSafeAndStartNeedsAManager() {
-        assertDoesNotThrow(xbox::close);
-        assertThrows(NullPointerException.class, xbox::start);
+        for (GamepadInputAdapter adapter : adapters()) {
+            assertDoesNotThrow(adapter::close);
+            assertThrows(NullPointerException.class, adapter::start);
+        }
     }
 
     @Test
@@ -122,5 +154,10 @@ class GamepadInputAdapterTest {
         assertFalse(InputDevice.KEYBOARD.gamepad());
         assertTrue(InputDevice.XBOX.gamepad());
         assertTrue(InputDevice.PLAYSTATION.gamepad());
+        assertTrue(InputDevice.EIGHT_BIT_DO.gamepad());
+        assertEquals("8BitDo controller", InputDevice.EIGHT_BIT_DO.toString());
+        assertEquals("8BitDo: left stick move, bottom face button jump, "
+                + "left face button/right shoulder ranged, right face button/left shoulder melee",
+                InputDevice.EIGHT_BIT_DO.controlsHint());
     }
 }
