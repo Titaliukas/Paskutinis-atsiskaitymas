@@ -7,7 +7,8 @@ import java.awt.Component;
 enum InputDevice {
     KEYBOARD("Keyboard", false),
     XBOX("Xbox controller", true),
-    PLAYSTATION("PlayStation controller", true);
+    PLAYSTATION("PlayStation controller", true),
+    EIGHT_BIT_DO("8BitDo controller", true);
 
     private final String label;
     private final boolean gamepad;
@@ -27,6 +28,7 @@ enum InputDevice {
             case KEYBOARD -> new KeyboardInputAdapter(keyboardSource);
             case XBOX -> started(new XboxInputAdapter(manager));
             case PLAYSTATION -> started(new PlayStationInputAdapter(manager));
+            case EIGHT_BIT_DO -> started(new EightBitDoInputAdapter(manager));
         };
     }
 
@@ -36,6 +38,8 @@ enum InputDevice {
             case KEYBOARD -> "Keyboard: A/D or arrows move, Space/W/Up jump, J ranged, K melee";
             case XBOX -> "Xbox: left stick move, A jump, X ranged, B melee";
             case PLAYSTATION -> "PlayStation: left stick move, Cross jump, Square ranged, Circle melee";
+            case EIGHT_BIT_DO -> "8BitDo: left stick move, bottom face button jump, "
+                    + "left face button/right shoulder ranged, right face button/left shoulder melee";
         };
     }
 

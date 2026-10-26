@@ -182,6 +182,12 @@ All four characters currently share the same health, speed, and jump defaults; a
 
 Pick the device in the **Input** dropdown of the connection form. It can be changed at any time, also mid-game.
 
+For **8BitDo controller**, the left stick moves, the bottom face button jumps, the left face button or right
+shoulder performs a ranged attack, and the right face button or left shoulder performs a melee attack.
+These are SDL-normalized positions; printed labels depend on the model and mode. This option matches reported
+names containing `8bitdo` (case-insensitive) and requires SDL to detect and map the controller in its current mode.
+A mapping for the Ultimate 2C Wireless over Bluetooth on macOS is bundled in `gamecontrollerdb.txt`.
+
 | Action     | Keyboard                 | Xbox controller               | PlayStation controller           |
 | ---------- | ------------------------ | ----------------------------- | -------------------------------- |
 | Move left  | `A` or `Left`            | Left stick                    | Left stick                       |
