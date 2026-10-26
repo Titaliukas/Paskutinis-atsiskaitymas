@@ -29,6 +29,9 @@ public final class AssetManager {
         load(loaded, "VACIJUS_PROJECTILE", "assets/VACIJUS_PROJECTILE.png");
         load(loaded, "VACIJUS_MELEE", "assets/VACIJUS_MELEE.png");
         load(loaded, "GOGIS_PROJECTILE", "assets/GOGIS_PROJECTILE.png");
+        load(loaded, "GOGIS_MELEE", "assets/GOGIS_MELEE.png");
+        load(loaded, "JURGELINIS_PROJECTILE", "assets/JURGELINIS_PROJECTILE.png");
+        load(loaded, "JURGELINIS_MELEE", "assets/JURGELINIS_MELEE.png");
         load(loaded, "NPC_PATROL", "assets/NPC_PATROL.png");
         load(loaded, "NPC_CHASE", "assets/NPC_CHASE.png");
         load(loaded, "NPC_ATTACK", "assets/NPC_ATTACK.png");

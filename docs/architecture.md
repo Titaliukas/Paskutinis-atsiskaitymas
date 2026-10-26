@@ -240,9 +240,9 @@ character name to its factory, and `CharacterSkin.from` builds the whole family 
 and melee swing always match. `GamePanel` depends only on the interfaces. Attack snapshots carry the attacker's
 `sourceId`, which `GamePanel` resolves to that player's character; unknown characters and attacks whose player has
 left keep the primitive-shape fallback. They also carry the attack's `direction` (-1 left, 1 right), which every
-renderer receives as `facesRight`; sprite art faces right and is mirrored for leftward attacks. Patasijus uses
-32x32 sprites for both attacks, Vacijus for both attacks and Gogis for his projectile; the remaining attacks still
-use drawn shapes.
+renderer receives as `facesRight`; sprite art faces right and is mirrored for leftward attacks. Every character uses
+32x32 sprites (`<CHARACTER>_PROJECTILE`, `<CHARACTER>_MELEE`) for both attacks; the drawn shapes remain only as a
+fallback when an image is missing. Jurgelinis's projectile contains text, so it is never mirrored.
 Presentation only: no game rule depends on the skin.
 
 For the Decorator pattern, a domain `GameCharacter` keeps its timed effects as one `CharacterStats` chain. The chain

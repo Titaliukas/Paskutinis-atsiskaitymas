@@ -13,7 +13,9 @@ class AssetManagerTest {
         assertSame(assets, AssetManager.getInstance());
         for (String key : List.of("ARENA_COMBAT", "ARENA_TRAINING", "SPEED_BOOST", "JUMP_BOOST", "SHIELD", "PATASIJUS", "PATASIJUS_PORTRAIT",
                 "VACIJUS", "VACIJUS_PORTRAIT", "JURGELINIS", "JURGELINIS_PORTRAIT", "GOGIS", "GOGIS_PORTRAIT",
-                "PATASIJUS_PROJECTILE", "PATASIJUS_MELEE", "VACIJUS_PROJECTILE", "VACIJUS_MELEE", "GOGIS_PROJECTILE",
+                "PATASIJUS_PROJECTILE", "PATASIJUS_MELEE", "VACIJUS_PROJECTILE", "VACIJUS_MELEE",
+                "GOGIS_PROJECTILE", "GOGIS_MELEE",
+                "JURGELINIS_PROJECTILE", "JURGELINIS_MELEE",
                 "NPC_PATROL", "NPC_CHASE", "NPC_ATTACK", "NPC_FLEE")) {
             Image image = assets.getImage(key);
             assertNotNull(image, key);
