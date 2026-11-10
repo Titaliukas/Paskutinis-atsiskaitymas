@@ -4,7 +4,6 @@ import java.awt.Color;
 import java.awt.BasicStroke;
 import java.awt.geom.AffineTransform;
 import java.awt.Dimension;
-import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
@@ -14,7 +13,6 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Rectangle2D;
-import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -30,13 +28,6 @@ import lt.ktu.paskutinisatsiskaitymas.protocol.AttackSnapshot;
 final class GamePanel extends JPanel {
     private static final Color SKY = new Color(38, 48, 68);
     private static final Color PLATFORM = new Color(83, 69, 55);
-    private static final Color[] PLAYER_COLORS = {
-        new Color(58, 141, 255), new Color(244, 92, 92),
-        new Color(92, 201, 130), new Color(232, 183, 75)
-    };
-    private static final int CARD_MARGIN = 12;
-    private static final int CARD_HEIGHT = 92;
-    private static final Color CARD_BACKGROUND = new Color(17, 23, 34, 225);
     private static final Color SHIELD_RING = new Color(120, 200, 255);
     private static final double SHIELD_SIZE = 20.0;
     private static final Color PROJECTILE = new Color(255, 190, 60);
@@ -52,6 +43,8 @@ final class GamePanel extends JPanel {
     private String notification;
     private long notificationUntil;
     private final NPCPresentation npcPresentation = new NPCPresentation();
+    /** Composite root: the panel draws the whole HUD tree through this single element. */
+    private final HudElement hud = Hud.create();
     // Reuse the existing UI timer for notification expiry and the short presentation-only attack latch.
     private final javax.swing.Timer notificationTimer = new javax.swing.Timer(30, event -> refreshPresentation());
 
@@ -172,8 +165,7 @@ final class GamePanel extends JPanel {
             for (ProjectileSnapshot projectile : snapshot.projectiles()) {
                 drawProjectile(g, projectile, scale, offsetX, offsetY);
             }
-            drawPlayerCards(g);
-            drawNotification(g, scale, offsetX, offsetY);
+            hud.draw(g, new HudContext(getWidth(), getHeight(), snapshot, localPlayerId, notification, assets));
         } finally {
             g.dispose();
         }
@@ -200,7 +192,7 @@ final class GamePanel extends JPanel {
         if (skin != null) {
             skin.body().draw(g, body, facesRight);
         } else {
-            g.setColor(PLAYER_COLORS[player.slot()]);
+            g.setColor(HudStyle.PLAYER_COLORS[player.slot()]);
             g.fill(body);
         }
 
@@ -258,108 +250,6 @@ final class GamePanel extends JPanel {
         g.fill(new Rectangle2D.Double(body.getX(), barY, body.getWidth(), barHeight));
         g.setColor(HEALTH_FILL);
         g.fill(new Rectangle2D.Double(body.getX(), barY, body.getWidth() * fraction, barHeight));
-    }
-
-    /** Cards use panel coordinates and stable slots, independently of list order and world movement. */
-    private void drawPlayerCards(Graphics2D g) {
-        double worldScale = Math.min(getWidth() / snapshot.arena().width(), getHeight() / snapshot.arena().height());
-        double hudScale = Math.min(1, worldScale);
-        double groundY = snapshot.arena().platforms().stream()
-                .filter(p -> p.x() == 0 && p.width() == snapshot.arena().width())
-                .mapToDouble(p -> p.y()).max().orElse(0);
-        double offsetY = (getHeight() - snapshot.arena().height() * worldScale) / 2;
-        double belowGround = getHeight() - offsetY - groundY * worldScale;
-        // Keep the bottom cards entirely in the decorative base, including a margin above and below.
-        double bottomScale = Math.min(hudScale, belowGround / (CARD_HEIGHT + 2.0 * CARD_MARGIN));
-        for (PlayerSnapshot player : snapshot.players()) {
-            double cardScale = player.slot() < 2 ? hudScale : Math.max(0.1, bottomScale);
-            int width = Math.min(248, (int) ((getWidth() - 3 * CARD_MARGIN) / (2 * cardScale)));
-            double margin = player.slot() < 2 ? CARD_MARGIN : CARD_MARGIN * cardScale;
-            double x = player.slot() % 2 == 0 ? margin : getWidth() - margin - width * cardScale;
-            double y = player.slot() < 2 ? margin : getHeight() - margin - CARD_HEIGHT * cardScale;
-            Graphics2D card = (Graphics2D) g.create();
-            try {
-                card.translate(x, y);
-                card.scale(cardScale, cardScale);
-                drawPlayerCard(card, player, 0, 0, width);
-            } finally {
-                card.dispose();
-            }
-        }
-    }
-
-    private void drawPlayerCard(Graphics2D g, PlayerSnapshot player, int x, int y, int width) {
-        Color accent = PLAYER_COLORS[player.slot()];
-        boolean local = player.playerId().equals(localPlayerId);
-        g.setColor(CARD_BACKGROUND);
-        g.fillRoundRect(x, y, width, CARD_HEIGHT, 8, 8);
-        g.setColor(accent);
-        g.fillRect(x + 1, y + 9, 3, CARD_HEIGHT - 18);
-        g.setColor(local ? Color.WHITE : accent);
-        g.drawRoundRect(x, y, width - 1, CARD_HEIGHT - 1, 8, 8);
-        if (local) {
-            g.drawRoundRect(x + 1, y + 1, width - 3, CARD_HEIGHT - 3, 7, 7);
-        }
-        drawPortrait(g, x + 12, y + 14, 64, player.character());
-        int textX = x + 88;
-        int textWidth = width - 100;
-        Font original = g.getFont();
-        g.setFont(original.deriveFont(Font.BOLD, 13f));
-        g.setColor(Color.WHITE);
-        g.drawString(ellipsize(g, player.nickname(), textWidth), textX, y + 26);
-        g.setFont(original.deriveFont(Font.PLAIN, 13f));
-        String stress = BigDecimal.valueOf(player.stressLevel()).stripTrailingZeros().toPlainString();
-        g.drawString(ellipsize(g, "Stress: " + stress, textWidth), textX, y + 49);
-        g.setColor(local ? Color.WHITE : accent);
-        g.setFont(original.deriveFont(Font.PLAIN, 11f));
-        g.drawString("Player " + (player.slot() + 1) + (local ? " (you)" : ""), textX, y + 72);
-        g.setFont(original);
-    }
-
-    private void drawPortrait(Graphics2D g, int x, int y, int size, String character) {
-        g.setColor(new Color(33, 42, 57));
-        g.fillRect(x, y, size, size);
-        Image portrait = assets.getImage(character + "_PORTRAIT");
-        if (portrait != null) {
-            double scale = Math.min((double) size / portrait.getWidth(null), (double) size / portrait.getHeight(null));
-            int width = (int) Math.round(portrait.getWidth(null) * scale);
-            int height = (int) Math.round(portrait.getHeight(null) * scale);
-            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-            g.drawImage(portrait, x + (size - width) / 2, y + (size - height) / 2, width, height, null);
-        } else {
-            g.setColor(Color.LIGHT_GRAY);
-            g.fillOval(x + size / 3, y + size / 8, size / 3, size / 3);
-            g.fillRoundRect(x + size / 6, y + size / 2, size * 2 / 3, size * 3 / 8, 8, 8);
-        }
-    }
-
-    private void drawNotification(Graphics2D g, double scale, double offsetX, double offsetY) {
-        if (notification == null) {
-            return;
-        }
-        String text = ellipsize(g, notification, getWidth() - 2 * CARD_MARGIN - 16);
-        FontMetrics metrics = g.getFontMetrics();
-        int width = metrics.stringWidth(text) + 16;
-        int height = metrics.getHeight() + 8;
-        int x = (int) Math.round(offsetX + 480 * scale - width / 2.0);
-        int y = (int) Math.round(offsetY + 480 * scale - height / 2.0);
-        g.setColor(CARD_BACKGROUND);
-        g.fillRoundRect(x, y, width, height, 6, 6);
-        g.setColor(Color.WHITE);
-        g.drawString(text, x + 8, y + 4 + metrics.getAscent());
-    }
-
-    private String ellipsize(Graphics2D g, String text, int maximumWidth) {
-        FontMetrics metrics = g.getFontMetrics();
-        if (metrics.stringWidth(text) <= maximumWidth) {
-            return text;
-        }
-        String suffix = "...";
-        int end = text.length();
-        while (end > 0 && metrics.stringWidth(text.substring(0, end) + suffix) > maximumWidth) {
-            end = text.offsetByCodePoints(end, -1);
-        }
-        return text.substring(0, end) + suffix;
     }
 
     private void drawNPC(Graphics2D g, NPCSnapshot npc, double scale, double offsetX, double offsetY) {
