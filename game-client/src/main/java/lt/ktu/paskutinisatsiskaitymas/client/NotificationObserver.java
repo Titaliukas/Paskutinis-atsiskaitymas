@@ -12,6 +12,7 @@ final class NotificationObserver implements ClientEvents {
 
     @Override
     public void onGameEvent(GameEventMessage event) {
+        panel.onGameEvent(event.kind(), event.text());
         panel.showNotification(event.text());
     }
 }

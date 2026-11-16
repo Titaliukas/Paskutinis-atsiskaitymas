@@ -43,6 +43,9 @@ final class GamePanel extends JPanel {
     private String notification;
     private long notificationUntil;
     private final NPCPresentation npcPresentation = new NPCPresentation();
+    private final ParticleSystem particles = new ParticleSystem();
+    private final ParticleTriggers particleTriggers = new ParticleTriggers(particles);
+    private long lastParticleNanos;
     /** Composite root: the panel draws the whole HUD tree through this single element. */
     private final HudElement hud = Hud.create();
     // Reuse the existing UI timer for notification expiry and the short presentation-only attack latch.
@@ -53,12 +56,18 @@ final class GamePanel extends JPanel {
         if (!notificationActive) {
             notification = null;
         }
-        if (!notificationActive && !npcPresentation.hasActiveLatch()) {
+        advanceParticles(System.nanoTime());
+        if (!notificationActive && !npcPresentation.hasActiveLatch() && !particles.isActive()) {
             notificationTimer.stop();
         }
         repaint();
     }
 
+    private void advanceParticles(long nowNanos) {
+        double seconds = lastParticleNanos == 0 ? 0.0 : Math.min(0.1, (nowNanos - lastParticleNanos) / 1e9);
+        lastParticleNanos = nowNanos;
+        particles.update(Math.max(0.0, seconds));
+    }
 
 
     GamePanel() {
@@ -83,15 +92,25 @@ final class GamePanel extends JPanel {
         repaint();
     }
 
+    /** Lets particle effects react to server notifications that snapshots alone cannot attribute. */
+    void onGameEvent(String kind, String text) {
+        if ("ITEM_COLLECTED".equals(kind)) {
+            particleTriggers.itemCollected(text, snapshot, System.nanoTime());
+        }
+    }
+
     void setLocalPlayerId(UUID playerId) {
         localPlayerId = playerId;
         repaint();
     }
 
     void setSnapshot(WorldSnapshot value) {
+        long now = System.nanoTime();
+        particleTriggers.process(snapshot, value, now);
+        advanceParticles(now);
         snapshot = value;
         npcPresentation.update(value.npcs());
-        if (npcPresentation.hasActiveLatch()) {
+        if (npcPresentation.hasActiveLatch() || particles.isActive()) {
             notificationTimer.start();
         }
         repaint();
@@ -100,6 +119,9 @@ final class GamePanel extends JPanel {
     void clearGame() {
         snapshot = null;
         npcPresentation.clear();
+        particles.clear();
+        particleTriggers.reset();
+        lastParticleNanos = 0;
         facingRight.clear();
         notificationTimer.stop();
         localPlayerId = null;
@@ -164,6 +186,14 @@ final class GamePanel extends JPanel {
             }
             for (ProjectileSnapshot projectile : snapshot.projectiles()) {
                 drawProjectile(g, projectile, scale, offsetX, offsetY);
+            }
+            Graphics2D effects = (Graphics2D) g.create();
+            try {
+                effects.translate(offsetX, offsetY);
+                effects.scale(scale, scale);
+                particles.draw(effects);
+            } finally {
+                effects.dispose();
             }
             hud.draw(g, new HudContext(getWidth(), getHeight(), snapshot, localPlayerId, notification, assets));
         } finally {

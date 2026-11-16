@@ -432,3 +432,19 @@ java -cp game-domain/target/game-domain.jar lt.ktu.paskutinisatsiskaitymas.domai
 
 Uses the real Director with Combat, Training and Combat again, showing that reusing a builder does not accumulate
 surfaces or NPC recipes. See [docs/builder-arenas.md](docs/builder-arenas.md) for responsibilities and UML additions.
+
+## Particles (client-only visual effects)
+
+`game-client` renders chunky pixel-art particles for ranged shots, projectile hits, powerup pickups, active speed and jump boosts, item spawn sparkle and idle shimmer, jump puffs, landing dust scaled by fall height, moving-platform dust
+and footsteps. They are presentation only: `ParticleTriggers` derives each burst by comparing two consecutive
+authoritative `WorldSnapshot`s on the EDT, so the protocol, server and domain are unchanged.
+
+The current implementation is the naive baseline: every `Particle` owns its colour, size, lifetime, physics
+constants and glow sprite. The Flyweight refactor will share that data and be compared against this baseline.
+Baseline measurements (heap per particle and median frame time) come from:
+
+```bash
+./mvnw -B -ntp -pl game-client -am test -Dtest=ParticleBenchmarkTest -Dparticles.benchmark=true -Dsurefire.failIfNoSpecifiedTests=false
+```
+
+Results are written to `game-client/target/particle-benchmark.txt`.

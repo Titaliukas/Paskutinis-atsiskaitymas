@@ -22,6 +22,15 @@ class NPCSnapshotTest {
     }
 
     @Test
+    void roundTripsTheAliveFlagAndDefaultsToAlive() throws Exception {
+        assertTrue(new NPCSnapshot(1, 0, 0, 42, 64, "PATROL", true, 0, false).alive());
+        WorldSnapshot dead = world(new NPCSnapshot(1, 10, 20, 42, 64, "PATROL", true, 0, false, false));
+        WorldSnapshot decoded = (WorldSnapshot) codec.decode(codec.encode(dead));
+        assertFalse(decoded.npcs().getFirst().alive());
+        assertEquals(dead, decoded);
+    }
+
+    @Test
     void rejectsInvalidNPCFieldsAndMalformedWireData() throws Exception {
         assertThrows(IllegalArgumentException.class, () -> new NPCSnapshot(0, 0, 0, 42, 64, "PATROL", true, 0, false));
         assertThrows(IllegalArgumentException.class, () -> new NPCSnapshot(1, Double.NaN, 0, 42, 64, "PATROL", true, 0, false));
@@ -39,7 +48,8 @@ class NPCSnapshotTest {
                 json.replace("\"width\":42.0", "\"width\":0"),
                 json.replace("\"width\":42.0", "\"width\":null"),
                 json.replace(",\"attackAttemptSequence\":0", ""),
-                json.replace(",\"facingRight\":true", ""))) {
+                json.replace(",\"facingRight\":true", ""),
+                json.replace(",\"alive\":true", ""))) {
             assertThrows(ProtocolException.class, () -> codec.decode(invalid), invalid);
         }
     }
