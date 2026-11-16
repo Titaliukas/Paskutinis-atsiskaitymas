@@ -43,6 +43,7 @@ final class ParticleSystem {
         boolean measure = stats != null && stats.running();
         long startBytes = measure ? ParticleStats.allocatedBytes() : 0;
         long startNanos = measure ? System.nanoTime() : 0;
+        ParticleType type = ParticleTypeFactory.get(kind);
         int created = Math.min(count, maxParticles);
         int evicted = count - created;
         int overflow = particles.size() + created - maxParticles;
@@ -53,11 +54,11 @@ final class ParticleSystem {
         for (int i = 0; i < created; i++) {
             double spawnX = x + (random.nextDouble() * 2 - 1) * jitter;
             double spawnY = y + (random.nextDouble() * 2 - 1) * jitter;
-            double angle = kind.directional()
+            double angle = type.directional()
                     ? (directionX >= 0 ? 0.0 : Math.PI) + (random.nextDouble() - 0.5)
                     : random.nextDouble() * Math.PI * 2;
-            double speed = kind.speed() * (0.5 + random.nextDouble() * 0.5);
-            particles.add(new Particle(kind, spawnX, spawnY, Math.cos(angle) * speed, Math.sin(angle) * speed));
+            double speed = type.speed() * (0.5 + random.nextDouble() * 0.5);
+            particles.add(new Particle(type, spawnX, spawnY, Math.cos(angle) * speed, Math.sin(angle) * speed));
         }
         if (measure) {
             long nanos = System.nanoTime() - startNanos;

@@ -47,7 +47,8 @@ class ParticleStatsTest {
         assertEquals("6", report.value("peak_live"));
         assertEquals("6", report.value("particle_cap"));
         assertTrue(Long.parseLong(report.value("sprites_created")) > 0);
-        assertEquals("naive", report.value("implementation"));
+        assertEquals("flyweight", report.value("implementation"));
+        assertEquals("2", report.value("sprites_created"), "one shared sprite per kind used, not per particle");
         assertEquals("unit", report.value("scenario"));
     }
 

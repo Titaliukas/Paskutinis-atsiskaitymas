@@ -439,9 +439,13 @@ surfaces or NPC recipes. See [docs/builder-arenas.md](docs/builder-arenas.md) fo
 and footsteps. They are presentation only: `ParticleTriggers` derives each burst by comparing two consecutive
 authoritative `WorldSnapshot`s on the EDT, so the protocol, server and domain are unchanged.
 
-The current implementation is the naive baseline: every `Particle` owns its colour, size, lifetime, physics
-constants and glow sprite. The Flyweight refactor will share that data and be compared against this baseline.
-Baseline measurements (heap per particle and median frame time) come from:
+Particles use the **Flyweight** pattern. `ParticleType` is the flyweight: the immutable, shared state of one
+`ParticleKind` (colour, size, lifetime, physics constants, the pre-rendered sprite and the fade composites).
+`ParticleTypeFactory` hands out exactly one `ParticleType` per kind. Each `Particle` keeps only its extrinsic state
+(position, velocity, age) plus a reference to its type, and passes that state to `ParticleType.draw`. The earlier
+version gave every particle its own copy and sprite; its measurements were recorded with
+`implementation=naive`, the current ones with `implementation=flyweight`. A quick headless check of heap per
+particle and median frame time:
 
 ```bash
 ./mvnw -B -ntp -pl game-client -am test -Dtest=ParticleBenchmarkTest -Dparticles.benchmark=true -Dsurefire.failIfNoSpecifiedTests=false
@@ -454,7 +458,7 @@ Results are written to `game-client/target/particle-benchmark.txt`.
 Two ways to measure the particle system's speed and memory. Both write a console table and append one row to
 `particle-stats.csv` (override the path with `-Dparticles.stats.csv=<file>`), so runs before and after the Flyweight
 refactor can be compared row by row. The `implementation` column (`ParticleStats.IMPLEMENTATION`) says which build
-produced a row.
+produced a row (`naive` before the Flyweight refactor, `flyweight` after).
 
 1. **Gameplay stats** - play normally. The client prints the table and appends a CSV row when the connection ends
    (stop the server, press Disconnect) or the client window is closed. One row per play session, `scenario=gameplay`.

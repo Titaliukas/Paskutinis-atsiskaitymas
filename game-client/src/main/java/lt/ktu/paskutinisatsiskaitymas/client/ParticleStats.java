@@ -16,8 +16,8 @@ import java.util.Map;
  * Single-threaded: every call happens on the EDT. Nothing is recorded until {@link #start()} and after {@link #stop()}.
  */
 final class ParticleStats {
-    /** Which particle implementation produced the numbers; flipped when the Flyweight replaces the naive version. */
-    static final String IMPLEMENTATION = "naive";
+    /** Which particle implementation produced the numbers; the earlier per-particle-sprite version recorded "naive". */
+    static final String IMPLEMENTATION = "flyweight";
     static final String SPAWNERS = "spawners";
     static final String RATE_PER_SPAWNER = "rate_per_spawner";
     static final String PARTICLE_CAP = "particle_cap";
@@ -86,7 +86,9 @@ final class ParticleStats {
         return usedHeap();
     }
 
+    /** Starts a run with a cold flyweight cache, so creating the shared particle types counts as part of the run. */
     void start() {
+        ParticleTypeFactory.clear();
         updateTimes.clear();
         drawTimes.clear();
         frameTimes.clear();

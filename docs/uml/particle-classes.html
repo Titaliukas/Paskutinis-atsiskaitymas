@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Particle class diagram</title>
+<style>
+  :root { --bg: #ffffff; --text: #1f1f1f; --muted: #5f5e5a; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #1e1e1c; --text: #e8e6df; --muted: #a8a69e; } }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--text);
+         font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  h1 { font-size: 18px; font-weight: 500; margin: 0 0 4px; }
+  p { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+  #diagram { overflow-x: auto; }
+  #diagram svg { max-width: none !important; }
+</style>
+</head>
+<body>
+<h1>Flyweight pattern: particles</h1>
+<p>Flyweight <b>ParticleType</b> (shared, intrinsic state) · Flyweight factory <b>ParticleTypeFactory</b>
+· Context <b>Particle</b> (extrinsic state: position, velocity, age) · Client <b>ParticleSystem</b>
+· Key <b>ParticleKind</b>. Gameplay owner <b>GamePanel</b>; measurement by <b>ParticleStats</b> and
+<b>ParticleStressBenchmark</b>.</p>
+<div id="diagram">Loading diagram…</div>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+mermaid.initialize({ startOnLoad: false, theme: dark ? 'dark' : 'default', themeVariables: { fontSize: '13px' } });
+const source = `classDiagram
+  direction TB
+
+  class GamePanel {
+    -particles : ParticleSystem
+    -particleTriggers : ParticleTriggers
+    -particleStats : ParticleStats
+    ~setSnapshot(value : WorldSnapshot)
+    ~clearGame()
+    #paintComponent(graphics : Graphics)
+  }
+
+  class ParticleTriggers {
+    ~process(previous : WorldSnapshot, current : WorldSnapshot, nowNanos : long)
+    ~itemCollected(text : String, latest : WorldSnapshot, nowNanos : long)
+    ~reset()
+  }
+
+  class ParticleSystem {
+    -particles : List~Particle~
+    -maxParticles : int
+    ~emitBurst(kind : ParticleKind, x, y, count, directionX, jitter)
+    ~update(seconds : double)
+    ~draw(g : Graphics2D)
+    ~clear()
+  }
+
+  class Particle {
+    <<context>>
+    -x : double
+    -y : double
+    -velocityX : double
+    -velocityY : double
+    -age : double
+    ~update(seconds : double)
+    ~alive() boolean
+    ~draw(g : Graphics2D)
+  }
+
+  class ParticleType {
+    <<Flyweight>>
+    -kind : ParticleKind
+    -lifetime : double
+    -gravity : double
+    -drag : double
+    -speed : double
+    -directional : boolean
+    -diameter : int
+    -sprite : BufferedImage
+    -fades : AlphaComposite[]
+    ~draw(g : Graphics2D, x : double, y : double, age : double)
+  }
+
+  class ParticleTypeFactory {
+    <<Flyweight factory>>
+    -TYPES : Map~ParticleKind, ParticleType~$
+    ~get(kind : ParticleKind)$ ParticleType
+    ~cachedTypes()$ int
+    ~clear()$
+  }
+
+  class ParticleKind {
+    <<enumeration>>
+    MUZZLE
+    HIT
+    IMPACT
+    DUST
+    SPARKLE
+    NPC_DEATH
+    ~color() Color
+    ~size() double
+    ~lifetimeSeconds() double
+  }
+
+  class ParticleStats {
+    ~IMPLEMENTATION : String$
+    ~start()
+    ~stop()
+    ~recordEmit(...)
+    ~recordUpdate(...)
+    ~recordDraw(...)
+    ~report(extras) ParticleStatsReport
+  }
+
+  class ParticleStressBenchmark {
+    -scenario : ParticleStressScenario
+    +main(args : String[])$
+    -onTick()
+    -finish()
+  }
+
+  note for ParticleType "Intrinsic state: one instance per ParticleKind, shared by every particle of that kind"
+  note for Particle "Extrinsic state only: position, velocity, age"
+
+  GamePanel --> "1" ParticleSystem : particles
+  GamePanel --> "1" ParticleTriggers : particleTriggers
+  GamePanel --> "1" ParticleStats : particleStats
+  ParticleTriggers ..> ParticleSystem : emitBurst
+  ParticleSystem o-- "0..*" Particle : particles
+  ParticleSystem ..> ParticleTypeFactory : get(kind)
+  Particle --> "1" ParticleType : type (shared)
+  ParticleTypeFactory --> "0..*" ParticleType : cache
+  ParticleTypeFactory ..> ParticleKind : key
+  ParticleType --> "1" ParticleKind : kind
+  ParticleSystem ..> ParticleStats : records
+  ParticleStressBenchmark --> "1" ParticleSystem : system
+  ParticleStressBenchmark --> "1" ParticleStats : stats
+`;
+try {
+  const { svg } = await mermaid.render('particle-uml', source);
+  document.getElementById('diagram').innerHTML = svg;
+} catch (error) {
+  document.getElementById('diagram').textContent = 'Could not render the diagram: ' + error.message;
+}
+</script>
+</body>
+</html>
