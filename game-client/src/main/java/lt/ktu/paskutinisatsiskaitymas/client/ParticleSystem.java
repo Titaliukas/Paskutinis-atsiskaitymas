@@ -13,17 +13,24 @@ final class ParticleSystem {
     private final List<Particle> particles = new ArrayList<>();
     private final Random random;
     private final int maxParticles;
+    private final ParticleStats stats;
 
     ParticleSystem() {
-        this(new Random(), DEFAULT_MAX_PARTICLES);
+        this(new Random(), DEFAULT_MAX_PARTICLES, null);
     }
 
     ParticleSystem(Random random, int maxParticles) {
+        this(random, maxParticles, null);
+    }
+
+    /** {@code stats} may be null; otherwise emit, update and draw report their cost to it while it is running. */
+    ParticleSystem(Random random, int maxParticles, ParticleStats stats) {
         if (maxParticles < 1) {
             throw new IllegalArgumentException("maxParticles must be positive");
         }
         this.random = random;
         this.maxParticles = maxParticles;
+        this.stats = stats;
     }
 
     /** Emits {@code count} particles; {@code directionX} (-1 or 1) orients directional kinds. */
@@ -33,28 +40,52 @@ final class ParticleSystem {
 
     /** As {@link #emitBurst(ParticleKind, double, double, int, int)}, scattering each spawn point by up to {@code jitter}. */
     void emitBurst(ParticleKind kind, double x, double y, int count, int directionX, double jitter) {
-        for (int i = 0; i < count; i++) {
+        boolean measure = stats != null && stats.running();
+        long startBytes = measure ? ParticleStats.allocatedBytes() : 0;
+        long startNanos = measure ? System.nanoTime() : 0;
+        int created = Math.min(count, maxParticles);
+        int evicted = count - created;
+        int overflow = particles.size() + created - maxParticles;
+        if (overflow > 0) {
+            particles.subList(0, overflow).clear();
+            evicted += overflow;
+        }
+        for (int i = 0; i < created; i++) {
             double spawnX = x + (random.nextDouble() * 2 - 1) * jitter;
             double spawnY = y + (random.nextDouble() * 2 - 1) * jitter;
             double angle = kind.directional()
                     ? (directionX >= 0 ? 0.0 : Math.PI) + (random.nextDouble() - 0.5)
                     : random.nextDouble() * Math.PI * 2;
             double speed = kind.speed() * (0.5 + random.nextDouble() * 0.5);
-            if (particles.size() >= maxParticles) {
-                particles.remove(0);
-            }
             particles.add(new Particle(kind, spawnX, spawnY, Math.cos(angle) * speed, Math.sin(angle) * speed));
+        }
+        if (measure) {
+            long nanos = System.nanoTime() - startNanos;
+            stats.recordEmit(kind, created, nanos, ParticleStats.allocatedBytes() - startBytes, evicted,
+                    particles.size());
         }
     }
 
     void update(double seconds) {
+        boolean measure = stats != null && stats.running();
+        long startBytes = measure ? ParticleStats.allocatedBytes() : 0;
+        long startNanos = measure ? System.nanoTime() : 0;
+        int before = particles.size();
         for (Particle particle : particles) {
             particle.update(seconds);
         }
         particles.removeIf(particle -> !particle.alive());
+        if (measure) {
+            long nanos = System.nanoTime() - startNanos;
+            stats.recordUpdate(nanos, ParticleStats.allocatedBytes() - startBytes, before - particles.size(),
+                    particles.size());
+        }
     }
 
     void draw(Graphics2D g) {
+        boolean measure = stats != null && stats.running();
+        long startBytes = measure ? ParticleStats.allocatedBytes() : 0;
+        long startNanos = measure ? System.nanoTime() : 0;
         Object previous = g.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
         for (Particle particle : particles) {
@@ -62,6 +93,10 @@ final class ParticleSystem {
         }
         if (previous != null) {
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, previous);
+        }
+        if (measure) {
+            long nanos = System.nanoTime() - startNanos;
+            stats.recordDraw(nanos, ParticleStats.allocatedBytes() - startBytes);
         }
     }
 

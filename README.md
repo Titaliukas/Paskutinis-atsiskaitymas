@@ -448,3 +448,31 @@ Baseline measurements (heap per particle and median frame time) come from:
 ```
 
 Results are written to `game-client/target/particle-benchmark.txt`.
+
+### Particle measurements (Flyweight benchmarks)
+
+Two ways to measure the particle system's speed and memory. Both write a console table and append one row to
+`particle-stats.csv` (override the path with `-Dparticles.stats.csv=<file>`), so runs before and after the Flyweight
+refactor can be compared row by row. The `implementation` column (`ParticleStats.IMPLEMENTATION`) says which build
+produced a row.
+
+1. **Gameplay stats** - play normally. The client prints the table and appends a CSV row when the connection ends
+   (stop the server, press Disconnect) or the client window is closed. One row per play session, `scenario=gameplay`.
+2. **Heavy benchmark** - a visible window with many spawners that floods particles and stops by itself:
+
+```bash
+./mvnw -B -ntp -pl game-client -am package -DskipTests
+```
+
+```bash
+java -cp game-client/target/game-client.jar lt.ktu.paskutinisatsiskaitymas.client.ParticleStressBenchmark --duration=20 --warmup=3 --spawners=40 --rate=1000 --cap=200000
+```
+
+`--rate` is particles per second per spawner. The warm-up is not measured. Row has `scenario=stress` and also
+`retained_bytes_per_particle`: heap held per live particle, measured after the run with forced GCs.
+
+Recorded columns: run info (timestamp, implementation, scenario, duration, JVM, cores, max heap, spawners, rate, cap);
+volume (spawned total, per second and per kind, expired, evicted by the cap, peak and average live); speed (update,
+draw and frame time as avg/p50/p95/p99/max in ms, frames, effective FPS, emit ns per particle); memory (bytes
+allocated by particle code in total, per spawned particle and split into emit/update/draw, sprites created and their
+bytes, heap start/peak/end, GC count and pause time, retained bytes per particle).

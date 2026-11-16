@@ -70,6 +70,7 @@ final class Particle {
         } finally {
             g.dispose();
         }
+        ParticleAllocations.recordSprite((long) pixels * pixels * Integer.BYTES);
         return image;
     }
 
