@@ -11,6 +11,39 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ArenaDecorationTest {
+    @Test
+    void successiveSnapshotsMoveVisiblePlatformsAndTheirSupportGeometry() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            for (int width : new int[]{960, 640}) {
+                GamePanel panel = new GamePanel();
+                panel.setSize(width, width * 9 / 16);
+                try {
+                    for (int tick = 0; tick < 2; tick++) {
+                        double x = 360 + tick * 120;
+                        double y = 250 - tick * 40;
+                        ArenaSnapshot arena = new ArenaSnapshot("training", 960, 540, List.of(
+                                new PlatformSnapshot(0, 448, 960, 92),
+                                new PlatformSnapshot(x, y, 120, 10, "service")));
+                        panel.setSnapshot(new WorldSnapshot(tick, arena, List.of(), List.of(), List.of(),
+                                List.of(), List.of()));
+                        BufferedImage image = GamePanelArenaTest.render(panel);
+                        double scale = width / 960.0;
+                        assertEquals(new Color(88, 101, 109).getRGB(),
+                                image.getRGB((int) ((x + 60) * scale), (int) ((y + 5) * scale)));
+                        assertTrue(ArenaGeometryRenderer.supported(arena, x + 20, y, 42));
+                        if (tick == 1) {
+                            assertFalse(ArenaGeometryRenderer.supported(arena, 380, 250, 42));
+                            assertNotEquals(new Color(88, 101, 109).getRGB(),
+                                    image.getRGB((int) (420 * scale), (int) (255 * scale)));
+                        }
+                    }
+                } finally {
+                    panel.clearGame();
+                }
+            }
+        });
+    }
+
     private ArenaSnapshot arena() {
         return new ArenaSnapshot("combat", 960, 540, List.of(new PlatformSnapshot(0, 421, 960, 119),
                 new PlatformSnapshot(450, 280, 120, 6, "service")), new SidePassageSnapshot(343, 421));

@@ -7,7 +7,7 @@ import java.util.Optional;
 import lt.ktu.paskutinisatsiskaitymas.domain.Arena;
 import lt.ktu.paskutinisatsiskaitymas.domain.ArenaType;
 import lt.ktu.paskutinisatsiskaitymas.domain.NPCSpawn;
-import lt.ktu.paskutinisatsiskaitymas.domain.Platform;
+import lt.ktu.paskutinisatsiskaitymas.domain.StationaryPlatform;
 import lt.ktu.paskutinisatsiskaitymas.domain.Position;
 import java.util.UUID;
 import lt.ktu.paskutinisatsiskaitymas.domain.CharacterType;
@@ -23,7 +23,7 @@ class SnapshotMapperNPCTest {
     @Test
     void mapsAllRealActivitiesAndAttackSequenceAtTwentyHzWithoutLeakingMutableState() throws Exception {
         Arena arena = new Arena("Mapper Strategy fixture", ArenaType.TRAINING, 960, 540,
-                List.of(new Platform(UUID.randomUUID(), new Position(0, 480), 960, 60)),
+                List.of(new StationaryPlatform(UUID.randomUUID(), new Position(0, 480), 960, 60)),
                 List.of(new Position(180, 416), new Position(738, 416),
                         new Position(60, 416), new Position(858, 416)),
                 List.of(new NPCSpawn(1, new Position(360, 416), 300, 420)), 480, Optional.empty());

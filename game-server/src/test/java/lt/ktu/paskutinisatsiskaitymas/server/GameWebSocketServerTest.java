@@ -78,7 +78,12 @@ class GameWebSocketServerTest {
         peer.receive(Welcome.class, value -> true);
         WorldSnapshot snapshot = peer.receive(WorldSnapshot.class, value -> value.players().size() == 1);
         assertEquals("training", snapshot.arena().arenaType());
-        assertEquals(List.of(new PlatformSnapshot(0, 448, 960, 92)), snapshot.arena().platforms());
+        assertEquals(new PlatformSnapshot(0, 448, 960, 92), snapshot.arena().platforms().getFirst());
+        assertEquals(3, snapshot.arena().platforms().size());
+        WorldSnapshot later = peer.receive(WorldSnapshot.class, value -> value.tick() > snapshot.tick()
+                && value.arena().platforms().get(1).x() != snapshot.arena().platforms().get(1).x()
+                && value.arena().platforms().get(2).y() != snapshot.arena().platforms().get(2).y());
+        assertEquals(snapshot.arena().platforms().getFirst(), later.arena().platforms().getFirst());
         assertTrue(snapshot.npcs().isEmpty());
         assertEquals(384, snapshot.players().getFirst().y());
     }
@@ -99,7 +104,8 @@ class GameWebSocketServerTest {
                 new PlatformSnapshot(45, 215, 870, 6),
                 new PlatformSnapshot(333, 344, 294, 6),
                 new PlatformSnapshot(210, 280, 120, 6, "service"),
-                new PlatformSnapshot(0, 421, 960, 119)), initial.arena().platforms());
+                new PlatformSnapshot(0, 421, 960, 119)), initial.arena().platforms().subList(0, 4));
+        assertEquals(6, initial.arena().platforms().size());
         assertEquals("combat", initial.arena().arenaType());
         assertEquals(2, initial.npcs().size());
         assertTrue(initial.npcs().stream().allMatch(npc -> List.of("PATROL", "CHASE", "ATTACK", "FLEE")

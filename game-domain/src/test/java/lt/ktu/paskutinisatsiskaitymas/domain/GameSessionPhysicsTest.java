@@ -41,7 +41,7 @@ class GameSessionPhysicsTest {
 
     @Test
     void landsOnGroundAndCollidesWithBothArenaSides() {
-        Platform ground = new Platform(UUID.randomUUID(),
+        Platform ground = new StationaryPlatform(UUID.randomUUID(),
                 new Position(GameConstants.GROUND_X, GameConstants.GROUND_Y),
                 GameConstants.GROUND_WIDTH, GameConstants.GROUND_HEIGHT);
         GameSession session = new GameSession(UUID.randomUUID(), TestArenas.geometry("Ground only",

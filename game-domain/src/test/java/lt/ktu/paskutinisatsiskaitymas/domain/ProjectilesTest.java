@@ -112,7 +112,7 @@ class ProjectilesTest {
     @Test
     void platformAbsorbsBeforePlayerAndCeilingAndGroundAbsorbWithoutCloning() {
         Arena blocked = TestArenas.geometry("Blocked", 960, 540, List.of(
-                new Platform(UUID.randomUUID(), new Position(250, 200), 10, 100)));
+                new StationaryPlatform(UUID.randomUUID(), new Position(250, 200), 10, 100)));
         projectiles.spawn(source.state(), target, ProjectileType.BOOK);
         GameCharacter behind = player(300, 200);
         projectiles.advance(blocked, Map.of(1, source), List.of(behind), 2);
@@ -129,7 +129,7 @@ class ProjectilesTest {
     void tangentialRoundedCornerDoesNotCollideWithTheExpandedBoxCorner() {
         NPC high = npc(1, 100, 61); // Shot center y=93, seven units above platform top.
         Arena arena = TestArenas.geometry("Corner", 960, 540, List.of(
-                new Platform(UUID.randomUUID(), new Position(200, 100), 20, 20)));
+                new StationaryPlatform(UUID.randomUUID(), new Position(200, 100), 20, 20)));
         projectiles.spawn(high.state(), new NPCTarget(7, 800, 61, 42, 64), ProjectileType.BOOK);
         projectiles.advance(arena, Map.of(1, high), List.of(), (193.0 - 121) / 360);
         assertEquals(1, projectiles.states().size(), "Circle has not reached rounded corner at x=193");

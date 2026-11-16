@@ -16,11 +16,11 @@ final class TestArenas {
     }
 
     static GameSession prototypeSession() {
-        Platform template = new Platform(UUID.randomUUID(), new Position(0, 0), 160, 20);
+        Platform template = new StationaryPlatform(UUID.randomUUID(), new Position(0, 0), 160, 20);
         Arena arena = geometry("Test prototype", 960, 540, List.of(
                 template.copyAt(new Position(400, 280)), template.copyAt(new Position(140, 380)),
                 template.copyAt(new Position(660, 380)),
-                new Platform(UUID.randomUUID(), new Position(0, 480), 960, 60)));
+                new StationaryPlatform(UUID.randomUUID(), new Position(0, 480), 960, 60)));
         GameSession session = new GameSession(UUID.randomUUID(), arena);
         session.spawnNPC(1, new Position(360, 416), 300, 420);
         session.spawnNPC(2, new Position(580, 416), 530, 650);

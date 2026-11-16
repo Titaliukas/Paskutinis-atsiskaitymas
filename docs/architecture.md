@@ -118,11 +118,33 @@ normal landing resolves grounded on the opposite ground edge. The next step move
 Combat v2 uses a ground-level interval Y=343–421; Training has no passage. NPCs/projectiles/items retain their existing boundary rules. The server performs all transitions and publishes
 positions normally. See [Builder and arenas](builder-arenas.md) for coordinates, rules and tests.
 
-`Platform` still implements `Prototype<Platform>`: `clone()` assigns a fresh UUID; `copyAt(Position)` only changes
-the new copy. Builders place detached copies of platform recipes. Arena collection copies, immutable positions
-and NPC spawn descriptions separate configuration from independently owned session entities/controllers.
+`Platform` is an abstract Template Method context. Its final `update(seconds, passengers)` saves
+`previousPosition`, invokes protected `calculateNextPosition(seconds)`, refreshes collision bounds, and
+moves passengers by the resulting displacement. `update(seconds)` delegates with no passengers. Concrete
+`StationaryPlatform`, `HorizontalPlatform`, and `VerticalPlatform` provide their next positions; a private-to-domain
+`PlatformMotion` helper shares scalar endpoint reversal arithmetic. Positive finite speed/duration and distinct
+finite endpoints are required; `Arena` validates the entire path, not just its initial placement.
 
-The client receives validated `ArenaSnapshot.arenaType` (`combat` or `training`) and uses cached v2 background images. `PlatformSnapshot.kind` identifies the service platform and
+Before any platform moves, `GameSession` assigns each grounded body to the first overlapping support in arena
+order, using a 1e-6 feet-to-top tolerance. Jump requests are excluded. The domain-only `PlatformPassenger`
+interface exposes body geometry and displacement for both `GameCharacter` and `NPC`. Platforms move once on
+the owner thread before character/NPC integration. Landing checks compare old and new platform tops;
+already-carried bodies instead start against the updated top. One-way upward passage, world clamps and
+NPC decision/patrol rules remain intact. No platform velocity is added to a jumping body's own velocity.
+Support is recomputed every tick, so walking off, impulses, respawn and removal do not retain old attachments.
+
+`Platform` also implements `Prototype<Platform>`: `clone()` assigns a fresh UUID and preserves concrete type,
+path and motion phase. `copyAt(Position)` translates both path endpoints and retains phase/direction.
+Copies reset previous geometry to the copied current position and have no passengers. `GameSession` builds
+its own arena container with cloned platforms, avoiding shared motion between sessions using one recipe.
+Arena lists and spawn descriptions remain immutable; session-owned platforms are mutable.
+
+Combat appends a 120×10 horizontal platform from (360,130) to (540,130) at 60 units/s and a vertical one
+from (760,350) to (760,280) at 40 units/s, for six surfaces total. Training appends the same sizes/speeds,
+from (160,350) to (400,350) and (640,360) to (640,250), for three surfaces total. Existing surfaces stay stationary.
+Both moving types use the visible SERVICE style. Circular motion, crushing and endpoint pauses are outside this slice.
+
+The client receives validated `ArenaSnapshot.arenaType` (`combat` or `training`) and uses cached v2 background images. `PlatformSnapshot.kind` identifies visible service-style platforms and
 `ArenaSnapshot.sidePassage` carries optional transport-only opening geometry.
 A single centered arena rectangle and scale map image and world geometry together, preserving black letterboxing.
 Nearest-neighbor background scaling retains pixel-art edges. Normal mode omits collision fills when art exists;
@@ -277,6 +299,6 @@ before the owner loop starts. No live world state is changed by WebSocket callba
 ## Extension points
 
 Future slices can add more platform geometry to `Arena`, new application commands, versioned snapshot fields,
-and client interpolation without changing transport ownership. Existing Singleton, ItemFactory, Observer, platform Prototype, Strategy, Adapter, Abstract Factory, Decorator and
+and client interpolation without changing transport ownership. Existing Singleton, ItemFactory, Observer, platform Prototype and Template Method, Strategy, Adapter, Abstract Factory, Decorator and
 Command and Facade behavior remain intact. Player combat, projectiles and respawn are already implemented. Scoring,
 persistence, authentication, match results, runtime arena switching, lobbies/rooms and unrelated patterns remain outside this slice.

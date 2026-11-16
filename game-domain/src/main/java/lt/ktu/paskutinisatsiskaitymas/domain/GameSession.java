@@ -1,6 +1,7 @@
 package lt.ktu.paskutinisatsiskaitymas.domain;
 
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -27,7 +28,10 @@ public final class GameSession {
 
     public GameSession(UUID id, Arena arena) {
         this.id = Objects.requireNonNull(id, "id");
-        this.arena = Objects.requireNonNull(arena, "arena");
+        Objects.requireNonNull(arena, "arena");
+        this.arena = new Arena(arena.name(), arena.type(), arena.width(), arena.height(),
+                arena.platforms().stream().map(Platform::clone).toList(), arena.playerSpawns(),
+                arena.npcSpawns(), arena.groundY(), arena.sidePassage());
         for (NPCSpawn spawn : arena.npcSpawns()) {
             spawnNPC(spawn.id(), spawn.position(), spawn.leftBoundary(), spawn.rightBoundary());
         }
@@ -112,6 +116,7 @@ public final class GameSession {
     public void advance(Map<UUID, MovementInput> inputByPlayer, double seconds) {
         Objects.requireNonNull(inputByPlayer, "inputByPlayer");
         NPCGeometry.positive(seconds, "seconds");
+        advancePlatforms(inputByPlayer, seconds);
         for (Map.Entry<UUID, GameCharacter> entry : characters.entrySet()) {
             entry.getValue().advance(inputByPlayer.getOrDefault(entry.getKey(), MovementInput.NONE), arena, seconds);
         }
@@ -138,6 +143,24 @@ public final class GameSession {
         NPCControllers.keySet().removeIf(id -> !NPCs.containsKey(id));
         // STRATEGY-REPORT R5 END
         projectiles.advance(arena, NPCs, List.copyOf(characters.values()), seconds);
+    }
+
+    private void advancePlatforms(Map<UUID, MovementInput> inputByPlayer, double seconds) {
+        List<PlatformPassenger> candidates = new ArrayList<>();
+        for (Map.Entry<UUID, GameCharacter> entry : characters.entrySet()) {
+            if (!inputByPlayer.getOrDefault(entry.getKey(), MovementInput.NONE).jumpRequested()) {
+                candidates.add(entry.getValue());
+            }
+        }
+        candidates.addAll(NPCs.values());
+        Map<Platform, List<PlatformPassenger>> assignments = new LinkedHashMap<>();
+        // Assign against the old geometry before any platform can move a passenger into another support.
+        for (Platform platform : arena.platforms()) {
+            List<PlatformPassenger> standing = candidates.stream().filter(platform::supports).toList();
+            candidates.removeAll(standing);
+            assignments.put(platform, standing);
+        }
+        assignments.forEach((platform, standing) -> platform.update(seconds, standing));
     }
 
     /** Adds a matched entity/controller pair on the owner thread; boundaries are left-edge coordinates. */

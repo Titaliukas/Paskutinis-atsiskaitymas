@@ -3,7 +3,7 @@ package lt.ktu.paskutinisatsiskaitymas.domain;
 import java.util.Objects;
 
 /** Strategy context and precise authoritative body, confined to the session owner thread. */
-public final class NPC {
+public final class NPC implements PlatformPassenger {
     private final Integer id;
     private Integer targetID;
     private Integer position_x;
@@ -90,7 +90,7 @@ public final class NPC {
         boolean nextGrounded = false;
         if (nextVelocityY >= 0) {
             for (Platform platform : arena.platforms()) {
-                if (previousBottom <= platform.top() + 0.000_001 && nextY + height >= platform.top()
+                if (platform.crossesTop(this, previousBottom, nextY + height)
                         && nextX + width > platform.left() && nextX < platform.right()) {
                     nextY = Math.min(nextY, platform.top() - height);
                     nextVelocityY = 0;
@@ -111,6 +111,25 @@ public final class NPC {
         if (!facingTarget && velocityX != 0) {
             facingRight = velocityX > 0;
         }
+        updateIntegerViews();
+    }
+
+    @Override
+    public double platformX() { return preciseX; }
+
+    @Override
+    public double platformFeetY() { return preciseY + height; }
+
+    @Override
+    public double platformWidth() { return width; }
+
+    @Override
+    public boolean canRidePlatform() { return alive && grounded; }
+
+    @Override
+    public void moveWithPlatform(double dx, double dy) {
+        preciseX = Math.max(0, preciseX + dx);
+        preciseY = Math.max(0, preciseY + dy);
         updateIntegerViews();
     }
 

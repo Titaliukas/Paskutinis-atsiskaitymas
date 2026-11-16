@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class PlatformPrototypeTest {
     @Test
     void copiesPreserveServiceRoleWhileKeepingIdentityAndPlacementIndependent() {
-        Platform template = new Platform(UUID.randomUUID(), new Position(0, 0), 120, 6, Platform.Kind.SERVICE);
+        Platform template = new StationaryPlatform(UUID.randomUUID(), new Position(0, 0), 120, 6, Platform.Kind.SERVICE);
         Platform copy = template.copyAt(new Position(450, 280));
         assertEquals(Platform.Kind.SERVICE, copy.kind());
         assertNotEquals(template.id(), copy.id());
@@ -17,7 +17,7 @@ class PlatformPrototypeTest {
 
     @Test
     void cloneCreatesIndependentPlatformAtSamePosition() {
-        Platform original = new Platform(UUID.randomUUID(), new Position(10, 20), 100, 30);
+        Platform original = new StationaryPlatform(UUID.randomUUID(), new Position(10, 20), 100, 30);
 
         Prototype<Platform> prototype = original;
         Platform copy = prototype.clone();
@@ -33,7 +33,7 @@ class PlatformPrototypeTest {
     void copyAtMovesOnlyTheClone() {
         Position originalPosition = new Position(10, 20);
         Position newPosition = new Position(40, 50);
-        Platform original = new Platform(UUID.randomUUID(), originalPosition, 100, 30);
+        Platform original = new StationaryPlatform(UUID.randomUUID(), originalPosition, 100, 30);
 
         Platform copy = original.copyAt(newPosition);
 
@@ -48,7 +48,7 @@ class PlatformPrototypeTest {
 
     @Test
     void copiesManyPlatformsFromOneTemplate() {
-        Platform template = new Platform(UUID.randomUUID(), new Position(0, 0), 160, 20);
+        Platform template = new StationaryPlatform(UUID.randomUUID(), new Position(0, 0), 160, 20);
         Position[] positions = {new Position(140, 380), new Position(660, 380),
                 new Position(400, 280)};
 

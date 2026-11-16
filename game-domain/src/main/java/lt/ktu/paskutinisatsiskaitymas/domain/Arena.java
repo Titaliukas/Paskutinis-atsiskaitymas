@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-/** Immutable arena recipe. All coordinates are world units, with positive Y downward. */
+/** Arena geometry and spawn recipe. Sessions detach mutable platforms; positive Y points downward. */
 public record Arena(String name, ArenaType type, double width, double height, List<Platform> platforms,
         List<Position> playerSpawns, List<NPCSpawn> npcSpawns, double groundY, Optional<SidePassage> sidePassage) {
     public Arena {
@@ -22,9 +22,8 @@ public record Arena(String name, ArenaType type, double width, double height, Li
             throw new IllegalArgumentException("Arena requires exactly four player spawns");
         }
         for (Platform platform : platforms) {
-            if (platform.left() < 0 || platform.top() < 0 || platform.right() > width
-                    || platform.top() + platform.height() > height) {
-                throw new IllegalArgumentException("Platform outside arena");
+            if (!platform.fitsInside(width, height)) {
+                throw new IllegalArgumentException("Platform movement path outside arena");
             }
         }
         for (Position spawn : playerSpawns) {
@@ -56,7 +55,7 @@ public record Arena(String name, ArenaType type, double width, double height, Li
     }
 
     private static boolean hasEdgeSupport(List<Platform> platforms, double y, double x) {
-        return platforms.stream().anyMatch(p -> p.top() == y && p.left() <= x
+        return platforms.stream().anyMatch(p -> p instanceof StationaryPlatform && p.top() == y && p.left() <= x
                 && p.right() >= x + GameConstants.PLAYER_WIDTH);
     }
 }

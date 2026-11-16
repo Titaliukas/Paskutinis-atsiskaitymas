@@ -4,8 +4,8 @@ A small platform game for up to four players, built for a university Object-Orie
 The Java 25 server owns movement and collision state; Swing clients send keyboard/controller intent and render authoritative
 JSON snapshots with Java2D sprites and primitive fallbacks.
 
-Each server runs one selected 960×540 arena: **Combat** (default, four surfaces, two student NPCs and a paired
-side passage) or **Training** (stadium background, ground only, no NPCs or passage). Both support up to four players,
+Each server runs one selected 960×540 arena: **Combat** (default, six surfaces, two student NPCs and a paired
+side passage) or **Training** (stadium background, ground and two moving platforms, no NPCs or passage). Both support up to four players,
 character/stat selection, combat, items, stress, respawn and safe reconnect. There are no lobbies, rooms,
 persistence, authentication or match results. The arena is selected at startup for the whole server process;
 clients cannot choose rooms or switch its arena during play. See [Builder and arenas](docs/builder-arenas.md) for the approved
@@ -232,12 +232,13 @@ macOS and Linux are bundled in the client JAR. Plug the controller in before sta
 dead zone, so a resting stick does not move the character, and unplugging the controller stops all input. If SDL
 cannot load, the dropdown offers only the keyboard.
 
-Combat v2 surfaces are roof `(45,215,870)`, canopy `(333,344,294)`, service platform `(210,280,120)` and
+Combat v2 stationary surfaces are roof `(45,215,870)`, canopy `(333,344,294)`, service platform `(210,280,120)` and
 ground `(0,421,960)` (X, top Y, width). Walk under the canopy, jump onto it, jump onto the service platform,
 then onto the roof with the default build. The 129-unit canopy-to-roof gap needs the service platform; shared
 jump/gravity constants are unchanged. The old side ledges were removed. Platforms catch downward movement and
 allow upward passage. At ground level, paired concrete edge openings transfer players to the opposite edge;
 the full body must fit inside Y=343–421. Training uses its v2 stadium background and one ground edge at Y=448.
+Both arenas also contain one horizontal and one vertical moving platform, described below.
 Both original v1 and v2 PNG files are preserved. Subtle platform rims and the service platform/openings are
 painted from snapshot geometry. Small-window HUD cards scale down to leave the openings visible.
 
@@ -247,6 +248,28 @@ Enable thin geometry outlines on a client:
 java -Dgame.debug.geometry=true -jar game-client/target/game-client.jar ws://localhost:8080/game Alice
 ```
 
+## Platform Template Method
+
+`Platform` is abstract. Its final update sequence remembers the previous position, calls
+`calculateNextPosition(seconds)`, refreshes collision bounds, then carries assigned standing players and NPCs
+by the platform displacement. `StationaryPlatform` returns its current position; `HorizontalPlatform` and
+`VerticalPlatform` travel at constant speed and reverse at their endpoints, retaining overshoot.
+The game loop assigns supports before moving any platform, then runs character and NPC physics.
+Jumping detaches immediately without inheriting platform velocity; walking off and knockback also release support.
+
+| Arena | Movement | Start → end (top-left) | Size | Speed (units/s) |
+| --- | --- | --- | --- | ---: |
+| Combat | Horizontal | `(360,130)` → `(540,130)` | 120×10 | 60 |
+| Combat | Vertical | `(760,350)` → `(760,280)` | 120×10 | 40 |
+| Training | Horizontal | `(160,350)` → `(400,350)` | 120×10 | 60 |
+| Training | Vertical | `(640,360)` → `(640,250)` | 120×10 | 40 |
+
+Existing surfaces use `StationaryPlatform`. Moving platforms reuse the `SERVICE` appearance and existing
+snapshot geometry; clients render the server positions without simulating paths. The Prototype pattern is
+preserved: `clone()` keeps subtype and motion phase with a fresh UUID, while `copyAt(Position)` translates
+the entire path. Each session clones its platform recipes to own independent movement state.
+Circular paths, endpoint pauses, crushing damage and inherited jump momentum are not implemented.
+
 ## Manual playable test
 
 1. Start Combat and four clients; connect and check the four distinct spawns and corner HUD cards.
@@ -255,7 +278,8 @@ java -Dgame.debug.geometry=true -jar game-client/target/game-client.jar ws://loc
 4. Walk outward into each ground-level opening. Check opposite-side arrival, continued movement, stable stress/health and no bouncing.
 5. Try both edges outside the opening height and at roof height: they remain closed. Check combat, items and respawn.
 6. Resize the window, including a non-16:9 size; compare debug outlines against the background.
-7. Restart the server with Training. Check stadium, one ground surface, four spawns, closed edges and no NPCs.
+7. Ride both moving platforms in Combat; check reversals, jumping off and walking off. Restart with Training
+   and repeat; check its ground surface, four spawns, closed edges and no NPCs.
 8. Stop the server and verify clients disconnect without freezing.
 
 Automated offscreen GamePanel previews from actual server snapshots can be reproduced after `clean verify`:

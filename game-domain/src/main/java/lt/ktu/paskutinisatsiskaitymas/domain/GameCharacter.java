@@ -4,7 +4,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 /** Server-owned mutable character. It accepts input intent and resolves movement inside domain bounds. */
-public final class GameCharacter {
+public final class GameCharacter implements PlatformPassenger {
     private static final double COLLISION_EPSILON = 0.000_001;
     private static final double KNOCKBACK_DECAY_PER_SECOND = 6.0;
     private final UUID id;
@@ -104,8 +104,7 @@ public final class GameCharacter {
             double landingTop = Double.POSITIVE_INFINITY;
             for (Platform platform : arena.platforms()) {
                 double nextBottom = nextY + GameConstants.PLAYER_HEIGHT;
-                boolean crossesTop = previousBottom <= platform.top() + COLLISION_EPSILON
-                        && nextBottom >= platform.top();
+                boolean crossesTop = platform.crossesTop(this, previousBottom, nextBottom);
                 boolean overlapsHorizontally = x + GameConstants.PLAYER_WIDTH > platform.left()
                         && x < platform.right();
                 if (crossesTop && overlapsHorizontally) {
@@ -130,6 +129,24 @@ public final class GameCharacter {
             grounded = true;
         }
         y = nextY;
+    }
+
+    @Override
+    public double platformX() { return x; }
+
+    @Override
+    public double platformFeetY() { return y + GameConstants.PLAYER_HEIGHT; }
+
+    @Override
+    public double platformWidth() { return GameConstants.PLAYER_WIDTH; }
+
+    @Override
+    public boolean canRidePlatform() { return grounded; }
+
+    @Override
+    public void moveWithPlatform(double dx, double dy) {
+        x = Math.max(0, x + dx);
+        y = Math.max(0, y + dy);
     }
 
     // Each effect wraps the chain in a new layer. An existing layer of the same type is removed first, so picking up

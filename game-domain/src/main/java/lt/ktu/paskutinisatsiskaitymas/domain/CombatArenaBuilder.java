@@ -45,16 +45,20 @@ public final class CombatArenaBuilder implements IArenaBuilder {
     @Override
     public IArenaBuilder buildPlatforms() {
         platforms.clear();
-        Platform roof = new Platform(UUID.randomUUID(), new Position(0, 0), ROOF_WIDTH, SURFACE_THICKNESS);
+        Platform roof = new StationaryPlatform(UUID.randomUUID(), new Position(0, 0), ROOF_WIDTH, SURFACE_THICKNESS);
         platforms.add(roof.copyAt(new Position(ROOF_X, ROOF_Y)));
-        Platform canopy = new Platform(UUID.randomUUID(), new Position(0, 0), CANOPY_WIDTH, SURFACE_THICKNESS);
+        Platform canopy = new StationaryPlatform(UUID.randomUUID(), new Position(0, 0), CANOPY_WIDTH, SURFACE_THICKNESS);
         platforms.add(canopy.copyAt(new Position(CANOPY_X, CANOPY_Y)));
-        Platform service = new Platform(UUID.randomUUID(), new Position(0, 0),
+        Platform service = new StationaryPlatform(UUID.randomUUID(), new Position(0, 0),
                 SERVICE_WIDTH, SURFACE_THICKNESS, Platform.Kind.SERVICE);
         platforms.add(service.copyAt(new Position(SERVICE_X, SERVICE_Y)));
-        Platform ground = new Platform(UUID.randomUUID(), new Position(0, 0),
+        Platform ground = new StationaryPlatform(UUID.randomUUID(), new Position(0, 0),
                 GameConstants.ARENA_WIDTH, GameConstants.ARENA_HEIGHT - GROUND_Y);
         platforms.add(ground.copyAt(new Position(0, GROUND_Y)));
+        platforms.add(new HorizontalPlatform(UUID.randomUUID(), new Position(360, 130),
+                120, 10, Platform.Kind.SERVICE, 540, 60));
+        platforms.add(new VerticalPlatform(UUID.randomUUID(), new Position(760, 350),
+                120, 10, Platform.Kind.SERVICE, 280, 40));
         return this;
     }
 

@@ -35,9 +35,13 @@ public final class TrainingArenaBuilder implements IArenaBuilder {
     @Override
     public IArenaBuilder buildPlatforms() {
         platforms.clear();
-        Platform ground = new Platform(UUID.randomUUID(), new Position(0, 0),
+        Platform ground = new StationaryPlatform(UUID.randomUUID(), new Position(0, 0),
                 GameConstants.ARENA_WIDTH, GameConstants.ARENA_HEIGHT - GROUND_Y);
         platforms.add(ground.copyAt(new Position(0, GROUND_Y)));
+        platforms.add(new HorizontalPlatform(UUID.randomUUID(), new Position(160, 350),
+                120, 10, Platform.Kind.SERVICE, 400, 60));
+        platforms.add(new VerticalPlatform(UUID.randomUUID(), new Position(640, 360),
+                120, 10, Platform.Kind.SERVICE, 250, 40));
         return this;
     }
 

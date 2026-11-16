@@ -10,22 +10,22 @@ Anksčiau `GameSession.createDefault()` vienoje vietoje kūrė platformas, parin
 Žaidėjai ir daiktai nepriklausomai rėmėsi globaliu `GROUND_Y`. Pridėjus antrą areną tokia konstrukcija būtų
 kartojama arba sesija turėtų žinoti kiekvienos arenos išdėstymą.
 
-Builder nuosekliai surenka vieną nekintamą `Arena` konfigūraciją. Ta pati kūrimo seka pagamina skirtingus
+Builder nuosekliai surenka vieną `Arena` konfigūraciją su nekintamais sąrašais; sesija klonuoja judančias platformas. Ta pati kūrimo seka pagamina skirtingus
 produktus. Gyvas pasaulis lieka `GameSession`, jo Strategy valdikliuose ir esamoje vieno savininko kilpoje.
 
 | Dalyvis | Atsakomybė |
 | --- | --- |
 | `IArenaBuilder` | Sutartis: `reset`, `buildBounds`, `buildPlatforms`, `buildPlayerSpawns`, `buildNPCSpawns`, `build` |
 | `ArenaDirector` | Visada vykdo šią seką; nežino koordinačių ar NPC kiekio |
-| `CombatArenaBuilder` | Keturi paviršiai, keturios žaidėjų vietos, du NPC aprašai ir porinės šonų angos |
-| `TrainingArenaBuilder` | Stadionas, viena žemė, keturios vietos, be NPC ir perėjimo |
-| `Arena` | Galutinis nekintamas produktas: ribos, geometrija, pradžios vietos ir perėjimo duomenys |
+| `CombatArenaBuilder` | Keturi nejudantys ir du judantys paviršiai, keturios žaidėjų vietos, du NPC aprašai ir porinės šonų angos |
+| `TrainingArenaBuilder` | Stadionas, žemė ir dvi judančios platformos, keturios vietos, be NPC ir perėjimo |
+| `Arena` | Konfigūracija: ribos, platformų sąrašas, pradžios vietos ir perėjimo duomenys; gyvos platformos priklauso sesijai |
 | `NPCSpawn` | NPC identifikatorius, viršutinio kairiojo kūno kampo pozicija ir patruliavimo ribos |
 
 Kūrimo metodai grąžina `IArenaBuilder`, o `build()` grąžina `Arena`. `reset()` išvalo ribas ir visus sąrašus;
 Director jį kviečia kiekvieną kartą. `List.copyOf` atskiria produktą nuo builderio ir išorinių sąrašų.
 `Position`, `NPCSpawn`, `SidePassage` yra nekintami; `Platform.copyAt(...)` keičia tik naują kopiją.
-Platformų UUID lieka atskiri. Skirtingos sesijos iš tų pačių aprašų gauna savo NPC ir valdiklius.
+Platformų UUID lieka atskiri. Skirtingos sesijos iš tų pačių aprašų gauna savo platformų kopijas, NPC ir valdiklius.
 
 `ArenaSelection` serverio paleidimo metu vienoje vietoje pasirenka konkretų builderį ir perduoda jį Director.
 Produktas perduodamas į `GameWebSocketServer` → `GameRuntime` → `GameSession` → esamą kilpą.
@@ -72,15 +72,36 @@ siekia maždaug X=44 ir X=916). `GameCharacter` saugo gautą pradinę poziciją 
 | 1 | (360,151) | [45,873] | Stogas Y=215; 915 − kūno plotis 42 |
 | 2 | (580,357) | [530,650] | Žemė Y=421 |
 
-Training turi tik žemę, keturias vietas ir 0 NPC. Combat turi tiksliai 2 NPC, sukuriamus per esamą
+Training turi žemę, dvi judančias platformas, keturias vietas ir 0 NPC. Combat turi tiksliai 2 NPC, sukuriamus per esamą
 `spawnNPC(...)` ir Strategy valdiklius. Sesijos nesidalija gyvais NPC ar valdikliais.
 Daiktai toliau atsiranda pagal `Arena.groundY − 64` ir esamą rinkimo semantiką; jų 16 vienetų surinkimo
 spindulys nepakeistas. Tik ikonos grafinis dydis sumažintas iki **22 world units**, shield žymė iki **20**.
 
+## Judančios platformos: Template Method
+
+`Platform` dabar abstrakti. Galutinis `update` metodas išsaugo ankstesnę poziciją, kviečia
+`calculateNextPosition(seconds)`, atnaujina kolizijos ribas ir perkelia stovinčius žaidėjus bei NPC tuo pačiu
+poslinkiu. `StationaryPlatform` grąžina esamą poziciją, `HorizontalPlatform` keičia X, o `VerticalPlatform` – Y.
+Judama pastoviu greičiu, ties galais kryptis apsukama neprarandant likusio žingsnio laiko.
+
+| Arena | Tipas | Pradžia → pabaiga | Matmenys | Greitis (world vienetai/s) |
+| --- | --- | --- | --- | ---: |
+| Combat | HorizontalPlatform | (360,130) → (540,130) | 120×10 | 60 |
+| Combat | VerticalPlatform | (760,350) → (760,280) | 120×10 | 40 |
+| Training | HorizontalPlatform | (160,350) → (400,350) | 120×10 | 60 |
+| Training | VerticalPlatform | (640,360) → (640,250) | 120×10 | 40 |
+
+Ankstesni paviršiai nejuda. Naujos platformos piešiamos esamu SERVICE stiliumi iš snapshot geometrijos;
+protokolo laukai ir PNG nekeičiami. Prieš judėjimą sesija kiekvienam stovinčiam kūnui priskiria vieną atramą.
+Šuolis atkabina iš karto, platformos greitis nepridedamas prie šuolio. Nusileidimas tikrinamas pagal ankstesnį
+ir dabartinį platformos viršų; ėjimas nuo krašto, smūgio postūmis ir atgimimas nepalaiko senos atramos.
+`clone()` išsaugo tipą ir judėjimo fazę su nauju UUID; `copyAt` perkelia visą kelią.
+Sesijos nesidalija judėjimo būsena. Žiedinis judėjimas, traiškymas ir pauzės galuose neįgyvendinti.
+
 ## Pagalbinė platforma ir šuolių kelias
 
 Stogelio ir stogo aukščių skirtumas **129**, o standartinio 100/100/100 build šuolis pasiekia **120**.
-Todėl pridedama vienintelė 120×6 aptarnavimo pakyla `(210,280)`: ji turi tikrą koliziją ir kode piešiamą
+Šiam keliui išlaikoma nejudanti 120×6 aptarnavimo pakyla `(210,280)`: ji turi tikrą koliziją ir kode piešiamą
 siaurą pilką tūrį su briauna bei mažais laikikliais. PNG nekeičiamas. Pakylos X papildomai perkeltas iš 330 į 210, t. y. 120 vienetų (per vieną jos plotį) kairėn;
 aukštis Y=280 ir 120×6 matmenys nepakeisti. Simuliacija patvirtino kelią iš abiejų arenos pusių.
 
@@ -139,8 +160,8 @@ Esami `ArenaType`, `Arena.groundY`, `Arena.sidePassage` ir `NPCSpawn` išlieka.
 
 | Papildymas | Paskirtis |
 | --- | --- |
-| `Platform.Kind` (`STANDARD`, `SERVICE`) | Skiria aptarnavimo pakylą nuo PNG paviršių; nekeičia fizikos |
-| `Platform.kind()` ir penkių parametrų konstruktorius | Prototype kopija išsaugo paskirtį; senas konstruktorius reiškia STANDARD |
+| `Platform.Kind` (`STANDARD`, `SERVICE`) | Skiria piešiamas pakylas (įskaitant judančias) nuo PNG paviršių; nekeičia fizikos |
+| `Platform.kind()` ir `StationaryPlatform` konstruktoriai | Prototype kopija išsaugo paskirtį; senas konstruktorius reiškia STANDARD |
 | `PlatformSnapshot.kind` | Validuojama transporto reikšmė `standard` arba `service`, be domain importo kliente |
 | `SidePassageSnapshot(openingTop,supportY)` | Baigtiniai tvarkingai išdėstyti angos aukščiai toje pačioje koordinačių sistemoje |
 | `ArenaSnapshot.sidePassage` | Combat angų aprašas arba aiškus JSON null; Training turi null |
@@ -173,7 +194,7 @@ java -cp game-domain/target/game-domain.jar lt.ktu.paskutinisatsiskaitymas.domai
 java -cp game-domain/target/game-domain.jar lt.ktu.paskutinisatsiskaitymas.domain.NPCStrategyDemo
 ```
 
-Builder demonstracija pateikia Combat (4 paviršiai, 2 NPC), Training (1 paviršius, 0 NPC) ir pakartotinį Combat
+Builder demonstracija pateikia Combat (6 paviršiai, 2 NPC), Training (3 paviršiai, 0 NPC) ir pakartotinį Combat
 be kaupimo. Strategy demonstracija dabar turi savo aiškią plokščią areną ir išlaiko ankstesnį keturių strategijų ciklą.
 
 ## Patikros ir peržiūros
