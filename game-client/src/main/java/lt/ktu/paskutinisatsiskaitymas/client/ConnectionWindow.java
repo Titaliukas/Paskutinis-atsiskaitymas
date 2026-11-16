@@ -32,7 +32,7 @@ final class ConnectionWindow extends JFrame {
     private final JButton connect = new JButton("Connect");
     private final JButton disconnect = new JButton("Disconnect");
     private final JLabel status = new JLabel("Disconnected");
-    private final GamePanel gamePanel = new GamePanel();
+    private final GamePanel gamePanel = new GamePanel(ParticleStatsSink.consoleAndCsv());
     private final CardLayout screenLayout = new CardLayout();
     private final JPanel screens = new JPanel(screenLayout);
     private final GameWindowSizing gameWindowSizing = new GameWindowSizing();
@@ -134,6 +134,7 @@ final class ConnectionWindow extends JFrame {
                 if (controllers != null) {
                     controllers.quitSDLGamepad();
                 }
+                gamePanel.clearGame();
                 facade.close();
             }
         });
