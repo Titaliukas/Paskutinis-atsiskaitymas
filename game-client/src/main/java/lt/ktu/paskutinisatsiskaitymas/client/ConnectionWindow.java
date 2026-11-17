@@ -12,6 +12,7 @@ import java.awt.Toolkit;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.net.URI;
+import java.util.UUID;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
@@ -20,6 +21,8 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import lt.ktu.paskutinisatsiskaitymas.protocol.Welcome;
+import lt.ktu.paskutinisatsiskaitymas.protocol.LobbyState;
+import lt.ktu.paskutinisatsiskaitymas.protocol.ErrorMessage;
 import lt.ktu.paskutinisatsiskaitymas.protocol.WorldSnapshot;
 
 /** EDT-only connection form surrounding a stable Java2D game surface. */
@@ -29,8 +32,12 @@ final class ConnectionWindow extends JFrame {
     private final CharacterSelectionPanel characterPicker = new CharacterSelectionPanel();
     private final GameClientFacade facade = new GameClientFacade();
     private final JButton undoSelection = new JButton("Undo change");
-    private final JButton connect = new JButton("Connect");
-    private final JButton disconnect = new JButton("Disconnect");
+    private final JButton connect = new JButton("Create lobby");
+    private final JButton disconnect = new JButton("Leave");
+    private final JButton join = new JButton("Join lobby");
+    private final JTextField lobbyCode = new JTextField(8);
+    private final LobbyPanel lobbyPanel = new LobbyPanel(facade::startGame);
+    private UUID localPlayerId;
     private final JLabel status = new JLabel("Disconnected");
     private final GamePanel gamePanel = new GamePanel();
     private final CardLayout screenLayout = new CardLayout();
@@ -52,9 +59,20 @@ final class ConnectionWindow extends JFrame {
 
             @Override
             public void onJoined(Welcome welcome) {
+                localPlayerId = welcome.playerId();
                 updateUndoSelection();
                 gamePanel.setLocalPlayerId(welcome.playerId());
                 gamePanel.requestFocusInWindow();
+            }
+
+            @Override
+            public void onLobbyState(LobbyState state) {
+                lobbyPanel.showLobby(state, localPlayerId);
+            }
+
+            @Override
+            public void onRequestError(ErrorMessage error) {
+                status.setText(error.message());
             }
 
             @Override
@@ -75,25 +93,29 @@ final class ConnectionWindow extends JFrame {
         facade.addObserver(new NotificationObserver(gamePanel));
         address = new JTextField(initialAddress, 28);
         nickname = new JTextField(initialNickname, 28);
-        JPanel fields = new JPanel(new GridLayout(3, 2, 8, 6));
+        JPanel fields = new JPanel(new GridLayout(4, 2, 8, 6));
         fields.add(new JLabel("Server address"));
         fields.add(address);
         fields.add(new JLabel("Player nickname"));
         fields.add(nickname);
         fields.add(new JLabel("Input"));
         fields.add(inputDevice);
+        fields.add(new JLabel("Lobby code (to join)"));
+        fields.add(lobbyCode);
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         buttons.add(undoSelection);
         buttons.add(connect);
+        buttons.add(join);
         buttons.add(disconnect);
         JPanel form = new JPanel(new BorderLayout(8, 4));
         form.add(fields, BorderLayout.CENTER);
-        form.add(buttons, BorderLayout.EAST);
+        form.add(buttons, BorderLayout.SOUTH);
         JPanel content = new JPanel(new BorderLayout(8, 12));
         content.setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
         content.add(form, BorderLayout.NORTH);
         screens.add(characterPicker, "selection");
         screens.add(gamePanel, "game");
+        screens.add(lobbyPanel, "lobby");
         content.add(screens, BorderLayout.CENTER);
         content.add(status, BorderLayout.SOUTH);
         setContentPane(content);
@@ -118,7 +140,14 @@ final class ConnectionWindow extends JFrame {
         });
         connect.addActionListener(event -> {
             try {
-                facade.connect(URI.create(address.getText().trim()), nickname.getText().trim());
+                facade.createLobby(URI.create(address.getText().trim()), nickname.getText().trim());
+            } catch (IllegalArgumentException exception) {
+                showStatus(new ConnectionStatus(ConnectionStatus.State.ERROR, exception.getMessage()));
+            }
+        });
+        join.addActionListener(event -> {
+            try {
+                facade.joinLobby(URI.create(address.getText().trim()), nickname.getText().trim(), lobbyCode.getText());
             } catch (IllegalArgumentException exception) {
                 showStatus(new ConnectionStatus(ConnectionStatus.State.ERROR, exception.getMessage()));
             }
@@ -145,19 +174,24 @@ final class ConnectionWindow extends JFrame {
 
     private void showStatus(ConnectionStatus update) {
         boolean active = update.state() == ConnectionStatus.State.CONNECTING
-                || update.state() == ConnectionStatus.State.CONNECTED;
+                || update.state() == ConnectionStatus.State.CONNECTED
+                || update.state() == ConnectionStatus.State.LOBBY;
         address.setEnabled(!active);
         nickname.setEnabled(!active);
         connect.setEnabled(!active);
+        join.setEnabled(!active);
+        lobbyCode.setEnabled(!active);
         disconnect.setEnabled(active);
         characterPicker.setEnabled(!active);
-        screenLayout.show(screens, update.state() == ConnectionStatus.State.CONNECTED ? "game" : "selection");
+        screenLayout.show(screens, update.state() == ConnectionStatus.State.CONNECTED ? "game"
+                : update.state() == ConnectionStatus.State.LOBBY ? "lobby" : "selection");
         updateUndoSelection();
         // A server-provided nickname must not be interpreted as Swing HTML.
         status.putClientProperty("html.disable", Boolean.TRUE);
         status.setText(update.detail());
         if (!active) {
             input.reset();
+            localPlayerId = null;
             gamePanel.clearGame();
         } else if (update.state() == ConnectionStatus.State.CONNECTED) {
             if (gameWindowSizing.onStatus(update.state())) {

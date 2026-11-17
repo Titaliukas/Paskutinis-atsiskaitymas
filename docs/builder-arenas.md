@@ -1,8 +1,9 @@
 # Builder ir dvi arenos
 
-Palaikomi iki 4 žaidėjų. Combat ir Training yra dvi įgyvendintos arenų konfigūracijos, tačiau vienas serverio
-procesas paleidžia vieną sesiją su viena paleidimo metu pasirinkta arena. Visi prisijungę žaidėjai žaidžia toje
-pačioje sesijoje. Lobby, kambariai ir arenos keitimas veikiančiame serveryje neįgyvendinti.
+Kiekviename lobby palaikomi iki 4 žaidėjų. Combat ir Training yra dvi įgyvendintos arenų konfigūracijos.
+Serverio procesas paleidimo metu pasirenka vieną arenos receptą, naudojamą visuose lobby. Kiekvienas lobby turi
+atskirą žaidimo sesiją ir kilpą, paleidžiamą šeimininkui paspaudus Start game. Arenos keitimas veikiančiame
+serveryje neįgyvendintas. Žr. [Mediator ir lobby](mediator-lobbies.md).
 
 ## Problema ir pasirinkimas
 

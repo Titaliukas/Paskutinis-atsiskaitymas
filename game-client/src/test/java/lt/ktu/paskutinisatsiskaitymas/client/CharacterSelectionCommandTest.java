@@ -1,6 +1,6 @@
 package lt.ktu.paskutinisatsiskaitymas.client;
 
-import lt.ktu.paskutinisatsiskaitymas.protocol.Hello;
+import lt.ktu.paskutinisatsiskaitymas.protocol.CreateLobby;
 import lt.ktu.paskutinisatsiskaitymas.protocol.StatAllocation;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
@@ -28,7 +28,7 @@ class CharacterSelectionCommandTest {
         history.undo();
         history.undo();
         assertEquals(StatAllocation.DEFAULT, selection.stats());
-        assertEquals(Hello.DEFAULT_CHARACTER, selection.selectedCharacter());
+        assertEquals(CreateLobby.DEFAULT_CHARACTER, selection.selectedCharacter());
         assertFalse(history.canUndo());
     }
 
@@ -67,11 +67,11 @@ class CharacterSelectionCommandTest {
     @Test
     void commandExecutesAndUndoesThroughTheInterface() {
         UndoableCommand command = new SelectCharacterCommand(selection, "VACIJUS");
-        assertEquals(Hello.DEFAULT_CHARACTER, selection.selectedCharacter());
+        assertEquals(CreateLobby.DEFAULT_CHARACTER, selection.selectedCharacter());
         command.execute();
         assertEquals("VACIJUS", selection.selectedCharacter());
         command.undo();
-        assertEquals(Hello.DEFAULT_CHARACTER, selection.selectedCharacter());
+        assertEquals(CreateLobby.DEFAULT_CHARACTER, selection.selectedCharacter());
     }
 
     @Test
@@ -94,7 +94,7 @@ class CharacterSelectionCommandTest {
         history.undo();
         assertEquals("VACIJUS", selection.selectedCharacter());
         history.undo();
-        assertEquals(Hello.DEFAULT_CHARACTER, selection.selectedCharacter());
+        assertEquals(CreateLobby.DEFAULT_CHARACTER, selection.selectedCharacter());
         assertFalse(history.canUndo());
     }
 
@@ -102,7 +102,7 @@ class CharacterSelectionCommandTest {
     void emptyHistoryUndoDoesNothing() {
         assertDoesNotThrow(history::undo);
         assertFalse(history.canUndo());
-        assertEquals(Hello.DEFAULT_CHARACTER, selection.selectedCharacter());
+        assertEquals(CreateLobby.DEFAULT_CHARACTER, selection.selectedCharacter());
     }
 
     @Test
@@ -127,7 +127,7 @@ class CharacterSelectionCommandTest {
         history.undo();
         assertEquals("VACIJUS", selection.selectedCharacter());
         history.undo();
-        assertEquals(Hello.DEFAULT_CHARACTER, selection.selectedCharacter());
+        assertEquals(CreateLobby.DEFAULT_CHARACTER, selection.selectedCharacter());
         assertFalse(history.canUndo());
     }
 
@@ -140,7 +140,7 @@ class CharacterSelectionCommandTest {
                 () -> history.execute(new SelectCharacterCommand(selection, null)));
         assertEquals("VACIJUS", selection.selectedCharacter());
         history.undo();
-        assertEquals(Hello.DEFAULT_CHARACTER, selection.selectedCharacter());
+        assertEquals(CreateLobby.DEFAULT_CHARACTER, selection.selectedCharacter());
         assertFalse(history.canUndo());
     }
 
@@ -151,7 +151,7 @@ class CharacterSelectionCommandTest {
         history.execute(command);
         assertThrows(IllegalStateException.class, () -> history.execute(command));
         history.undo();
-        assertEquals(Hello.DEFAULT_CHARACTER, selection.selectedCharacter());
+        assertEquals(CreateLobby.DEFAULT_CHARACTER, selection.selectedCharacter());
         assertFalse(history.canUndo());
     }
 }

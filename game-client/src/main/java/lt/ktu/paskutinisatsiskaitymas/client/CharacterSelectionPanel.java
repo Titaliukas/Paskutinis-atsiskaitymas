@@ -25,7 +25,7 @@ import javax.swing.JPanel;
 import javax.swing.JToggleButton;
 import javax.swing.JSlider;
 import javax.swing.SwingConstants;
-import lt.ktu.paskutinisatsiskaitymas.protocol.Hello;
+import lt.ktu.paskutinisatsiskaitymas.protocol.CreateLobby;
 import lt.ktu.paskutinisatsiskaitymas.protocol.StatAllocation;
 
 /** EDT-owned portrait picker. Programmatic selection never emits a user action. */
@@ -34,7 +34,7 @@ final class CharacterSelectionPanel extends JPanel {
     private static final Color ACCENT = new Color(109, 186, 255);
     private final Map<String, JToggleButton> cards = new LinkedHashMap<>();
     private Consumer<String> selectionListener = character -> { };
-    private String selectedCharacter = Hello.DEFAULT_CHARACTER;
+    private String selectedCharacter = CreateLobby.DEFAULT_CHARACTER;
     private final Map<SelectableStat, JSlider> sliders = new EnumMap<>(SelectableStat.class);
     private final Map<SelectableStat, JLabel> values = new EnumMap<>(SelectableStat.class);
     private final JLabel budget = new JLabel("", SwingConstants.CENTER);
@@ -58,17 +58,17 @@ final class CharacterSelectionPanel extends JPanel {
         title.setForeground(Color.WHITE);
         constraints.gridy = 0;
         add(title, constraints);
-        JLabel hint = new JLabel("Choose a portrait and adjust your stats, then click Connect.", SwingConstants.CENTER);
+        JLabel hint = new JLabel("Choose a portrait and adjust your stats, then create or join a lobby.", SwingConstants.CENTER);
         hint.setForeground(new Color(180, 193, 210));
         constraints.gridy = 1;
         constraints.insets = new Insets(0, 24, 8, 24);
         add(hint, constraints);
 
-        JPanel row = new JPanel(new GridLayout(1, Hello.CHARACTERS.size(), 12, 0));
+        JPanel row = new JPanel(new GridLayout(1, CreateLobby.CHARACTERS.size(), 12, 0));
         row.setOpaque(false);
         ButtonGroup group = new ButtonGroup();
         AssetManager assets = AssetManager.getInstance();
-        for (String character : Hello.CHARACTERS) {
+        for (String character : CreateLobby.CHARACTERS) {
             JToggleButton card = new CharacterCard(character, assets.getImage(character + "_PORTRAIT"));
             cards.put(character, card);
             group.add(card);

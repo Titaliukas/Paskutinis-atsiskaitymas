@@ -6,9 +6,10 @@ JSON snapshots with Java2D sprites and primitive fallbacks.
 
 Each server runs one selected 960×540 arena: **Combat** (default, six surfaces, two student NPCs and a paired
 side passage) or **Training** (stadium background, ground and two moving platforms, no NPCs or passage). Both support up to four players,
-character/stat selection, combat, items, stress, respawn and safe reconnect. There are no lobbies, rooms,
-persistence, authentication or match results. The arena is selected at startup for the whole server process;
-clients cannot choose rooms or switch its arena during play. See [Builder and arenas](docs/builder-arenas.md) for the approved
+character/stat selection, combat, items, stress and respawn. Players create or join independent four-player
+lobbies by code after choosing their character. The host starts the game; starting closes entry, including
+reconnects. If the host leaves, the lobby closes for everyone. There is no persistence, authentication or match
+results. The arena recipe is selected at startup for every lobby; clients cannot switch arenas during play. See [Builder and arenas](docs/builder-arenas.md) for the approved
 UML mapping, coordinates and verification.
 
 ## Stack and architecture
@@ -31,7 +32,7 @@ game-server ───> game-protocol
 | `game-domain`      | Arena, characters, items/events, NPC strategies/controllers, projectiles, effects, movement and collision |
 | `game-application` | Commands, retained input, bounded queue, match controller, and fixed-step loop              |
 | `game-protocol`    | Validated transport DTOs and JSON codec; no domain entities                                 |
-| `game-server`      | Connections, four player slots, command translation, scheduling, and snapshots              |
+| `game-server`      | Lobby mediator, connections, per-lobby slots and runtimes, command translation, and snapshots              |
 | `game-client`      | Connection form, keyboard and controller input, asynchronous networking, Java2D rendering  |
 
 The server and clients are separate programs because the headless server owns authoritative state while every
@@ -71,7 +72,7 @@ javac --version
 ```
 
 The build checks module/import boundaries, runs all physics, application, protocol, WebSocket, capacity,
-reconnection, and shutdown tests, then produces:
+lobby isolation, admission, and shutdown tests, then produces:
 
 - `game-server/target/game-server.jar`
 - `game-client/target/game-client.jar`
@@ -117,9 +118,16 @@ Terminal 5 — fourth client:
 java -jar game-client/target/game-client.jar ws://localhost:8080/game Dora
 ```
 
-Click a character's portrait card in the **Choose your character** screen, then click **Connect** above.
+Click a character's portrait card in the **Choose your character** screen and adjust its stats.
+Alice clicks **Create lobby** and shares the displayed six-character code. Bob, Charlie and Dora enter it in
+**Lobby code (to join)** and click **Join lobby**. The waiting room shows each player’s character portrait with their nickname beneath it, plus Host/You indicators.
+Only Alice, the host, can click **Start game**; one to four players may start. See [Mediator and lobbies](docs/mediator-lobbies.md).
+
+Joining is closed once the game starts, even after a guest disconnects. A guest may leave and rejoin while still
+waiting. The **Leave** button returns to character selection; if the host leaves or loses connection, everyone
+returns with a closure message and their selected build preserved. Each lobby runs an independent world.
 The highlighted card is marked **Selected**; Tab and Space also let you choose a card with the keyboard.
-On the first successful join, the window is fitted to a 960×540 (16:9) GamePanel, reduced proportionally if needed
+When the first game starts, the window is fitted to a 960×540 (16:9) GamePanel, reduced proportionally if needed
 for the current monitor's usable work area. Frame decorations, form, margins and status are measured separately
 in logical Swing units. Later snapshots, repeated status messages and reconnects retain your chosen window size;
 manual resizing remains available, with letterboxing when you choose a different aspect ratio.
@@ -128,7 +136,7 @@ and jump height from **50–150%** in steps of **5**. Each starts at **100%** an
 lower one stat to free points before increasing another. Unused points are allowed.
 **Undo change** steps back through both character choices and stat adjustments; each slider drag is one step.
 Switching characters resets all stats to 100%; undoing the switch restores the previous customized character.
-Selection, sliders, and undo are disabled while connecting or connected.
+Selection, sliders, and undo are disabled while connecting, waiting in a lobby, or playing.
 Failed or cancelled connection attempts retain undo history; a successful join clears it and keeps the chosen
 character and stats as the baseline for future changes after disconnecting. Each window has its own history.
 Multiple players may choose
@@ -172,7 +180,7 @@ docker compose down
 
 `GameClientFacade` coordinates three private subsystems: `CharacterSelection`, `CommandHistory`, and
 `ClientConnection`. Its two clients are `ConnectionWindow` and `GameClientFacadeDemo`; each owns an independent
-facade. The facade executes the existing selection commands, sends the current build on connect, and delegates
+facade. The facade executes the existing selection commands, sends the current build on create/join, and delegates
 input and observer registration to the connection. The window retains rendering and input-device/SDL lifecycle.
 
 After `./mvnw -B -ntp clean verify` with Java 25, start the server in one terminal:
@@ -189,7 +197,7 @@ java -Djava.awt.headless=true -cp game-client/target/game-client.jar \
 ```
 
 Both arguments are optional (defaults: `ws://localhost:8080/game`, `FacadeDemo`). The demo prints character/stat
-changes, restores VACIJUS with 75/125/100 via undo, receives `WELCOME` and a `WORLD_SNAPSHOT`, then disconnects
+changes, restores VACIJUS with 75/125/100 via undo, creates a lobby, receives `WELCOME`, starts its game, receives a `WORLD_SNAPSHOT`, then disconnects
 and closes its HTTP client. It uses the EDT for facade operations and waits on the main thread for at most 12
 seconds; failure prints an error and exits unsuccessfully. Stop the server with Ctrl+C afterwards. The runnable
 client JAR's main class remains `GameClientMain`.
@@ -201,9 +209,9 @@ Character selection uses the Command pattern in `game-client`: `CharacterSelecti
 `CommandHistory` is the invoker that stores executed commands in a stack. Commands capture an immutable snapshot
 of the previous character and stats. `GameClientFacade` creates commands only for actual changes; restoring
 cards and sliders during undo does not create another command. See the [UML and build flow](docs/character-selection.md).
-The picker stays visible but disabled while connecting, switches to the arena after joining, and returns after
-disconnecting or a connection error.
-The selected character and stat allocation are sent in `HELLO` when connecting. The server validates the build,
+The picker stays visible but disabled while connecting, switches to the waiting room after admission, and shows
+the arena after the host starts. Leaving, host departure, or a connection error returns to the picker.
+The selected character and stat allocation are sent in `CREATE_LOBBY` or `JOIN_LOBBY` when connecting. The server validates the build,
 applies it in the game loop, and keeps it across respawns. Temporary boosts and slows still compose with the build.
 All four characters currently share the same health, speed, and jump defaults; attack damage remains character-specific.
 
@@ -272,15 +280,18 @@ Circular paths, endpoint pauses, crushing damage and inherited jump momentum are
 
 ## Manual playable test
 
-1. Start Combat and four clients; connect and check the four distinct spawns and corner HUD cards.
-2. Try a fifth client: it receives `SERVER_FULL`. Disconnect one player and reconnect to reuse the freed slot.
+1. Start Combat and four clients. Create one lobby and join the other three by code.
+2. Try a fifth client while waiting: it receives `LOBBY_FULL`. Have a guest leave, then reuse that slot.
+   Start as host and check four distinct spawns and corner HUD cards. New joins now receive `LOBBY_STARTED`.
 3. With default stats, walk under the canopy, jump onto it, then the service platform and roof. Repeat from the other side.
 4. Walk outward into each ground-level opening. Check opposite-side arrival, continued movement, stable stress/health and no bouncing.
 5. Try both edges outside the opening height and at roof height: they remain closed. Check combat, items and respawn.
 6. Resize the window, including a non-16:9 size; compare debug outlines against the background.
 7. Ride both moving platforms in Combat; check reversals, jumping off and walking off. Restart with Training
    and repeat; check its ground surface, four spawns, closed edges and no NPCs.
-8. Stop the server and verify clients disconnect without freezing.
+8. Create and start a second lobby; verify its players and events never appear in the first.
+9. Have the first host leave: its guests return to selection while the second lobby keeps playing.
+10. Stop the server and verify clients disconnect without freezing.
 
 Automated offscreen GamePanel previews from actual server snapshots can be reproduced after `clean verify`:
 
@@ -315,7 +326,7 @@ To set up LAN play:
    java -jar game-client.jar ws://<SERVER_LAN_IP>:8080/game Bob
    ```
 
-6. Click **Connect**. Do not use `localhost` from the second computer because it refers to that computer itself.
+6. Create a lobby on the first client and join its code on the second. Do not use `localhost` from the second computer because it refers to that computer itself.
 
 The server image works on ARM64 Raspberry Pi OS and AMD64 Linux/cloud hosts without a hard-coded platform.
 Raspberry Pi uses the ARM64 image variant; typical cloud hosts use AMD64. Direct JAR deployment needs Java 25 on
@@ -351,10 +362,14 @@ does not read `.env`; `.env` controls Compose's published host port and arena se
 
 The `/game` endpoint accepts JSON text messages with explicit stable types:
 
-- `HELLO`: requests one of four slots with a nickname, character, and optional integer `stats` allocation
+- `CREATE_LOBBY` / `JOIN_LOBBY`: creates or joins a waiting lobby and requests one of its four slots with a nickname, character, and optional integer `stats` allocation
   (`healthPercent`, `speedPercent`, `jumpHeightPercent`). Omitted stats default to 100/100/100. Malformed fields
   are rejected by the protocol; invalid ranges, steps, or budgets produce `INVALID_STATS` without reserving a slot.
-- `WELCOME`: returns connection UUID, server-assigned player UUID, slot, and nickname.
+- `JOIN_LOBBY` additionally requires the six-character `code`; whitespace and letter case are normalized.
+- `WELCOME`: returns connection UUID, server-assigned player UUID, slot, and nickname after admission.
+- `LOBBY_STATE`: publishes code, host player ID, `WAITING`/`RUNNING` phase, and member roster to that lobby.
+- `START_GAME`: host-only request to lock entry and start the game.
+- `LOBBY_CLOSED`: explains why the lobby closed; clients disconnect and return to selection.
 - `INPUT`: sends a monotonically sequenced complete left/right/jump/ranged/melee state, never position or velocity.
 - `WORLD_SNAPSHOT`: broadcasts validated `arenaType` (`combat` or `training`), arena/platform geometry, players (including health, character choice, stress and `slowed`), items,
   NPC geometry/activity/facing/attack sequences and `stunned`, player `attacks`, and NPC `projectiles`
@@ -366,7 +381,8 @@ The `/game` endpoint accepts JSON text messages with explicit stable types:
 - `ERROR`: reports malformed input, wrong direction, missing handshake, capacity, or queue pressure.
 
 Unknown JSON, duplicate fields, trailing values, invalid fields, oversized messages, binary frames, and URL paths
-other than `/game` are rejected. A fifth join receives `SERVER_FULL`. Nicknames are display labels rather than
+other than `/game` are rejected. A fifth waiting-room join receives `LOBBY_FULL`; started lobbies return `LOBBY_STARTED`.
+The former `HELLO` handshake is rejected: update clients and server together. Nicknames are display labels rather than
 authenticated identities.
 
 ## Troubleshooting
@@ -378,7 +394,7 @@ authenticated identities.
   for this local prototype.
 - **LAN connection fails:** use the server's LAN address, check both machines can reach each other, and allow the
   published TCP port through the server firewall.
-- **Keys do nothing:** click inside the game panel. Reconnect if the status is not `Connected`.
+- **Keys do nothing:** wait for the host to start, then click inside the game panel. After disconnecting, join a waiting lobby or create a new one.
 - **A character keeps moving:** return focus to the game window and press/release that direction once. Normal
   focus loss sends a neutral input state automatically.
 - **Fifth client rejected:** only four slots exist. Disconnect one active client and retry.

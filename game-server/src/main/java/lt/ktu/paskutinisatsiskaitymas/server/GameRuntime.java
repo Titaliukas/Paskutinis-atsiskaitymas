@@ -26,8 +26,10 @@ final class GameRuntime implements AutoCloseable {
     private static final System.Logger LOG = System.getLogger(GameRuntime.class.getName());
     private final BoundedCommandQueue<GameCommand> commands =
             new BoundedCommandQueue<>(COMMAND_QUEUE_CAPACITY);
-    private final MatchController match;
-    private final AuthoritativeGameLoop loop;
+    private MatchController match;
+    private AuthoritativeGameLoop loop;
+    private final Arena arena;
+    private final Consumer<GameEventMessage> eventBroadcaster;
     private final Consumer<WorldSnapshot> broadcaster;
     private final AtomicBoolean started = new AtomicBoolean();
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(runnable -> {
@@ -39,10 +41,14 @@ final class GameRuntime implements AutoCloseable {
 
 
     GameRuntime(Consumer<WorldSnapshot> broadcaster, Consumer<GameEventMessage> eventBroadcaster, Arena arena) {
+        this.broadcaster = Objects.requireNonNull(broadcaster, "broadcaster");
+        this.eventBroadcaster = Objects.requireNonNull(eventBroadcaster, "eventBroadcaster");
+        this.arena = Objects.requireNonNull(arena, "arena");
+    }
+
+    private void initializeWorld() {
         match = new MatchController(new GameSession(UUID.randomUUID(), arena));
         loop = new AuthoritativeGameLoop(commands, match);
-        this.broadcaster = Objects.requireNonNull(broadcaster, "broadcaster");
-        Objects.requireNonNull(eventBroadcaster, "eventBroadcaster");
         match.session().subscribe(new EventLogObserver());
         match.session().subscribe(stats);
         match.session().subscribe(new ClientNotificationObserver(eventBroadcaster));
@@ -66,6 +72,9 @@ final class GameRuntime implements AutoCloseable {
 
     private void safeTick() {
         try {
+            if (loop == null) {
+                initializeWorld();
+            }
             loop.tick();
             int ticksPerSnapshot = GameConstants.TICK_RATE / SNAPSHOT_RATE;
             if (loop.tickNumber() % ticksPerSnapshot == 0) {

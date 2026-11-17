@@ -27,12 +27,15 @@ class GameWebSocketServerTest {
     private final List<Peer> peers = new ArrayList<>();
     private GameWebSocketServer server;
     private HttpClient http;
+    private Peer host;
+    private boolean running;
 
     @Test
     void customBuildIsAppliedOverTheActualWebSocketJoinAndInputPath() throws Exception {
         Peer peer = connect("/game");
-        peer.send(new Hello("Custom", "GOGIS", new StatAllocation(125, 125, 50)));
+        admit(peer, new CreateLobby("Custom", "GOGIS", new StatAllocation(125, 125, 50)));
         Welcome welcome = peer.receive(Welcome.class, value -> true);
+        startGame();
         WorldSnapshot joined = peer.receive(WorldSnapshot.class, value -> !value.players().isEmpty());
         assertEquals(125, player(joined, welcome).health());
         assertEquals(125, player(joined, welcome).maxHealth());
@@ -74,8 +77,9 @@ class GameWebSocketServerTest {
         server.start();
         server.awaitStarted(Duration.ofSeconds(5));
         Peer peer = connect("/game");
-        peer.send(new Hello("Training"));
+        admit(peer, new CreateLobby("Training"));
         peer.receive(Welcome.class, value -> true);
+        startGame();
         WorldSnapshot snapshot = peer.receive(WorldSnapshot.class, value -> value.players().size() == 1);
         assertEquals("training", snapshot.arena().arenaType());
         assertEquals(new PlatformSnapshot(0, 448, 960, 92), snapshot.arena().platforms().getFirst());
@@ -92,13 +96,14 @@ class GameWebSocketServerTest {
     void twoPlayersReceiveSnapshotsAndMoveIndependently() throws Exception {
         Peer first = connect("/game");
         Peer second = connect("/game");
-        first.send(new Hello("First"));
-        second.send(new Hello("Second"));
+        admit(first, new CreateLobby("First"));
+        admit(second, new CreateLobby("Second"));
         Welcome a = first.receive(Welcome.class, value -> value.nickname().equals("First"));
         Welcome b = second.receive(Welcome.class, value -> value.nickname().equals("Second"));
         assertNotEquals(a.playerId(), b.playerId());
         assertNotEquals(a.slot(), b.slot());
 
+        startGame();
         WorldSnapshot initial = first.receive(WorldSnapshot.class, value -> value.players().size() == 2);
         assertEquals(List.of(
                 new PlatformSnapshot(45, 215, 870, 6),
@@ -129,11 +134,12 @@ class GameWebSocketServerTest {
     void playersCanChooseTheSameCharacterAndSnapshotsKeepTheirChoice() throws Exception {
         Peer first = connect("/game");
         Peer second = connect("/game");
-        first.send(new Hello("First", "VACIJUS"));
-        second.send(new Hello("Second", "VACIJUS"));
+        admit(first, new CreateLobby("First", "VACIJUS"));
+        admit(second, new CreateLobby("Second", "VACIJUS"));
         first.receive(Welcome.class, value -> value.nickname().equals("First"));
         second.receive(Welcome.class, value -> value.nickname().equals("Second"));
 
+        startGame();
         WorldSnapshot snapshot = first.receive(WorldSnapshot.class,
                 value -> value.players().size() == 2
                         && value.players().stream().allMatch(player -> "VACIJUS".equals(player.character())));
@@ -145,10 +151,11 @@ class GameWebSocketServerTest {
     void twoClientsReceiveIdenticalProjectileAndSlowdownFactsForTheSameTicks() throws Exception {
         Peer first = connect("/game");
         Peer second = connect("/game");
-        first.send(new Hello("First"));
-        second.send(new Hello("Second"));
+        admit(first, new CreateLobby("First"));
+        admit(second, new CreateLobby("Second"));
         first.receive(Welcome.class, value -> true);
         second.receive(Welcome.class, value -> true);
+        startGame();
         WorldSnapshot flying = first.receive(WorldSnapshot.class,
                 value -> value.players().size() == 2 && !value.projectiles().isEmpty());
         WorldSnapshot otherFlying = second.receive(WorldSnapshot.class, value -> value.tick() == flying.tick());
@@ -167,12 +174,13 @@ class GameWebSocketServerTest {
         List<Welcome> welcomes = new ArrayList<>();
         for (int index = 0; index < 4; index++) {
             Peer peer = connect("/game");
-            peer.send(new Hello("Player " + index));
+            admit(peer, new CreateLobby("Player " + index));
             players.add(peer);
             welcomes.add(peer.receive(Welcome.class, value -> true));
         }
         assertEquals(4, welcomes.stream().map(Welcome::playerId).distinct().count());
         assertEquals(List.of(0, 1, 2, 3), welcomes.stream().map(Welcome::slot).sorted().toList());
+        startGame();
         Peer observer = players.getFirst();
         for (Peer peer : players) {
             WorldSnapshot view = peer.receive(WorldSnapshot.class, value -> value.players().size() == 4);
@@ -199,44 +207,32 @@ class GameWebSocketServerTest {
     }
 
     @Test
-    void rejectsFifthPlayerThenReusesDisconnectedSlotWithFreshIdentity() throws Exception {
-        List<Peer> players = new ArrayList<>();
-        List<Welcome> welcomes = new ArrayList<>();
-        for (int index = 0; index < 4; index++) {
-            Peer peer = connect("/game");
-            peer.send(new Hello("Player " + index));
-            players.add(peer);
-            welcomes.add(peer.receive(Welcome.class, value -> true));
+    void waitingLobbyReusesGuestSlotButRunningLobbyRejectsAllNewEntries() throws Exception {
+        Peer first = connect("/game");
+        admit(first, new CreateLobby("Host"));
+        first.receive(Welcome.class, value -> true);
+        List<Peer> guests = new ArrayList<>();
+        for (int index = 0; index < 3; index++) {
+            Peer guest = connect("/game");
+            admit(guest, new CreateLobby("Guest " + index));
+            guest.receive(Welcome.class, value -> true);
+            guests.add(guest);
         }
-        WorldSnapshot before = players.getFirst().receive(WorldSnapshot.class, value -> value.players().size() == 4);
         Peer fifth = connect("/game");
-        fifth.send(new Hello("Fifth"));
-        assertEquals("SERVER_FULL", fifth.receive(ErrorMessage.class, value -> value.code().equals("SERVER_FULL")).code());
-
-        Welcome departed = welcomes.get(2);
-        players.get(2).socket.sendClose(1000, "done").get(5, TimeUnit.SECONDS);
-        assertEquals(1000, players.get(2).closed.get(5, TimeUnit.SECONDS));
-        WorldSnapshot afterLeave = players.getFirst().receive(WorldSnapshot.class,
-                value -> value.players().size() == 3 && value.players().stream()
-                        .noneMatch(p -> p.playerId().equals(departed.playerId())));
-        for (int index : new int[]{0, 1, 3}) {
-            Welcome survivor = welcomes.get(index);
-            assertEquals(player(before, survivor).x(), player(afterLeave, survivor).x(), 0.000_001);
-            players.get(index).send(new Ping("alive-" + index));
-            assertEquals(new Pong("alive-" + index), players.get(index).receive(Pong.class, value -> true));
-        }
-        fifth.send(new Hello("Replacement"));
-        Welcome replacement = fifth.receive(Welcome.class, value -> value.nickname().equals("Replacement"));
-        assertEquals(departed.slot(), replacement.slot());
-        assertNotEquals(departed.playerId(), replacement.playerId());
-        WorldSnapshot afterJoin = players.getFirst().receive(WorldSnapshot.class,
-                value -> value.players().size() == 4 && value.players().stream()
-                        .anyMatch(p -> p.playerId().equals(replacement.playerId())));
-        assertEquals(4, afterJoin.players().stream().map(PlayerSnapshot::slot).distinct().count());
-        assertTrue(afterJoin.players().stream().noneMatch(p -> p.playerId().equals(departed.playerId())));
-        Peer sixth = connect("/game");
-        sixth.send(new Hello("Sixth"));
-        assertEquals("SERVER_FULL", sixth.receive(ErrorMessage.class, value -> true).code());
+        fifth.send(new JoinLobby(first.code.get(), "Fifth"));
+        assertEquals("LOBBY_FULL", fifth.receive(ErrorMessage.class, value -> true).code());
+        guests.getFirst().socket.sendClose(1000, "leave").get(5, TimeUnit.SECONDS);
+        first.receive(LobbyState.class, value -> value.members().size() == 3);
+        fifth.send(new JoinLobby(first.code.get(), "Replacement"));
+        Welcome replacement = fifth.receive(Welcome.class, value -> true);
+        assertEquals(1, replacement.slot());
+        startGame();
+        first.receive(WorldSnapshot.class, value -> value.players().size() == 4);
+        fifth.socket.sendClose(1000, "leave").get(5, TimeUnit.SECONDS);
+        first.receive(WorldSnapshot.class, value -> value.players().size() == 3);
+        Peer late = connect("/game");
+        late.send(new JoinLobby(first.code.get(), "Replacement"));
+        assertEquals("LOBBY_STARTED", late.receive(ErrorMessage.class, value -> true).code());
     }
 
     @Test
@@ -248,9 +244,9 @@ class GameWebSocketServerTest {
         peer.socket.sendText("not-json", true).get(5, TimeUnit.SECONDS);
         assertEquals("INVALID_MESSAGE", peer.receive(ErrorMessage.class,
                 value -> value.code().equals("INVALID_MESSAGE")).code());
-        peer.send(new Hello("Player"));
+        admit(peer, new CreateLobby("Player"));
         peer.receive(Welcome.class, value -> true);
-        peer.send(new Hello("Replacement"));
+        peer.send(new CreateLobby("Replacement"));
         assertEquals("ALREADY_CONNECTED", peer.receive(ErrorMessage.class,
                 value -> value.code().equals("ALREADY_CONNECTED")).code());
         peer.send(new WorldSnapshot(0, new ArenaSnapshot("combat", 1, 1, List.of()), List.of(), List.of(), List.of(), List.of(), List.of()));
@@ -261,7 +257,7 @@ class GameWebSocketServerTest {
     @Test
     void reassemblesFragmentedJoinAndRejectsWrongPathAndBinary() throws Exception {
         Peer fragmented = connect("/game");
-        fragmented.socket.sendText("{\"type\":\"HELLO\",", false).get(5, TimeUnit.SECONDS);
+        fragmented.socket.sendText("{\"type\":\"CREATE_LOBBY\",", false).get(5, TimeUnit.SECONDS);
         fragmented.socket.sendText("\"nickname\":\"Fragmented\",\"character\":\"PATASIJUS\"}", true)
                 .get(5, TimeUnit.SECONDS);
         assertEquals("Fragmented", fragmented.receive(Welcome.class, value -> true).nickname());
@@ -276,6 +272,8 @@ class GameWebSocketServerTest {
     @Test
     void cleanShutdownClosesClientsAndTerminatesGameLoop() throws Exception {
         Peer peer = joined("Player");
+        startGame();
+        peer.receive(WorldSnapshot.class, value -> true);
         server.close();
         assertEquals(1001, peer.closed.get(5, TimeUnit.SECONDS));
         assertTrue(server.isGameLoopTerminated());
@@ -284,9 +282,95 @@ class GameWebSocketServerTest {
                 .noneMatch(thread -> thread.isAlive() && thread.getName().equals("authoritative-game-loop")));
     }
 
+    @Test
+    void independentLobbiesIsolateWorldsEventsAndHostClosure() throws Exception {
+        Peer firstHost = connect("/game");
+        firstHost.send(new CreateLobby("Alpha"));
+        Welcome alpha = firstHost.receive(Welcome.class, value -> true);
+        String firstCode = firstHost.code.get(5, TimeUnit.SECONDS);
+        Peer guest = connect("/game");
+        guest.send(new JoinLobby(firstCode, "AlphaGuest"));
+        Welcome alphaGuest = guest.receive(Welcome.class, value -> true);
+        firstHost.receive(LobbyState.class, value -> value.members().size() == 2);
+        Peer secondHost = connect("/game");
+        secondHost.send(new CreateLobby("Beta"));
+        Welcome beta = secondHost.receive(Welcome.class, value -> true);
+        String secondCode = secondHost.code.get(5, TimeUnit.SECONDS);
+        assertNotEquals(firstCode, secondCode);
+        firstHost.send(new StartGame());
+        secondHost.send(new StartGame());
+        WorldSnapshot first = firstHost.receive(WorldSnapshot.class, value -> value.players().size() == 2);
+        WorldSnapshot second = secondHost.receive(WorldSnapshot.class, value -> value.players().size() == 1);
+        assertEquals(List.of(alpha.playerId(), alphaGuest.playerId()),
+                first.players().stream().map(PlayerSnapshot::playerId).toList());
+        assertEquals(beta.playerId(), second.players().getFirst().playerId());
+        firstHost.send(new InputState(0, false, true, false, false, false));
+        firstHost.receive(WorldSnapshot.class, value -> player(value, alpha).x() > player(first, alpha).x());
+        WorldSnapshot unchanged = secondHost.receive(WorldSnapshot.class, value -> value.tick() > second.tick() + 3);
+        assertEquals(player(second, beta).x(), player(unchanged, beta).x());
+        firstHost.socket.sendClose(1000, "host leaves").get(5, TimeUnit.SECONDS);
+        assertTrue(guest.receive(LobbyClosed.class, value -> true).reason().contains("host"));
+        secondHost.send(new Ping("still-alive"));
+        secondHost.receive(Pong.class, value -> value.requestId().equals("still-alive"));
+        secondHost.receive(WorldSnapshot.class, value -> value.tick() > unchanged.tick());
+        assertTrue(firstHost.observed.stream().filter(GameEventMessage.class::isInstance)
+                .map(GameEventMessage.class::cast).anyMatch(event -> event.text().contains("Alpha")));
+        assertTrue(secondHost.observed.stream().filter(GameEventMessage.class::isInstance)
+                .map(GameEventMessage.class::cast).anyMatch(event -> event.text().contains("Beta")));
+        assertFalse(secondHost.observed.stream().filter(GameEventMessage.class::isInstance)
+                .map(GameEventMessage.class::cast).anyMatch(event -> event.text().contains("Alpha")));
+        assertTrue(secondHost.observed.stream().filter(WorldSnapshot.class::isInstance).map(WorldSnapshot.class::cast)
+                .allMatch(world -> world.players().stream().allMatch(player -> player.playerId().equals(beta.playerId()))));
+        assertFalse(secondHost.observed.stream().anyMatch(LobbyClosed.class::isInstance));
+        server.close();
+        assertTrue(server.isGameLoopTerminated());
+        server = null;
+    }
+
+    @Test
+    void waitingHostDepartureClosesOnlyItsLobbyAndNoWorldRunsBeforeStart() throws Exception {
+        Peer first = connect("/game");
+        first.send(new CreateLobby("Host"));
+        first.receive(Welcome.class, value -> true);
+        Peer guest = connect("/game");
+        guest.send(new JoinLobby(first.code.get(5, TimeUnit.SECONDS), "Guest"));
+        guest.receive(Welcome.class, value -> true);
+        guest.send(new StartGame());
+        assertEquals("HOST_REQUIRED", guest.receive(ErrorMessage.class, value -> true).code());
+        guest.send(new InputState(0, true, false, false, false, false));
+        assertEquals("GAME_NOT_STARTED", guest.receive(ErrorMessage.class, value -> true).code());
+        guest.send(new Ping("waiting"));
+        guest.receive(Pong.class, value -> true);
+        assertFalse(guest.observed.stream().anyMatch(WorldSnapshot.class::isInstance));
+        first.socket.sendClose(1000, "leave").get(5, TimeUnit.SECONDS);
+        guest.receive(LobbyClosed.class, value -> true);
+        guest.send(new JoinLobby(first.code.get(), "Again"));
+        assertEquals("LOBBY_NOT_FOUND", guest.receive(ErrorMessage.class, value -> true).code());
+        guest.send(new CreateLobby("New host"));
+        guest.receive(Welcome.class, value -> value.nickname().equals("New host"));
+    }
+
+    private void admit(Peer peer, CreateLobby selection) throws Exception {
+        if (host == null) {
+            host = peer;
+            peer.send(selection);
+        } else {
+            peer.send(new JoinLobby(host.code.get(5, TimeUnit.SECONDS), selection.nickname(),
+                    selection.character(), selection.stats()));
+        }
+        peer.code.get(5, TimeUnit.SECONDS);
+    }
+
+    private void startGame() throws Exception {
+        if (!running) {
+            running = true;
+            host.send(new StartGame());
+        }
+    }
+
     private Peer joined(String nickname) throws Exception {
         Peer peer = connect("/game");
-        peer.send(new Hello(nickname));
+        admit(peer, new CreateLobby(nickname));
         peer.receive(Welcome.class, value -> value.nickname().equals(nickname));
         return peer;
     }
@@ -306,10 +390,12 @@ class GameWebSocketServerTest {
     }
 
     private final class Peer implements WebSocket.Listener {
+        private final List<Message> observed = new java.util.concurrent.CopyOnWriteArrayList<>();
         private final BlockingQueue<String> inbox = new LinkedBlockingQueue<>();
         private final CompletableFuture<Integer> closed = new CompletableFuture<>();
         private final StringBuilder fragments = new StringBuilder();
         private WebSocket socket;
+        private final CompletableFuture<String> code = new CompletableFuture<>();
 
         void send(Message message) throws Exception {
             socket.sendText(codec.encode(message), true).get(5, TimeUnit.SECONDS);
@@ -343,7 +429,17 @@ class GameWebSocketServerTest {
         public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
             fragments.append(data);
             if (last) {
-                inbox.add(fragments.toString());
+                String json = fragments.toString();
+                try {
+                    Message decoded = codec.decode(json);
+                    observed.add(decoded);
+                    if (decoded instanceof LobbyState state) {
+                        code.complete(state.code());
+                    }
+                } catch (ProtocolException exception) {
+                    code.completeExceptionally(exception);
+                }
+                inbox.add(json);
                 fragments.setLength(0);
             }
             webSocket.request(1);

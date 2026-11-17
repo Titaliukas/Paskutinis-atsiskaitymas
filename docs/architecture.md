@@ -3,10 +3,12 @@
 The project is a Java 25 multi-module Maven build with one headless authoritative server and one Swing desktop
 process per player. Docker is only a server deployment boundary.
 
-Each server process runs one match for up to four players in one arena selected at startup. `ArenaSelection`
-chooses Combat (default) or Training through `game.arena` / `GAME_ARENA`. `GameWebSocketServer` creates one
-`GameRuntime`, which creates one `GameSession` with that arena. All connected players share that session;
-there is no lobby, room management, or runtime arena switching. See [Builder and arenas](builder-arenas.md).
+Each server process supports multiple independent four-player lobbies. `ArenaSelection` chooses one arena
+recipe, Combat (default) or Training, through `game.arena` / `GAME_ARENA`; every lobby uses that recipe.
+`GameWebSocketServer` owns a `ServerLobbyMediator`, which manages membership, host permissions, and message
+routing. Starting a lobby creates its own `GameRuntime` and loop-owned `GameSession`; waiting rooms do not
+simulate a world. Arena switching remains unsupported. See [Mediator and lobbies](mediator-lobbies.md)
+and [Builder and arenas](builder-arenas.md).
 
 ## Module boundaries
 
@@ -20,7 +22,7 @@ game-server ───> game-protocol
 - `game-domain` owns arena geometry, player/NPC bodies, Strategy selection/algorithms, stress damage, items/events, movement, gravity, and collision rules.
 - `game-application` owns validated commands, retained input state, the bounded queue, and fixed-step loop.
 - `game-protocol` owns explicit JSON DTOs only. It contains no domain entities or rules.
-- `game-server` owns connections, four slot reservations, DTO/command translation, scheduling, and snapshots.
+- `game-server` owns the lobby mediator, connections, four slot reservations per lobby, DTO/command translation, scheduling, and snapshots.
 - `game-client` owns connection UI, keyboard/controller state, Java2D rendering, and asynchronous network I/O.
 
 Maven Enforcer checks project dependencies. Checkstyle rejects infrastructure imports in domain/application,
@@ -33,7 +35,7 @@ serialized; the server maps loop-owned state into detached protocol records.
 Keyboard/controller input changes
         │
         ▼
-complete INPUT state ──WebSocket──> MessageRouter
+complete INPUT state ──WebSocket──> MessageRouter → LobbyMediator
                                         │ validate direction, identity, sequence
                                         ▼
                               BoundedCommandQueue (512)
@@ -49,23 +51,28 @@ complete INPUT state ──WebSocket──> MessageRouter
                                         ▼
                      SnapshotMapper → WORLD_SNAPSHOT at 20 Hz
                                         │
-                             WebSocket broadcast
+                             Lobby-scoped WebSocket delivery
                                         ▼
                        EDT update → GamePanel repaint
 ```
 
 WebSocket callbacks may reserve/release transport slots and enqueue application commands. They never mutate the
-world. `AuthoritativeGameLoop` is scheduled by one `authoritative-game-loop` executor. It drains commands before
+world. `AuthoritativeGameLoop` is scheduled by one `authoritative-game-loop` executor per running lobby. It drains commands before
 advancing a fixed `1/60` second simulation step. Client sequence numbers discard delayed input, and a jump occurs
 only on a false-to-true input transition while the character is grounded.
 
-The server reserves at most four slots. `HELLO` becomes `JoinPlayerCommand`; accepted clients receive their server
-assigned player UUID and slot in `WELCOME`. `INPUT` becomes `InputCommand`; clients cannot send coordinates,
-velocity, or collision results. Disconnect becomes `LeavePlayerCommand`, freeing the slot for reconnection.
-The first four joins receive unique player UUIDs and slots 0–3; a fifth receives `SERVER_FULL` without affecting
-the match. Slot 0/1 spawns remain x=180/738; slots 2/3 spawn at x=60/858, clear of other initial player/NPC bodies.
-Disconnect removes the correct character/target and frees its reservation; replacement uses that slot with a
-fresh player UUID. `PlayerSlots`, retained input, target selection, queues and tick rates need no new structure.
+Each lobby reserves at most four slots. `CREATE_LOBBY` and `JOIN_LOBBY` validate the build and reserve
+membership; accepted clients receive their server-assigned player UUID and slot in `WELCOME`, followed by
+`LOBBY_STATE`. The mediator retains the validated `JoinPlayerCommand` until the host sends `START_GAME`.
+It queues the roster, publishes `RUNNING`, and starts the runtime. World initialization, joins, input and
+removals execute on that runtime's owner thread. `INPUT` becomes `InputCommand` only while running.
+Clients cannot supply coordinates, velocity, or collision results.
+
+A fifth waiting-room join receives `LOBBY_FULL`. Guest departure frees a waiting slot; replacement gets a fresh
+player UUID. Started lobbies reject every join with `LOBBY_STARTED`, including reconnects. A playing guest's
+departure queues `LeavePlayerCommand`. Host departure closes the entire lobby and schedules runtime cleanup
+outside callbacks and the mediator lock. Server shutdown waits for all cleanup workers. Slot 0/1 spawns remain
+x=180/738; slots 2/3 remain x=60/858. No gameplay rules changed.
 
 Snapshots are immutable `ArenaSnapshot`, `PlatformSnapshot`, `PlayerSnapshot`, `ItemSnapshot`, and `NPCSnapshot`
 records. Player snapshots include stress; NPC snapshots include precise geometry, validated activity strings,
@@ -176,8 +183,8 @@ complete contract, report markers, transition rules and demo.
 
 ## Protocol and validation
 
-The sealed message vocabulary uses stable names: `HELLO`, `WELCOME`, `INPUT`, `WORLD_SNAPSHOT`, `PING`, `PONG`,
-`GAME_EVENT`, and `ERROR`. Jackson uses an explicit subtype allowlist rather than Java class names. The codec
+The sealed message vocabulary uses stable names: `CREATE_LOBBY`, `JOIN_LOBBY`, `WELCOME`, `LOBBY_STATE`,
+`START_GAME`, `LOBBY_CLOSED`, `INPUT`, `WORLD_SNAPSHOT`, `PING`, `PONG`, `GAME_EVENT`, and `ERROR`. Jackson uses an explicit subtype allowlist rather than Java class names. The codec
 rejects unknown
 types/properties, duplicate keys, trailing JSON, malformed records, null messages, and oversized text.
 
@@ -191,7 +198,7 @@ DTOs and never expose exceptions or domain objects.
 The client-side Facade is `GameClientFacade`. Its two clients, `ConnectionWindow` and the windowless
 `GameClientFacadeDemo`, each own a separate facade with one `CharacterSelection`, one `CommandHistory`, and one
 `ClientConnection`. No subsystem depends on the facade type or is exposed through a getter. The facade executes
-the existing commands through history, reads selection for `HELLO`, and delegates transport/input/observer
+the existing commands through history, reads selection for `CREATE_LOBBY` / `JOIN_LOBBY`, and delegates transport/input/observer
 registration to the connection. Rendering, input-device choice, SDL, sizing and focus remain in the window.
 See the [demo commands](../README.md#facade-demonstration-without-a-game-window).
 
@@ -205,8 +212,8 @@ closing after disconnecting) are delivered once per observer.
 
 Character and stat selection before joining use a client-local Command pattern. `UndoableCommand` declares
 `execute()` and `undo()`; `SelectCharacterCommand` and `ChangeStatCommand` capture an immutable receiver snapshot
-at execution time and restore it on undo. `CharacterSelection` is the receiver, initially `Hello.DEFAULT_CHARACTER`
-with 100/100/100 stats, and accepts only `Hello.CHARACTERS`. Selecting another character resets all three stats;
+at execution time and restore it on undo. `CharacterSelection` is the receiver, initially `CreateLobby.DEFAULT_CHARACTER`
+with 100/100/100 stats, and accepts only `CreateLobby.CHARACTERS`. Selecting another character resets all three stats;
 undo restores the exact previous character and allocation. See the [UML class diagram](character-selection.md).
 `CommandHistory` is the invoker: it pushes successfully executed commands onto a stack and undoes them in reverse
 order. Empty-history undo is a no-op; clearing history retains the receiver's current choice.
@@ -219,11 +226,11 @@ clamped to the available budget. Values preview during a drag and commit once on
 also commit. `ConnectionWindow` requests changes through its facade and provides **Undo change**. The panel
 communicates through callbacks and has no dependency on history. Its programmatic setters update cards and
 sliders without emitting actions, so undo does not create commands. The receiver, history and
-UI are owned by the EDT. Selection, sliders, and undo are disabled while connecting or connected. Receiving `WELCOME`
+UI are owned by the EDT. Selection, sliders, and undo are disabled while connecting, waiting, or playing. Receiving `WELCOME`
 clears history on the EDT and makes the current choice the baseline; validation failures, connection failures and
 cancelled attempts preserve history. Disconnecting allows new changes and undo back to that baseline. History is
-per facade and lives only for that client's lifetime. Connect reads the receiver's character and stat allocation
-for `HELLO`. Its optional `stats` object defaults to 100/100/100 when omitted. The protocol requires exactly three
+per facade and lives only for that client's lifetime. Create/join reads the receiver's character and stat allocation
+for the lobby admission request. Its optional `stats` object defaults to 100/100/100 when omitted. The protocol requires exactly three
 integer fields; `CharacterBuild` in the domain validates ranges, steps, and budget. The client mirrors these
 constraints for feedback but has no domain dependency. The server translates the DTO before reserving a slot;
 invalid builds return `INVALID_STATS` without queueing a join or consuming a reservation. `JoinPlayerCommand`

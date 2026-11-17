@@ -11,10 +11,12 @@ import javax.swing.SwingUtilities;
 import lt.ktu.paskutinisatsiskaitymas.protocol.ArenaSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.ErrorMessage;
 import lt.ktu.paskutinisatsiskaitymas.protocol.GameEventMessage;
-import lt.ktu.paskutinisatsiskaitymas.protocol.Hello;
+import lt.ktu.paskutinisatsiskaitymas.protocol.CreateLobby;
 import lt.ktu.paskutinisatsiskaitymas.protocol.InputState;
 import lt.ktu.paskutinisatsiskaitymas.protocol.StatAllocation;
 import lt.ktu.paskutinisatsiskaitymas.protocol.Welcome;
+import lt.ktu.paskutinisatsiskaitymas.protocol.LobbyState;
+import lt.ktu.paskutinisatsiskaitymas.protocol.LobbyMember;
 import lt.ktu.paskutinisatsiskaitymas.protocol.WorldSnapshot;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -27,10 +29,10 @@ class GameClientFacadeTest {
         GameClientFacade facade = new GameClientFacade();
         try {
             edt(() -> {
-                assertEquals(Hello.DEFAULT_CHARACTER, facade.selectedCharacter());
+                assertEquals(CreateLobby.DEFAULT_CHARACTER, facade.selectedCharacter());
                 assertEquals(StatAllocation.DEFAULT, facade.stats());
                 facade.undoSelection();
-                facade.selectCharacter(Hello.DEFAULT_CHARACTER);
+                facade.selectCharacter(CreateLobby.DEFAULT_CHARACTER);
                 facade.changeStat(SelectableStat.HEALTH, 100);
                 assertFalse(facade.canUndoSelection());
                 facade.changeStat(SelectableStat.HEALTH, 75);
@@ -39,7 +41,7 @@ class GameClientFacadeTest {
                 assertEquals(StatAllocation.DEFAULT, facade.stats());
                 facade.selectCharacter("GOGIS");
                 facade.undoSelection();
-                assertEquals(Hello.DEFAULT_CHARACTER, facade.selectedCharacter());
+                assertEquals(CreateLobby.DEFAULT_CHARACTER, facade.selectedCharacter());
                 assertEquals(new StatAllocation(75, 125, 100), facade.stats());
                 facade.changeStat(SelectableStat.SPEED, 125);
                 facade.undoSelection();
@@ -90,10 +92,10 @@ class GameClientFacadeTest {
                 first.changeStat(SelectableStat.HEALTH, 75);
                 second.selectCharacter("VACIJUS");
                 second.addObserver(events);
-                second.connect(peer.address(), "Second");
+                second.createLobby(peer.address(), "Second");
                 first.close();
             });
-            assertEquals("VACIJUS", nextHello(peer).character());
+            assertEquals("VACIJUS", nextCreateLobby(peer).character());
             peer.send(welcome("Second"));
             events.joined.get(5, TimeUnit.SECONDS);
             edt(() -> {
@@ -131,17 +133,19 @@ class GameClientFacadeTest {
                         secondObserver.complete(welcome);
                     }
                 });
-                facade.connect(peer.address(), "Chosen");
+                facade.createLobby(peer.address(), "Chosen");
                 assertTrue(facade.canUndoSelection(), "Starting transport must retain history");
                 facade.sendInput(PlayerInput.NONE);
             });
-            Hello hello = nextHello(peer);
-            assertEquals(new Hello("Chosen", "JURGELINIS", new StatAllocation(75, 125, 100)), hello);
+            CreateLobby hello = nextCreateLobby(peer);
+            assertEquals(new CreateLobby("Chosen", "JURGELINIS", new StatAllocation(75, 125, 100)), hello);
             assertNull(peer.received.poll(), "Input before WELCOME must be ignored");
             Welcome welcome = welcome("Chosen");
             WorldSnapshot world = snapshot();
             GameEventMessage notification = new GameEventMessage("TEST", "Facade notification");
             peer.send(welcome);
+            peer.send(new LobbyState("ABC123", welcome.playerId(), LobbyState.Phase.RUNNING,
+                    List.of(new LobbyMember(welcome.playerId(), welcome.slot(), welcome.nickname(), "JURGELINIS"))));
             peer.send(world);
             peer.send(notification);
             assertEquals(welcome, events.joined.get(5, TimeUnit.SECONDS));
@@ -186,24 +190,24 @@ class GameClientFacadeTest {
                 facade.selectCharacter("VACIJUS");
                 facade.addObserver(events);
                 assertThrows(IllegalArgumentException.class,
-                        () -> facade.connect(URI.create("http://localhost/game"), "Invalid"));
-                assertThrows(IllegalArgumentException.class, () -> facade.connect(rejected.address(), " "));
+                        () -> facade.createLobby(URI.create("http://localhost/game"), "Invalid"));
+                assertThrows(IllegalArgumentException.class, () -> facade.createLobby(rejected.address(), " "));
                 assertTrue(facade.canUndoSelection());
-                facade.connect(rejected.address(), "Rejected");
+                facade.createLobby(rejected.address(), "Rejected");
             });
-            nextHello(rejected);
+            nextCreateLobby(rejected);
             rejected.send(new ErrorMessage("SERVER_FULL", "No free slot"));
             events.error.get(5, TimeUnit.SECONDS);
             edt(() -> {
                 assertTrue(facade.canUndoSelection());
-                facade.connect(cancelled.address(), "Cancelled");
+                facade.createLobby(cancelled.address(), "Cancelled");
             });
-            nextHello(cancelled);
+            nextCreateLobby(cancelled);
             edt(() -> {
                 facade.disconnect();
                 assertTrue(facade.canUndoSelection());
                 facade.undoSelection();
-                assertEquals(Hello.DEFAULT_CHARACTER, facade.selectedCharacter());
+                assertEquals(CreateLobby.DEFAULT_CHARACTER, facade.selectedCharacter());
                 assertFalse(facade.canUndoSelection());
             });
             cancelled.clientClosed.get(5, TimeUnit.SECONDS);
@@ -222,9 +226,9 @@ class GameClientFacadeTest {
             edt(() -> {
                 facade.selectCharacter("GOGIS");
                 facade.addObserver(events);
-                facade.connect(old.address(), "Old");
+                facade.createLobby(old.address(), "Old");
             });
-            nextHello(old);
+            nextCreateLobby(old);
             edt(() -> {
                 try {
                     old.send(welcome("Old"));
@@ -238,9 +242,9 @@ class GameClientFacadeTest {
                 }
                 facade.disconnect();
                 facade.selectCharacter("VACIJUS");
-                facade.connect(current.address(), "Current");
+                facade.createLobby(current.address(), "Current");
             });
-            assertEquals("VACIJUS", nextHello(current).character());
+            assertEquals("VACIJUS", nextCreateLobby(current).character());
             edt(() -> {
                 assertTrue(facade.canUndoSelection(), "Queued old WELCOME must not clear new history");
                 assertTrue(events.gameplay.isEmpty(), "All old queued gameplay/status events must be dropped");
@@ -266,13 +270,13 @@ class GameClientFacadeTest {
             edt(() -> {
                 facade.selectCharacter("GOGIS");
                 facade.addObserver(events);
-                facade.connect(unavailable, "Unavailable");
+                facade.createLobby(unavailable, "Unavailable");
             });
             events.error.get(5, TimeUnit.SECONDS);
             edt(() -> {
                 assertTrue(facade.canUndoSelection());
                 facade.undoSelection();
-                assertEquals(Hello.DEFAULT_CHARACTER, facade.selectedCharacter());
+                assertEquals(CreateLobby.DEFAULT_CHARACTER, facade.selectedCharacter());
             });
         } finally {
             edt(facade::close);
@@ -286,15 +290,15 @@ class GameClientFacadeTest {
             Events events = new Events(facade);
             edt(() -> {
                 facade.addObserver(events);
-                facade.connect(peer.address(), "Closing");
+                facade.createLobby(peer.address(), "Closing");
             });
-            nextHello(peer);
+            nextCreateLobby(peer);
             peer.send(welcome("Closing"));
             events.joined.get(5, TimeUnit.SECONDS);
             edt(() -> {
                 facade.close();
                 facade.close();
-                assertThrows(IllegalStateException.class, () -> facade.connect(peer.address(), "Again"));
+                assertThrows(IllegalStateException.class, () -> facade.createLobby(peer.address(), "Again"));
             });
             peer.clientClosed.get(5, TimeUnit.SECONDS);
         } finally {
@@ -306,8 +310,8 @@ class GameClientFacadeTest {
         SwingUtilities.invokeAndWait(action);
     }
 
-    private static Hello nextHello(FacadeWebSocketPeer peer) throws Exception {
-        return assertInstanceOf(Hello.class, peer.received.poll(5, TimeUnit.SECONDS));
+    private static CreateLobby nextCreateLobby(FacadeWebSocketPeer peer) throws Exception {
+        return assertInstanceOf(CreateLobby.class, peer.received.poll(5, TimeUnit.SECONDS));
     }
 
     private static Welcome welcome(String nickname) {

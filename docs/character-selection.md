@@ -62,7 +62,7 @@ classDiagram
         class ClientConnection
     }
     namespace Protocol {
-        class Hello {
+        class CreateLobby {
             +nickname : String
             +character : String
             +stats : StatAllocation
@@ -79,6 +79,7 @@ classDiagram
     }
     namespace Server {
         class MessageRouter
+        class ServerLobbyMediator
         class SnapshotMapper
     }
     namespace Application {
@@ -118,12 +119,13 @@ classDiagram
     CharacterSelection ..> SelectionState : snapshot and restore
     CommandHistory o-- UndoableCommand : successful commands in stack
     CharacterSelection --> StatAllocation
-    GameClientFacade --> ClientConnection : final choice on Connect
-    ClientConnection ..> Hello : sends JSON
-    Hello *-- StatAllocation
-    MessageRouter ..> Hello : receives JSON
-    MessageRouter ..> CharacterBuild : validates before reserving slot
-    MessageRouter ..> JoinPlayerCommand : enqueues
+    GameClientFacade --> ClientConnection : final choice on create/join
+    ClientConnection ..> CreateLobby : sends JSON
+    CreateLobby *-- StatAllocation
+    MessageRouter ..> CreateLobby : receives JSON
+    MessageRouter --> ServerLobbyMediator : delegates admission
+    ServerLobbyMediator ..> CharacterBuild : validates before reserving slot
+    ServerLobbyMediator ..> JoinPlayerCommand : queues roster when host starts
     JoinPlayerCommand --> CharacterBuild
     MatchController ..> JoinPlayerCommand : handles in game loop
     MatchController --> GameSession : applies join
@@ -143,16 +145,20 @@ classDiagram
   100/100/100; undo restores the previous character together with its customized values.
 - History undoes commands in reverse order. Empty undo does nothing; clearing history leaves selection intact.
   Programmatic card and slider synchronization emits no callbacks.
-- Connecting disables editing. Failures and cancellations retain history. `WELCOME` clears it, retaining the
+- Connecting, waiting in a lobby, and playing disable editing. Failures and cancellations retain history. `WELCOME` clears it, retaining the
   selected build as the new baseline before notifying clients on the EDT. Each facade owns its history until
   closed; queued events from cancelled/older sessions are discarded.
+
+Character selection comes before lobby creation/joining. `JoinLobby` carries the same selection fields as
+`CreateLobby`, plus the join code. Admission enters a waiting room; only the host starts gameplay.
+Leaving or host departure restores the picker with the accepted build. See [Mediator and lobbies](mediator-lobbies.md).
 
 ## Budget and server boundary
 
 Each stat is 50–150% in steps of 5; their total cannot exceed 300. Lower a stat to free points for another;
 unused points are permitted. The panel clamps increases and shows the remaining points.
 
-`HELLO.stats` contains `healthPercent`, `speedPercent`, and `jumpHeightPercent`; omission means 100/100/100.
+`CREATE_LOBBY.stats` / `JOIN_LOBBY.stats` contains `healthPercent`, `speedPercent`, and `jumpHeightPercent`; omission means 100/100/100.
 The protocol checks the complete integer shape, while the domain owns budget and range validation. The server
 rejects invalid builds with `INVALID_STATS` before reserving a slot or queueing a join. The client cannot supply
 absolute health, velocity, or positions.

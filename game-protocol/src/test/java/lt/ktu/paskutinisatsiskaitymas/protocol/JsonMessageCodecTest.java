@@ -18,7 +18,7 @@ class JsonMessageCodecTest {
     private static final UUID PLAYER_ID = UUID.fromString("66a72e7e-176f-45d7-ae57-3fc543580d66");
 
     static Stream<Message> messages() {
-        return Stream.of(new Hello("Žaidėjas \"A\""),
+        return Stream.of(new CreateLobby("Žaidėjas \"A\""),
                 new Welcome(CONNECTION_ID, PLAYER_ID, 0, "Player"),
                 new Ping("request-1"), new Pong("request-1"),
                 new InputState(7, true, false, true, true, true),
@@ -40,9 +40,9 @@ class JsonMessageCodecTest {
 
     @Test
     void usesStableWireNamesWithoutJavaClassNames() throws Exception {
-        assertEquals("{\"type\":\"HELLO\",\"nickname\":\"Player\",\"character\":\"PATASIJUS\","
+        assertEquals("{\"type\":\"CREATE_LOBBY\",\"nickname\":\"Player\",\"character\":\"PATASIJUS\","
                 + "\"stats\":{\"healthPercent\":100,\"speedPercent\":100,\"jumpHeightPercent\":100}}",
-                codec.encode(new Hello("Player")));
+                codec.encode(new CreateLobby("Player")));
         assertEquals(new Ping("a"), codec.decode("{\"type\":\"PING\",\"requestId\":\"a\"}"));
         assertTrue(codec.encode(new InputState(0, false, true, false, false, false)).contains("\"type\":\"INPUT\""));
         assertFalse(codec.encode(messages().toList().get(5)).contains("lt.ktu"));
@@ -50,13 +50,13 @@ class JsonMessageCodecTest {
 
     @Test
     void helloDefaultsOmittedFieldsAndRoundTripsCustomAllocations() throws Exception {
-        assertEquals(new Hello("Player"), codec.decode("{\"type\":\"HELLO\",\"nickname\":\"Player\"}"));
-        assertEquals(new Hello("Player", "GOGIS"),
-                codec.decode("{\"type\":\"HELLO\",\"nickname\":\"Player\",\"character\":\"GOGIS\"}"));
-        Hello custom = new Hello("Player", "GOGIS", new StatAllocation(75, 125, 100));
+        assertEquals(new CreateLobby("Player"), codec.decode("{\"type\":\"CREATE_LOBBY\",\"nickname\":\"Player\"}"));
+        assertEquals(new CreateLobby("Player", "GOGIS"),
+                codec.decode("{\"type\":\"CREATE_LOBBY\",\"nickname\":\"Player\",\"character\":\"GOGIS\"}"));
+        CreateLobby custom = new CreateLobby("Player", "GOGIS", new StatAllocation(75, 125, 100));
         assertEquals(custom, codec.decode(codec.encode(custom)));
         // Semantic gameplay limits belong to the domain, rather than transport decoding.
-        Hello outOfBudget = new Hello("Player", "GOGIS", new StatAllocation(150, 150, 150));
+        CreateLobby outOfBudget = new CreateLobby("Player", "GOGIS", new StatAllocation(150, 150, 150));
         assertEquals(outOfBudget, codec.decode(codec.encode(outOfBudget)));
     }
 
@@ -73,7 +73,7 @@ class JsonMessageCodecTest {
         "{\"healthPercent\":100,\"healthPercent\":75,\"speedPercent\":100,\"jumpHeightPercent\":100}"})
     void rejectsIncompleteOrNonIntegerStatFields(String stats) {
         assertThrows(ProtocolException.class, () -> codec.decode(
-                "{\"type\":\"HELLO\",\"nickname\":\"Player\",\"stats\":" + stats + "}"));
+                "{\"type\":\"CREATE_LOBBY\",\"nickname\":\"Player\",\"stats\":" + stats + "}"));
     }
 
     @Test
@@ -102,12 +102,12 @@ class JsonMessageCodecTest {
     @ValueSource(strings = {"", "null", "[]", "{}", "not json",
         "{\"type\":\"MOVE\"}",
         "{\"type\":\"java.lang.Runtime\"}",
-        "{\"type\":\"HELLO\"}",
-        "{\"type\":\"HELLO\",\"nickname\":\" \"}",
-        "{\"type\":\"HELLO\",\"nickname\":null}",
-        "{\"type\":\"HELLO\",\"nickname\":\"A\",\"extra\":true}",
-        "{\"type\":\"HELLO\",\"nickname\":\"A\",\"nickname\":\"B\"}",
-        "{\"type\":\"HELLO\",\"nickname\":\"A\"} {}",
+        "{\"type\":\"CREATE_LOBBY\"}",
+        "{\"type\":\"CREATE_LOBBY\",\"nickname\":\" \"}",
+        "{\"type\":\"CREATE_LOBBY\",\"nickname\":null}",
+        "{\"type\":\"CREATE_LOBBY\",\"nickname\":\"A\",\"extra\":true}",
+        "{\"type\":\"CREATE_LOBBY\",\"nickname\":\"A\",\"nickname\":\"B\"}",
+        "{\"type\":\"CREATE_LOBBY\",\"nickname\":\"A\"} {}",
         "{\"type\":\"INPUT\",\"sequence\":-1,\"left\":false,\"right\":false,\"jump\":false}",
         "{\"type\":\"INPUT\",\"sequence\":0,\"left\":false,\"right\":false,\"jump\":false,\"x\":100}",
         "{\"type\":\"WELCOME\",\"connectionId\":\"bad-id\",\"playerId\":\"66a72e7e-176f-45d7-ae57-3fc543580d66\",\"slot\":0,\"nickname\":\"A\"}"})
@@ -154,7 +154,7 @@ class JsonMessageCodecTest {
     @Test
     void rejectsOversizedMessagesAndFields() {
         assertThrows(ProtocolException.class, () -> codec.decode(" ".repeat(JsonMessageCodec.MAX_MESSAGE_CHARACTERS + 1)));
-        assertThrows(IllegalArgumentException.class, () -> new Hello("x".repeat(33)));
+        assertThrows(IllegalArgumentException.class, () -> new CreateLobby("x".repeat(33)));
         assertThrows(IllegalArgumentException.class, () -> new Welcome(CONNECTION_ID, PLAYER_ID, 4, "Player"));
         assertThrows(IllegalArgumentException.class, () -> new PlayerSnapshot(
                 PLAYER_ID, 0, "Player", 0, 0, -1, 64, false, false, 0, 100, 100, 0, "WARRIOR", false));

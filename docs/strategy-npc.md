@@ -335,7 +335,7 @@ All four production strategies demonstrated on NPC 1; flee returned to patrol.
 
 For the multiplayer demonstration, build, run the server and up to four clients as in README, connect, approach an
 NPC, watch labels/poses and stress in the fixed corner cards, then collect a shield or retreat/jump. Disconnect the
-target and confirm its NPC returns to PATROL. Reconnect and observe fresh detection. A fifth player is rejected.
+target and confirm its NPC returns to PATROL. Create a new lobby and observe fresh detection after starting. A fifth waiting-room player is rejected; started lobbies reject all joins.
 Close all clients and stop the server after the demonstration. The deterministic main still uses one player and
 keeps its original slot-0 spawn, so its transcript remains unchanged.
 
@@ -345,7 +345,7 @@ disconnect/reconnect numeric IDs, stress damage, shield blocks/cooldown/attempt 
 requests, fractional motion, arena/platform collision, and matched collection lifecycle. Codec tests cover all
 four activities, double render geometry, facing/sequence and invalid fields. Mapper tests simulate 20 Hz snapshots
 against 60 Hz production steps; real WebSocket tests deliver NPCs to connected peers alongside independent player
-movement and preserve capacity/reconnect/shutdown coverage. Client tests load all four alpha images, check the
+movement and preserve lobby capacity/admission/shutdown coverage. Client tests load all four alpha images, check the
 pose mapping, aspect/contact geometry and sequence latch with an injected deterministic presentation clock.
 
 `NPCPresentationTest` renders `game-client/target/npc-pose-smoke.png` through the actual GamePanel on the EDT for

@@ -11,10 +11,6 @@ import lt.ktu.paskutinisatsiskaitymas.protocol.ErrorMessage;
 import lt.ktu.paskutinisatsiskaitymas.protocol.JsonMessageCodec;
 import lt.ktu.paskutinisatsiskaitymas.protocol.Message;
 import lt.ktu.paskutinisatsiskaitymas.protocol.ProtocolException;
-import lt.ktu.paskutinisatsiskaitymas.protocol.WorldSnapshot;
-import lt.ktu.paskutinisatsiskaitymas.application.EventLogObserver;
-import lt.ktu.paskutinisatsiskaitymas.application.StatsObserver;
-import lt.ktu.paskutinisatsiskaitymas.protocol.GameEventMessage;
 import org.java_websocket.WebSocket;
 import org.java_websocket.drafts.Draft_6455;
 import org.java_websocket.handshake.ClientHandshake;
@@ -24,8 +20,7 @@ import org.java_websocket.server.WebSocketServer;
 public final class GameWebSocketServer extends WebSocketServer implements AutoCloseable {
     private static final System.Logger LOG = System.getLogger(GameWebSocketServer.class.getName());
     private final JsonMessageCodec codec = new JsonMessageCodec();
-    private final PlayerSlots slots = new PlayerSlots();
-    private final GameRuntime runtime;
+    private final ServerLobbyMediator mediator;
     private final MessageRouter router;
     private final CompletableFuture<Void> started = new CompletableFuture<>();
 
@@ -36,8 +31,8 @@ public final class GameWebSocketServer extends WebSocketServer implements AutoCl
     public GameWebSocketServer(InetSocketAddress address, Arena arena) {
         // Bound frames and reassembled messages as well as decoded JSON text.
         super(address, 2, List.of(new Draft_6455(List.of(), JsonMessageCodec.MAX_MESSAGE_CHARACTERS * 4)));
-        runtime = new GameRuntime(this::broadcastSnapshot, this::broadcastEvent, arena);
-        router = new MessageRouter(runtime.commands(), slots);
+        mediator = new ServerLobbyMediator(arena);
+        router = new MessageRouter(mediator);
         setConnectionLostTimeout(30);
     }
 
@@ -51,7 +46,7 @@ public final class GameWebSocketServer extends WebSocketServer implements AutoCl
             connection.close(1008, "Use /game");
             return;
         }
-        ConnectionSession session = new ConnectionSession();
+        ConnectionSession session = new ConnectionSession(message -> send(connection, message));
         connection.setAttachment(session);
         LOG.log(System.Logger.Level.INFO, "Connected {0} from {1}", session.id, connection.getRemoteSocketAddress());
     }
@@ -63,10 +58,7 @@ public final class GameWebSocketServer extends WebSocketServer implements AutoCl
             return;
         }
         try {
-            Message response = router.route(session, codec.decode(text));
-            if (response != null) {
-                send(connection, response);
-            }
+            router.route(session, codec.decode(text));
         } catch (ProtocolException exception) {
             send(connection, new ErrorMessage("INVALID_MESSAGE", "Invalid or unsupported JSON message"));
         }
@@ -82,33 +74,9 @@ public final class GameWebSocketServer extends WebSocketServer implements AutoCl
             if (connection.isOpen()) {
                 connection.send(codec.encode(message));
             }
-        } catch (ProtocolException exception) {
+        } catch (ProtocolException | RuntimeException exception) {
             LOG.log(System.Logger.Level.ERROR, "Cannot encode response", exception);
             connection.close(1011, "Cannot encode response");
-        }
-    }
-
-    private void broadcastSnapshot(WorldSnapshot snapshot) {
-        broadcast(snapshot);
-    }
-
-    private void broadcastEvent(GameEventMessage event) {
-        broadcast(event);
-    }
-
-    private void broadcast(Message message) {
-        final String json;
-        try {
-            json = codec.encode(message);
-        } catch (ProtocolException exception) {
-            LOG.log(System.Logger.Level.ERROR, "Cannot encode broadcast message", exception);
-            return;
-        }
-        for (WebSocket connection : getConnections()) {
-            ConnectionSession session = connection.getAttachment();
-            if (connection.isOpen() && session != null && session.playerId != null) {
-                connection.send(json);
-            }
         }
     }
 
@@ -131,7 +99,6 @@ public final class GameWebSocketServer extends WebSocketServer implements AutoCl
     public void onStart() {
         LOG.log(System.Logger.Level.INFO, "Listening on {0}:{1}/game", getAddress().getHostString(), Integer.toString(getPort()));
         started.complete(null);
-        runtime.start();
     }
 
     @Override
@@ -139,11 +106,11 @@ public final class GameWebSocketServer extends WebSocketServer implements AutoCl
         try {
             stop(3000, "Server shutting down");
         } finally {
-            runtime.close();
+            mediator.close();
         }
     }
 
     boolean isGameLoopTerminated() {
-        return runtime.isTerminated();
+        return mediator.isTerminated();
     }
 }

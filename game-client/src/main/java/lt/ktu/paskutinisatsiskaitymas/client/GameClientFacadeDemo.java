@@ -5,6 +5,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import javax.swing.SwingUtilities;
 import lt.ktu.paskutinisatsiskaitymas.protocol.Welcome;
+import lt.ktu.paskutinisatsiskaitymas.protocol.LobbyState;
 import lt.ktu.paskutinisatsiskaitymas.protocol.WorldSnapshot;
 
 /** Second facade client: uses the EDT for local state, with bounded network waits on the main thread. */
@@ -35,12 +36,21 @@ public final class GameClientFacadeDemo {
                             snapshot.completeExceptionally(error);
                         }
                         connecting = status.state() == ConnectionStatus.State.CONNECTING
-                                || status.state() == ConnectionStatus.State.CONNECTED;
+                                || status.state() == ConnectionStatus.State.CONNECTED
+                                || status.state() == ConnectionStatus.State.LOBBY;
                     }
 
                     @Override
                     public void onJoined(Welcome welcome) {
                         joined.complete(welcome);
+                    }
+
+                    @Override
+                    public void onLobbyState(LobbyState state) {
+                        if (state.phase() == LobbyState.Phase.WAITING) {
+                            System.out.println("LOBBY: " + state.code());
+                            facade.startGame();
+                        }
                     }
 
                     @Override
@@ -56,7 +66,7 @@ public final class GameClientFacadeDemo {
                 printSelection("Changed character", facade);
                 facade.undoSelection();
                 printSelection("Undo restored", facade);
-                facade.connect(address, nickname);
+                facade.createLobby(address, nickname);
             });
             CompletableFuture.allOf(joined, snapshot).get(12, TimeUnit.SECONDS);
             Welcome welcome = joined.join();

@@ -6,6 +6,9 @@ import javax.swing.SwingUtilities;
 import lt.ktu.paskutinisatsiskaitymas.protocol.GameEventMessage;
 import lt.ktu.paskutinisatsiskaitymas.protocol.StatAllocation;
 import lt.ktu.paskutinisatsiskaitymas.protocol.Welcome;
+import lt.ktu.paskutinisatsiskaitymas.protocol.LobbyState;
+import lt.ktu.paskutinisatsiskaitymas.protocol.LobbyClosed;
+import lt.ktu.paskutinisatsiskaitymas.protocol.ErrorMessage;
 import lt.ktu.paskutinisatsiskaitymas.protocol.WorldSnapshot;
 
 /**
@@ -59,12 +62,25 @@ public final class GameClientFacade implements AutoCloseable {
         return history.canUndo();
     }
 
-    public void connect(URI address, String nickname) {
+    public void createLobby(URI address, String nickname) {
         requireEdt();
         synchronized (connection) {
             generation++;
-            connection.connect(address, nickname, selection.selectedCharacter(), selection.stats());
+            connection.createLobby(address, nickname, selection.selectedCharacter(), selection.stats());
         }
+    }
+
+    public void joinLobby(URI address, String nickname, String code) {
+        requireEdt();
+        synchronized (connection) {
+            generation++;
+            connection.joinLobby(address, nickname, selection.selectedCharacter(), selection.stats(), code);
+        }
+    }
+
+    public void startGame() {
+        requireEdt();
+        connection.startGame();
     }
 
     public void disconnect() {
@@ -103,6 +119,21 @@ public final class GameClientFacade implements AutoCloseable {
                         observer.onConnectionStatus(status);
                     }
                 });
+            }
+
+            @Override
+            public void onLobbyState(LobbyState state) {
+                dispatch(() -> observer.onLobbyState(state));
+            }
+
+            @Override
+            public void onLobbyClosed(LobbyClosed closure) {
+                dispatch(() -> observer.onLobbyClosed(closure));
+            }
+
+            @Override
+            public void onRequestError(ErrorMessage error) {
+                dispatch(() -> observer.onRequestError(error));
             }
 
             @Override

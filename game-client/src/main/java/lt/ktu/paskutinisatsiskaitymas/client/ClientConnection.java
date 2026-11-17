@@ -10,7 +10,11 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.TimeUnit;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
-import lt.ktu.paskutinisatsiskaitymas.protocol.Hello;
+import lt.ktu.paskutinisatsiskaitymas.protocol.CreateLobby;
+import lt.ktu.paskutinisatsiskaitymas.protocol.JoinLobby;
+import lt.ktu.paskutinisatsiskaitymas.protocol.StartGame;
+import lt.ktu.paskutinisatsiskaitymas.protocol.LobbyState;
+import lt.ktu.paskutinisatsiskaitymas.protocol.Message;
 import lt.ktu.paskutinisatsiskaitymas.protocol.InputState;
 import lt.ktu.paskutinisatsiskaitymas.protocol.JsonMessageCodec;
 import lt.ktu.paskutinisatsiskaitymas.protocol.ProtocolException;
@@ -29,6 +33,7 @@ public final class ClientConnection implements AutoCloseable {
     private long generation;
     private long inputSequence;
     private boolean closed;
+    private boolean playing;
 
     public ClientConnection(ClientEvents observer) {
         addObserver(observer);
@@ -42,15 +47,23 @@ public final class ClientConnection implements AutoCloseable {
         observers.remove(observer);
     }
 
-    public synchronized void connect(URI address, String nickname) {
-        connect(address, nickname, Hello.DEFAULT_CHARACTER);
+    public synchronized void createLobby(URI address, String nickname) {
+        createLobby(address, nickname, CreateLobby.DEFAULT_CHARACTER);
     }
 
-    public synchronized void connect(URI address, String nickname, String character) {
-        connect(address, nickname, character, StatAllocation.DEFAULT);
+    public synchronized void createLobby(URI address, String nickname, String character) {
+        createLobby(address, nickname, character, StatAllocation.DEFAULT);
     }
 
-    public synchronized void connect(URI address, String nickname, String character, StatAllocation stats) {
+    public synchronized void createLobby(URI address, String nickname, String character, StatAllocation stats) {
+        connect(address, new CreateLobby(nickname, character, stats));
+    }
+
+    public synchronized void joinLobby(URI address, String nickname, String character, StatAllocation stats, String code) {
+        connect(address, new JoinLobby(code, nickname, character, stats));
+    }
+
+    private void connect(URI address, Message request) {
         if (closed) {
             throw new IllegalStateException("Client has closed");
         }
@@ -60,9 +73,9 @@ public final class ClientConnection implements AutoCloseable {
         }
         final String hello;
         try {
-            hello = codec.encode(new Hello(nickname, character, stats));
+            hello = codec.encode(request);
         } catch (ProtocolException exception) {
-            throw new IllegalArgumentException("Cannot encode HELLO", exception);
+            throw new IllegalArgumentException("Cannot encode lobby request", exception);
         }
         disconnect();
         long attempt = generation;
@@ -84,6 +97,7 @@ public final class ClientConnection implements AutoCloseable {
     }
 
     public synchronized void disconnect() {
+        playing = false;
         generation++; // Ignore all late callbacks from the previous connection attempt.
         if (handshake != null) {
             handshake.cancel(false);
@@ -107,7 +121,7 @@ public final class ClientConnection implements AutoCloseable {
     }
 
     public synchronized void sendInput(boolean left, boolean right, boolean jump, boolean ranged, boolean melee) {
-        if (socket == null || handshake == null || !handshake.isDone()
+        if (!playing || socket == null || handshake == null || !handshake.isDone()
                 || handshake.isCompletedExceptionally() || handshake.isCancelled()) {
             return;
         }
@@ -124,6 +138,23 @@ public final class ClientConnection implements AutoCloseable {
                 fail(attempt, "Failed to send input");
             }
         });
+    }
+
+    public synchronized void startGame() {
+        if (playing || socket == null || handshake == null || !handshake.isDone()
+                || handshake.isCompletedExceptionally()) {
+            return;
+        }
+        long attempt = generation;
+        try {
+            socket.sendText(codec.encode(new StartGame()), true).whenComplete((ignored, error) -> {
+                if (error != null) {
+                    fail(attempt, "Failed to start game");
+                }
+            });
+        } catch (ProtocolException exception) {
+            fail(attempt, "Cannot encode start request");
+        }
     }
 
     private synchronized void fail(long attempt, String detail) {
@@ -167,7 +198,7 @@ public final class ClientConnection implements AutoCloseable {
                 socket = webSocket;
                 webSocket.sendText(hello, true).whenComplete((ignored, error) -> {
                     if (error != null) {
-                        fail(attempt, "Failed to send HELLO");
+                        fail(attempt, "Failed to send lobby request");
                     }
                 });
                 webSocket.request(1);
@@ -188,17 +219,46 @@ public final class ClientConnection implements AutoCloseable {
                 if (last) {
                     try {
                         router.route(codec.decode(fragments.toString()), welcome -> {
-                        CompletableFuture<Welcome> activeHandshake = handshake;
-                        if (activeHandshake != null && activeHandshake.complete(welcome)) {
-                            observers.forEach(o -> o.onJoined(welcome));
-                            emit(ConnectionStatus.State.CONNECTED, "Connected as " + welcome.nickname());
-                        } else {
-                            fail(attempt, "Unexpected duplicate WELCOME");
-                        }
-                    },
-                    snapshot -> observers.forEach(o -> o.onSnapshot(snapshot)),
-                    event -> observers.forEach(o -> o.onGameEvent(event)),
-                    error -> fail(attempt, error.code() + ": " + error.message()));
+                            CompletableFuture<Welcome> activeHandshake = handshake;
+                            if (activeHandshake != null && activeHandshake.complete(welcome)) {
+                                observers.forEach(o -> o.onJoined(welcome));
+                                emit(ConnectionStatus.State.LOBBY, "In lobby as " + welcome.nickname());
+                            } else {
+                                fail(attempt, "Unexpected duplicate WELCOME");
+                            }
+                        },
+                        snapshot -> {
+                            if (playing) {
+                                observers.forEach(o -> o.onSnapshot(snapshot));
+                            }
+                        },
+                        event -> {
+                            if (playing) {
+                                observers.forEach(o -> o.onGameEvent(event));
+                            }
+                        },
+                        state -> {
+                            if (handshake == null || !handshake.isDone() || handshake.isCompletedExceptionally()) {
+                                fail(attempt, "Lobby state arrived before admission");
+                                return;
+                            }
+                            playing = state.phase() == LobbyState.Phase.RUNNING;
+                            observers.forEach(o -> o.onLobbyState(state));
+                            emit(playing ? ConnectionStatus.State.CONNECTED : ConnectionStatus.State.LOBBY,
+                                    playing ? "Playing in lobby " + state.code() : "Waiting in lobby " + state.code());
+                        },
+                        closure -> {
+                            observers.forEach(o -> o.onLobbyClosed(closure));
+                            disconnect();
+                            emit(ConnectionStatus.State.DISCONNECTED, closure.reason());
+                        },
+                        error -> {
+                            if (handshake != null && handshake.isDone() && !handshake.isCompletedExceptionally()) {
+                                observers.forEach(o -> o.onRequestError(error));
+                            } else {
+                                fail(attempt, error.code() + ": " + error.message());
+                            }
+                        });
                     } catch (ProtocolException exception) {
                         fail(attempt, "Invalid server message");
                     } finally {
