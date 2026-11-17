@@ -448,3 +448,51 @@ java -cp game-domain/target/game-domain.jar lt.ktu.paskutinisatsiskaitymas.domai
 
 Uses the real Director with Combat, Training and Combat again, showing that reusing a builder does not accumulate
 surfaces or NPC recipes. See [docs/builder-arenas.md](docs/builder-arenas.md) for responsibilities and UML additions.
+
+## Particles (client-only visual effects)
+
+`game-client` renders chunky pixel-art particles for ranged shots, projectile hits, powerup pickups, active speed and jump boosts, item spawn sparkle and idle shimmer, jump puffs, landing dust scaled by fall height, moving-platform dust
+and footsteps. They are presentation only: `ParticleTriggers` derives each burst by comparing two consecutive
+authoritative `WorldSnapshot`s on the EDT, so the protocol, server and domain are unchanged.
+
+Particles use the **Flyweight** pattern. `ParticleType` is the flyweight: the immutable, shared state of one
+`ParticleKind` (colour, size, lifetime, physics constants, the pre-rendered sprite and the fade composites).
+`ParticleTypeFactory` hands out exactly one `ParticleType` per kind. Each `Particle` keeps only its extrinsic state
+(position, velocity, age) plus a reference to its type, and passes that state to `ParticleType.draw`. The earlier
+version gave every particle its own copy and sprite; its measurements were recorded with
+`implementation=naive`, the current ones with `implementation=flyweight`. A quick headless check of heap per
+particle and median frame time:
+
+```bash
+./mvnw -B -ntp -pl game-client -am test -Dtest=ParticleBenchmarkTest -Dparticles.benchmark=true -Dsurefire.failIfNoSpecifiedTests=false
+```
+
+Results are written to `game-client/target/particle-benchmark.txt`.
+
+### Particle measurements (Flyweight benchmarks)
+
+Two ways to measure the particle system's speed and memory. Both write a console table and append one row to
+`particle-stats.csv` (override the path with `-Dparticles.stats.csv=<file>`), so runs before and after the Flyweight
+refactor can be compared row by row. The `implementation` column (`ParticleStats.IMPLEMENTATION`) says which build
+produced a row (`naive` before the Flyweight refactor, `flyweight` after).
+
+1. **Gameplay stats** - play normally. The client prints the table and appends a CSV row when the connection ends
+   (stop the server, press Disconnect) or the client window is closed. One row per play session, `scenario=gameplay`.
+2. **Heavy benchmark** - a visible window with many spawners that floods particles and stops by itself:
+
+```bash
+./mvnw -B -ntp -pl game-client -am package -DskipTests
+```
+
+```bash
+java -cp game-client/target/game-client.jar lt.ktu.paskutinisatsiskaitymas.client.ParticleStressBenchmark --duration=20 --warmup=3 --spawners=40 --rate=1000 --cap=200000
+```
+
+`--rate` is particles per second per spawner. The warm-up is not measured. Row has `scenario=stress` and also
+`retained_bytes_per_particle`: heap held per live particle, measured after the run with forced GCs.
+
+Recorded columns: run info (timestamp, implementation, scenario, duration, JVM, cores, max heap, spawners, rate, cap);
+volume (spawned total, per second and per kind, expired, evicted by the cap, peak and average live); speed (update,
+draw and frame time as avg/p50/p95/p99/max in ms, frames, effective FPS, emit ns per particle); memory (bytes
+allocated by particle code in total, per spawned particle and split into emit/update/draw, sprites created and their
+bytes, heap start/peak/end, GC count and pause time, retained bytes per particle).

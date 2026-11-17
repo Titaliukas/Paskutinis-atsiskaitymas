@@ -15,6 +15,7 @@ import java.awt.geom.Ellipse2D;
 import java.awt.geom.Rectangle2D;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
 import javax.swing.JPanel;
 import lt.ktu.paskutinisatsiskaitymas.protocol.ItemSnapshot;
@@ -43,6 +44,12 @@ final class GamePanel extends JPanel {
     private String notification;
     private long notificationUntil;
     private final NPCPresentation npcPresentation = new NPCPresentation();
+    /** Measures one play session: from the first snapshot until the game is cleared (disconnect or window close). */
+    private final ParticleStats particleStats = new ParticleStats("gameplay");
+    private final ParticleSystem particles;
+    private final ParticleTriggers particleTriggers;
+    private final ParticleStatsSink statsSink;
+    private long lastParticleNanos;
     /** Composite root: the panel draws the whole HUD tree through this single element. */
     private final HudElement hud = Hud.create();
     // Reuse the existing UI timer for notification expiry and the short presentation-only attack latch.
@@ -53,15 +60,29 @@ final class GamePanel extends JPanel {
         if (!notificationActive) {
             notification = null;
         }
-        if (!notificationActive && !npcPresentation.hasActiveLatch()) {
+        advanceParticles(System.nanoTime());
+        if (!notificationActive && !npcPresentation.hasActiveLatch() && !particles.isActive()) {
             notificationTimer.stop();
         }
         repaint();
     }
 
+    private void advanceParticles(long nowNanos) {
+        double seconds = lastParticleNanos == 0 ? 0.0 : Math.min(0.1, (nowNanos - lastParticleNanos) / 1e9);
+        lastParticleNanos = nowNanos;
+        particles.update(Math.max(0.0, seconds));
+    }
 
 
     GamePanel() {
+        this(ParticleStatsSink.NONE);
+    }
+
+    /** {@code statsSink} receives the particle measurements of each finished play session. */
+    GamePanel(ParticleStatsSink statsSink) {
+        this.statsSink = statsSink;
+        particles = new ParticleSystem(new Random(), ParticleSystem.DEFAULT_MAX_PARTICLES, particleStats);
+        particleTriggers = new ParticleTriggers(particles);
         setPreferredSize(new Dimension(960, 540));
         setMinimumSize(new Dimension(640, 360));
         setFocusable(true);
@@ -83,23 +104,43 @@ final class GamePanel extends JPanel {
         repaint();
     }
 
+    /** Lets particle effects react to server notifications that snapshots alone cannot attribute. */
+    void onGameEvent(String kind, String text) {
+        if ("ITEM_COLLECTED".equals(kind)) {
+            particleTriggers.itemCollected(text, snapshot, System.nanoTime());
+        }
+    }
+
     void setLocalPlayerId(UUID playerId) {
         localPlayerId = playerId;
         repaint();
     }
 
     void setSnapshot(WorldSnapshot value) {
+        if (!particleStats.running()) {
+            particleStats.start();
+        }
+        long now = System.nanoTime();
+        particleTriggers.process(snapshot, value, now);
+        advanceParticles(now);
         snapshot = value;
         npcPresentation.update(value.npcs());
-        if (npcPresentation.hasActiveLatch()) {
+        if (npcPresentation.hasActiveLatch() || particles.isActive()) {
             notificationTimer.start();
         }
         repaint();
     }
 
     void clearGame() {
+        if (particleStats.running()) {
+            statsSink.publish(particleStats.finish(
+                    Map.of(ParticleStats.PARTICLE_CAP, String.valueOf(ParticleSystem.DEFAULT_MAX_PARTICLES))));
+        }
         snapshot = null;
         npcPresentation.clear();
+        particles.clear();
+        particleTriggers.reset();
+        lastParticleNanos = 0;
         facingRight.clear();
         notificationTimer.stop();
         localPlayerId = null;
@@ -109,6 +150,7 @@ final class GamePanel extends JPanel {
 
     @Override
     protected void paintComponent(Graphics graphics) {
+        long frameStart = System.nanoTime();
         super.paintComponent(graphics);
         Graphics2D g = (Graphics2D) graphics.create();
         try {
@@ -165,9 +207,18 @@ final class GamePanel extends JPanel {
             for (ProjectileSnapshot projectile : snapshot.projectiles()) {
                 drawProjectile(g, projectile, scale, offsetX, offsetY);
             }
+            Graphics2D effects = (Graphics2D) g.create();
+            try {
+                effects.translate(offsetX, offsetY);
+                effects.scale(scale, scale);
+                particles.draw(effects);
+            } finally {
+                effects.dispose();
+            }
             hud.draw(g, new HudContext(getWidth(), getHeight(), snapshot, localPlayerId, notification, assets));
         } finally {
             g.dispose();
+            particleStats.recordFrame(System.nanoTime() - frameStart);
         }
     }
 
