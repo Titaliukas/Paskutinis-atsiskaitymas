@@ -77,51 +77,77 @@ lobby isolation, admission, and shutdown tests, then produces:
 - `game-server/target/game-server.jar`
 - `game-client/target/game-client.jar`
 
-## Start a local game directly
+Client tests run in headless mode and render Swing/Java2D components offscreen; the packaged desktop client
+still opens its normal window. The optional particle performance benchmark is enabled with
+`-Dparticles.benchmark=true`; all other tests run in the standard build.
 
-Open five terminals in the repository root after building.
+## Start a local game directly (macOS)
 
-Terminal 1 — choose one server configuration:
+Install a standalone JDK 25 first. Replace `/path/to/Paskutinis-atsiskaitymas` below with your clone's root
+directory (the folder containing `mvnw`, `pom.xml`, and all five modules). Run these steps in order.
+
+Terminal 1 — select JDK 25, build the whole project, and check both runnable JARs:
 
 ```sh
-# Combat (also the default without -Dgame.arena)
-java -Dgame.arena=combat -jar game-server/target/game-server.jar
-# Or Training
-java -Dgame.arena=training -jar game-server/target/game-server.jar
+export JAVA_HOME="$(/usr/libexec/java_home -v 25)"
+export PATH="$JAVA_HOME/bin:$PATH"
+java --version
+javac --version
+cd /path/to/Paskutinis-atsiskaitymas
+./mvnw -version
+./mvnw -B -ntp clean verify
 ```
 
-Alternatively use `GAME_ARENA=training java -jar game-server/target/game-server.jar`. The `game.arena` JVM
-property overrides `GAME_ARENA`; only `combat` and `training` are accepted. An invalid value fails startup.
-Stop the current server before starting the other arena on the same port.
-
-Terminal 2 — first client:
+All Java version checks, including the Maven Wrapper's Java version, must report 25. Wait for the build to finish
+with **BUILD SUCCESS** before continuing. From the same root, confirm that both files exist:
 
 ```sh
+ls -lh game-server/target/game-server.jar game-client/target/game-client.jar
+```
+
+Both JARs include their runtime dependencies. A working server alone does not prove that the client was packaged:
+the reactor builds the server before the client, and `clean` deletes previous build outputs. If the build fails,
+fix the reported error and rerun the full command before launching. Test skipping is not required.
+
+Terminal 1 — start the default Combat server and leave it running:
+
+```sh
+java -jar game-server/target/game-server.jar
+```
+
+Wait for `Listening on 0.0.0.0:8080/game`.
+
+Terminal 2 — open a new terminal, select the same JDK, and enter the project root again before starting Alice:
+
+```sh
+export JAVA_HOME="$(/usr/libexec/java_home -v 25)"
+export PATH="$JAVA_HOME/bin:$PATH"
+cd /path/to/Paskutinis-atsiskaitymas
 java -jar game-client/target/game-client.jar ws://localhost:8080/game Alice
 ```
 
-Terminal 3 — second client:
+Alice selects a character portrait in **Choose your character**, adjusts its stats, and clicks **Create lobby**.
+For a solo game, click **Start game**. For multiplayer, keep the lobby waiting and share its six-character code
+before starting.
+
+Terminal 3 — an optional second player, **before Alice clicks Start game**:
 
 ```sh
+export JAVA_HOME="$(/usr/libexec/java_home -v 25)"
+export PATH="$JAVA_HOME/bin:$PATH"
+cd /path/to/Paskutinis-atsiskaitymas
 java -jar game-client/target/game-client.jar ws://localhost:8080/game Bob
 ```
 
-Terminal 4 — third client:
+Bob selects a character, enters Alice's code in **Lobby code (to join)**, and clicks **Join lobby**.
+Repeat in additional terminals with other nicknames for up to four players total. Once everyone has joined,
+Alice clicks **Start game**; admission closes immediately. The waiting room shows each player's character portrait,
+nickname, and Host/You indicators. Only the host can start. See [Mediator and lobbies](docs/mediator-lobbies.md).
 
-```sh
-java -jar game-client/target/game-client.jar ws://localhost:8080/game Charlie
-```
-
-Terminal 5 — fourth client:
-
-```sh
-java -jar game-client/target/game-client.jar ws://localhost:8080/game Dora
-```
-
-Click a character's portrait card in the **Choose your character** screen and adjust its stats.
-Alice clicks **Create lobby** and shares the displayed six-character code. Bob, Charlie and Dora enter it in
-**Lobby code (to join)** and click **Join lobby**. The waiting room shows each player’s character portrait with their nickname beneath it, plus Host/You indicators.
-Only Alice, the host, can click **Start game**; one to four players may start. See [Mediator and lobbies](docs/mediator-lobbies.md).
+To use Training, start the server with `java -Dgame.arena=training -jar game-server/target/game-server.jar`
+instead. Alternatively use `GAME_ARENA=training java -jar game-server/target/game-server.jar`. The `game.arena` JVM
+property overrides `GAME_ARENA`; only `combat` and `training` are accepted. An invalid value fails startup.
+Stop the current server before starting the other arena on the same port.
 
 Joining is closed once the game starts, even after a guest disconnects. A guest may leave and rejoin while still
 waiting. The **Leave** button returns to character selection; if the host leaves or loses connection, everyone
@@ -387,6 +413,10 @@ authenticated identities.
 
 ## Troubleshooting
 
+- **Unable to access jarfile:** Java cannot read the JAR at the supplied path. Run `pwd` to check that this terminal
+  is in the project root, then `ls -lh game-server/target/game-server.jar game-client/target/game-client.jar`.
+  If a file is missing, run `./mvnw -B -ntp clean verify` from that root and wait for **BUILD SUCCESS**. Check both
+  files again before launching; compilation or successful server startup alone does not confirm client packaging.
 - **Wrong Java:** ensure `java --version`, `javac --version`, and `./mvnw -version` all report Java 25. In VS Code,
   select the same JDK with **Java: Configure Java Runtime**.
 - **Port occupied:** stop the other listener or configure another port. Use that same port in every client URL.

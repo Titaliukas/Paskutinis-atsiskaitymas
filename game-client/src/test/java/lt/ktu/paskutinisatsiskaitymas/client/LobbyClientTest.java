@@ -3,6 +3,7 @@ package lt.ktu.paskutinisatsiskaitymas.client;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import javax.swing.SwingUtilities;
@@ -19,7 +20,7 @@ class LobbyClientTest {
         BlockingQueue<LobbyState> states = new LinkedBlockingQueue<>();
         BlockingQueue<ErrorMessage> errors = new LinkedBlockingQueue<>();
         BlockingQueue<LobbyClosed> closures = new LinkedBlockingQueue<>();
-        BlockingQueue<ConnectionStatus> statuses = new LinkedBlockingQueue<>();
+        CompletableFuture<ConnectionStatus> hostDisconnected = new CompletableFuture<>();
         try (FacadeWebSocketPeer peer = new FacadeWebSocketPeer()) {
             SwingUtilities.invokeAndWait(() -> {
                 facade.selectCharacter("GOGIS");
@@ -37,7 +38,13 @@ class LobbyClientTest {
                         assertTrue(SwingUtilities.isEventDispatchThread());
                         closures.add(closure);
                     }
-                    @Override public void onConnectionStatus(ConnectionStatus status) { statuses.add(status); }
+                    @Override public void onConnectionStatus(ConnectionStatus status) {
+                        assertTrue(SwingUtilities.isEventDispatchThread());
+                        if (status.state() == ConnectionStatus.State.DISCONNECTED
+                                && status.detail().contains("host left")) {
+                            hostDisconnected.complete(status);
+                        }
+                    }
                 });
                 facade.joinLobby(peer.address(), "Guest", " abc123 ");
             });
@@ -68,12 +75,12 @@ class LobbyClientTest {
             peer.send(new LobbyClosed("The host left. The lobby has closed."));
             assertNotNull(closures.poll(5, TimeUnit.SECONDS));
             peer.clientClosed.get(5, TimeUnit.SECONDS);
+            // The peer can receive CLOSE before the network callback queues the final status on the EDT.
+            assertNotNull(hostDisconnected.get(5, TimeUnit.SECONDS));
             SwingUtilities.invokeAndWait(() -> {
                 assertEquals("GOGIS", facade.selectedCharacter());
                 assertEquals(request.stats(), facade.stats());
                 facade.sendInput(PlayerInput.NONE);
-                assertTrue(statuses.stream().anyMatch(status -> status.state() == ConnectionStatus.State.DISCONNECTED
-                        && status.detail().contains("host left")));
             });
         } finally {
             SwingUtilities.invokeAndWait(facade::close);
