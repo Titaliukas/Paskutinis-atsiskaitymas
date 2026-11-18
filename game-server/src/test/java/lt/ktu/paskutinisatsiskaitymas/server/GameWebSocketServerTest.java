@@ -69,26 +69,28 @@ class GameWebSocketServerTest {
         owner.receive(WorldSnapshot.class, value -> player(value, dodgeId).prone());
         owner.send(new InputState(0, false, false, false, false, false, true, false));
         WorldSnapshot scan = owner.receive(WorldSnapshot.class, value -> value.examinators().stream()
-                .anyMatch(ability -> ability.ownerId().equals(inspector.playerId()) && ability.phase().equals("SCAN")));
+                .anyMatch(ability -> ability.ownerId().equals(inspector.playerId()) && ability.phase().equals("INSPECT")));
         assertEquals(100, player(scan, standingId).health());
         WorldSnapshot fired = owner.receive(WorldSnapshot.class, value -> value.examinators().stream()
                 .anyMatch(ability -> ability.ownerId().equals(inspector.playerId()) && ability.phase().equals("FIRE")));
         var volley = fired.examinators().stream().filter(e -> e.ownerId().equals(inspector.playerId())).findFirst().orElseThrow();
-        assertEquals(1, volley.volleySequence());
-        assertEquals(1, volley.endpoints().size());
+        assertEquals(1, volley.shotSequence());
+        assertEquals(1, volley.shots().size());
         assertEquals(70, player(fired, standingId).health());
         assertEquals(100, player(fired, dodgeId).health());
         assertTrue(player(fired, dodgeId).prone());
         WorldSnapshot shared = dodge.receive(WorldSnapshot.class, value -> value.examinators().stream()
                 .anyMatch(e -> e.ownerId().equals(inspector.playerId()) && e.phase().equals("FIRE")));
-        assertEquals(volley.endpoints(), shared.examinators().stream().filter(e -> e.ownerId().equals(inspector.playerId()))
-                .findFirst().orElseThrow().endpoints());
+        assertEquals(volley.shots().getFirst().endpointX(), shared.examinators().stream()
+                .filter(e -> e.ownerId().equals(inspector.playerId())).findFirst().orElseThrow().shots().getFirst().endpointX());
+        assertEquals(487, volley.shots().getFirst().originX());
+        assertEquals(267, volley.shots().getFirst().originY());
         WorldSnapshot other = isolated.receive(WorldSnapshot.class, value -> value.tick() > fired.tick());
         assertEquals(List.of(isolatedId.playerId()), other.examinators().stream().map(ExaminatorSnapshot::ownerId).toList());
         assertEquals(100, other.players().getFirst().health());
-        assertTrue(other.examinators().stream().allMatch(e -> e.volleySequence() == 0));
+        assertTrue(other.examinators().stream().allMatch(e -> e.shotSequence() == 0));
         WorldSnapshot expired = owner.receive(WorldSnapshot.class, value -> value.tick() > fired.tick() + 18);
-        assertTrue(expired.examinators().stream().allMatch(e -> e.endpoints().isEmpty()));
+        assertTrue(expired.examinators().stream().allMatch(e -> e.shots().isEmpty()));
         assertEquals(70, player(expired, standingId).health(), "Held activation cannot restart or repeat fire");
     }
 

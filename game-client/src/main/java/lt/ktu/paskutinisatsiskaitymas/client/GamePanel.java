@@ -43,7 +43,7 @@ final class GamePanel extends JPanel {
     private UUID localPlayerId;
     private String notification;
     private long notificationUntil;
-    private final ExaminatorPresentation examinatorPresentation = new ExaminatorPresentation();
+    private final ExaminatorPresentation examinatorPresentation;
     private final NPCPresentation npcPresentation = new NPCPresentation();
     /** Measures one play session: from the first snapshot until the game is cleared (disconnect or window close). */
     private final ParticleStats particleStats = new ParticleStats("gameplay");
@@ -72,6 +72,7 @@ final class GamePanel extends JPanel {
     private void advanceParticles(long nowNanos) {
         double seconds = lastParticleNanos == 0 ? 0.0 : Math.min(0.1, (nowNanos - lastParticleNanos) / 1e9);
         lastParticleNanos = nowNanos;
+        examinatorPresentation.advance(Math.max(0.0, seconds));
         particles.update(Math.max(0.0, seconds));
     }
 
@@ -85,6 +86,7 @@ final class GamePanel extends JPanel {
         this.statsSink = statsSink;
         particles = new ParticleSystem(new Random(), ParticleSystem.DEFAULT_MAX_PARTICLES, particleStats);
         particleTriggers = new ParticleTriggers(particles);
+        examinatorPresentation = new ExaminatorPresentation(particles);
         setPreferredSize(new Dimension(960, 540));
         setMinimumSize(new Dimension(640, 360));
         setFocusable(true);
@@ -119,6 +121,9 @@ final class GamePanel extends JPanel {
     }
 
     void setSnapshot(WorldSnapshot value) {
+        if (snapshot != null && value.tick() < snapshot.tick()) {
+            return;
+        }
         if (!particleStats.running()) {
             particleStats.start();
         }
@@ -217,7 +222,7 @@ final class GamePanel extends JPanel {
             try {
                 effects.translate(offsetX, offsetY);
                 effects.scale(scale, scale);
-                examinatorPresentation.draw(effects, assets, snapshot.examinators());
+                examinatorPresentation.draw(effects, assets);
                 particles.draw(effects);
             } finally {
                 effects.dispose();

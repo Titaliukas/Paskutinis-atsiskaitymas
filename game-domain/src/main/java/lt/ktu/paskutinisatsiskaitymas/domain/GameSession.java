@@ -80,7 +80,7 @@ public final class GameSession {
         ));
 
         GameCharacter joined = characters.get(player.id());
-        examinators.put(player.id(), new Examinator(joined, List.of(characters, NPCs, projectiles)));
+        examinators.put(player.id(), new Examinator(joined, List.of(characters, NPCs, projectiles), arena));
         targetCharacters.put((int) nextTargetId++, joined.id());
         publish(new PlayerJoinedEvent(player.id(), player.nickname()));
     }
@@ -152,7 +152,7 @@ public final class GameSession {
         projectiles.advance(arena, NPCs.view(), List.copyOf(characters.values()), seconds);
     }
 
-    /** Apply every player's current posture before any attack or arena-wide volley is eligible. */
+    /** Apply every player's current posture before any ordinary attack or Examinator shot is eligible. */
     public void applyPostures(Map<UUID, MovementInput> inputByPlayer) {
         for (GameCharacter character : characters) {
             character.setProne(inputByPlayer.getOrDefault(character.playerId(), MovementInput.NONE).prone());

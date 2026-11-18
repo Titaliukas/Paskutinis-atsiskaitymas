@@ -4,6 +4,9 @@ import java.awt.Color;
 
 /** The visual effects the client can emit; each constant carries the appearance and motion of its particles. */
 enum ParticleKind {
+    EXAMINATOR_THRUSTER(new Color(190, 125, 125), 2.5, 0.25, 15, 3, 50, true),
+    EXAMINATOR_CHARGE(new Color(255, 45, 55), 2.5, 0.18, 0, 4, 45, true),
+    EXAMINATOR_SPARK(new Color(255, 225, 225), 3, 0.25, 100, 2, 120, true),
     MUZZLE(new Color(255, 210, 90), 7.0, 0.30, 0.0, 4.0, 240.0, true),
     HIT(new Color(230, 60, 60), 6.0, 0.55, 500.0, 1.0, 200.0, false),
     IMPACT(new Color(255, 240, 200), 6.0, 0.40, 200.0, 2.0, 120.0, false),

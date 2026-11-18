@@ -259,11 +259,12 @@ A mapping for the Ultimate 2C Wireless over Bluetooth on macOS is bundled in `ga
 | Prone/dodge | Hold `S` or `Down` | Hold D-pad Down | Hold D-pad Down |
 | Melee      | `K`                      | `B` or `LB`                   | `Circle` or `L1`                 |
 
-Every character has an **Examinator** inspection drone: one accepted press starts a 0.5-second scan and a
-10-second cooldown, followed by one instant arena-wide volley using that character's ranged effects. Holding
+Every character has an **Examinator** cyborg drone: one accepted press starts a 30-second cooldown and a
+0.8-second flight to the arena center, followed by 0.6 seconds of inspection. It then acquires targets one at a
+time (0.2-second pause, 0.5-second aim, 0.2-second laser feedback), using that character's ranged effects. Holding
 L/top face never repeats it. Hold S/Down (D-pad Down on all controllers, including 8BitDo) to go prone while
 grounded; release to stand. Prone blocks voluntary movement/jump/new attacks and dodges Examinator only.
-Ordinary combat and external impulses still work. Respawning or entering prone cancels a pending scan without
+Ordinary combat and external impulses still work. Respawning or entering prone cancels any active sequence without
 refunding cooldown. Both clients show server-recorded shots, drone phases and cooldown. See
 [Iterator and Examinator](docs/iterator-examinator.md) for GoF roles, the deterministic domain demonstration,
 resource fallbacks, and a two-client verification scenario.
@@ -414,7 +415,7 @@ The `/game` endpoint accepts JSON text messages with explicit stable types:
   carries its UUID, source NPC ID, explicit `projectileType` (`BOOK` or `DIPLOMA`), center, radius,
   velocity and `returning` flag. Client and server must use this same snapshot format; older snapshots
   missing these fields are rejected.
-- `WORLD_SNAPSHOT.examinators`: per-owner drone phase/position/cooldown and sequenced 0.25-second origin/endpoints for instant volley feedback. These are separate from ordinary RANGED/MELEE attacks.
+- `WORLD_SNAPSHOT.examinators`: per-owner drone phase/position/emitter/aim/cooldown, simulation time, and individually sequenced 0.2-second pre-hit laser feedback. These are separate from ordinary RANGED/MELEE attacks.
 - `PING`/`PONG`: application-level liveness round trip.
 - `ERROR`: reports malformed input, wrong direction, missing handshake, capacity, or queue pressure.
 

@@ -18,7 +18,7 @@ class ExaminatorInputTest {
                 controller.handle(new JoinPlayerCommand(id, id.equals(owner) ? 0 : 1, "Player", CharacterType.VACIJUS));
             }
             controller.handle(input(owner, 1, true, false, false));
-            for (int i = 0; i < 29; i++) { controller.advance(GameConstants.TICK_SECONDS); }
+            for (int i = 0; i < 125; i++) { controller.advance(GameConstants.TICK_SECONDS); }
             // On exactly the firing tick, guest requests prone and all attacks at once.
             controller.handle(input(guest, 1, true, true, true));
             controller.handle(input(guest, 0, false, false, false)); // stale must not stand the guest up
@@ -28,14 +28,16 @@ class ExaminatorInputTest {
             assertEquals(100, state.health());
             assertTrue(session.activeAttacks().isEmpty());
             var volley = session.examinators().stream().filter(e -> e.ownerId().equals(owner)).findFirst().orElseThrow();
-            assertEquals(1, volley.volleySequence());
-            assertTrue(volley.endpoints().isEmpty());
-            for (int i = 0; i < 650; i++) { controller.advance(GameConstants.TICK_SECONDS); }
-            assertEquals(1, session.examinators().stream().filter(e -> e.ownerId().equals(owner)).findFirst().orElseThrow().volleySequence());
+            assertEquals(0, volley.shotSequence());
+            assertTrue(volley.shots().isEmpty());
+            for (int i = 0; i < 1800; i++) { controller.advance(GameConstants.TICK_SECONDS); }
+            assertEquals(0, session.examinators().stream().filter(e -> e.ownerId().equals(owner)).findFirst().orElseThrow().shotSequence());
+            assertEquals(0, session.examinators().stream().filter(e -> e.ownerId().equals(owner)).findFirst().orElseThrow().cooldownRemaining());
             controller.handle(input(owner, 2, false, false, false));
             controller.handle(input(owner, 3, true, false, false));
-            for (int i = 0; i < 30; i++) { controller.advance(GameConstants.TICK_SECONDS); }
-            assertEquals(2, session.examinators().stream().filter(e -> e.ownerId().equals(owner)).findFirst().orElseThrow().volleySequence());
+            for (int i = 0; i < 126; i++) { controller.advance(GameConstants.TICK_SECONDS); }
+            assertEquals(0, session.examinators().stream().filter(e -> e.ownerId().equals(owner)).findFirst().orElseThrow().shotSequence());
+            assertTrue(session.examinators().stream().filter(e -> e.ownerId().equals(owner)).findFirst().orElseThrow().cooldownRemaining() > 27);
             controller.handle(new LeavePlayerCommand(owner));
             assertEquals(1, session.examinators().size());
         }

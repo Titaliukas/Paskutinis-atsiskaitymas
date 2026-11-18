@@ -284,6 +284,9 @@ public final class GameCharacter implements PlatformPassenger, AutoTarget {
     }
 
     long respawnSequence() { return respawnSequence; }
+
+    @Override
+    public long targetLifetime() { return respawnSequence; }
     long proneSequence() { return proneSequence; }
 
     @Override

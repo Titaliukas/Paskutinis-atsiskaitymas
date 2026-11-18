@@ -16,59 +16,138 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ExaminatorPresentationTest {
+    private static ExaminatorSnapshot state(UUID owner, String phase, double time, long sequence,
+            double dx, double dy) {
+        return new ExaminatorSnapshot(owner, 140, 140, phase, 30 - time,
+                switch (phase) { case "FLY" -> 0.8; case "INSPECT" -> 0.6;
+                    case "AIM" -> 0.5; case "IDLE" -> 0; default -> 0.2; },
+                time, sequence, 147, 137, 147 + dx, 137 + dy,
+                phase.equals("FIRE") ? List.of(new ExaminatorShotSnapshot(sequence, 147, 137,
+                        147 + dx, 137 + dy, 0.2)) : List.of());
+    }
+
     @Test
-    void authoritativeVolleyDeduplicatesExpiresAndClearsWithoutRetainingRemovedOwner() {
+    void authoritativeShotsDeduplicateExpireIgnoreStaleTimeAndClearOnCancellationOrDisconnect() {
         AtomicLong time = new AtomicLong(1_000_000_000);
-        ExaminatorPresentation presentation = new ExaminatorPresentation(time::get);
+        ParticleSystem particles = new ParticleSystem(new java.util.Random(1), 100);
+        ExaminatorPresentation presentation = new ExaminatorPresentation(particles, time::get);
         UUID owner = UUID.randomUUID();
-        ExaminatorSnapshot fire = new ExaminatorSnapshot(owner, 100, 50, "FIRE", 9.5, 0.25, 1, 100, 50,
-                List.of(new ShotEndpoint(700, 400)));
+        ExaminatorSnapshot fire = state(owner, "FIRE", 2.1, 1, 100, 100);
         presentation.update(List.of(fire));
-        assertEquals(1, presentation.volleyCount());
-        time.addAndGet(200_000_000);
+        assertEquals(1, presentation.beamCount());
+        assertEquals(12, particles.size());
+        time.addAndGet(150_000_000);
         presentation.update(List.of(fire));
+        presentation.update(List.of(state(owner, "FIRE", 2.15, 1, 100, 100)));
+        assertEquals(12, particles.size(), "Newer snapshots of the same shot cannot duplicate bursts");
         time.addAndGet(51_000_000);
-        assertFalse(presentation.isActive(), "Repeated snapshots cannot extend a volley");
+        assertFalse(presentation.isActive(), "Repeated feedback cannot extend a shot");
         presentation.update(List.of(fire));
-        assertEquals(0, presentation.volleyCount(), "Expired sequence must not replay");
-        presentation.update(List.of(new ExaminatorSnapshot(owner, 100, 50, "SCAN", 10, 0.5, 1, 100, 50, List.of())));
+        assertEquals(0, presentation.beamCount());
+        presentation.update(List.of(state(owner, "AIM", 2.8, 1, -100, -100)));
         assertTrue(presentation.isActive());
+        presentation.update(List.of(fire)); // Older FIRE must not replay or replace newer AIM.
+        assertEquals(0, presentation.beamCount());
+        presentation.update(List.of(state(owner, "FIRE", 3, 2, -100, -100)));
+        assertEquals(1, presentation.beamCount());
+        presentation.update(List.of(state(owner, "IDLE", 3.01, 2, 0, 0)));
+        assertFalse(presentation.isActive(), "Cancellation clears beams");
         presentation.update(List.of());
         assertFalse(presentation.isActive());
         presentation.clear();
         presentation.update(List.of(fire));
-        assertEquals(1, presentation.volleyCount(), "A new session may start at the same sequence");
+        assertEquals(1, presentation.beamCount(), "New sessions can restart identities");
         presentation.clear();
         assertFalse(presentation.isActive());
     }
 
     @Test
-    void everyMissingAssetHasAPixelFallbackAndAllFourProneSkinsRenderWithStableFeet() throws Exception {
-        BufferedImage canvas = new BufferedImage(960, 540, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = canvas.createGraphics();
+    void thrustersAreTimeBasedStopAtPhaseEndAndPaintNeverEmits() {
+        AtomicLong time = new AtomicLong(1_000_000_000);
+        ParticleSystem particles = new ParticleSystem(new java.util.Random(1), 100);
+        ExaminatorPresentation presentation = new ExaminatorPresentation(particles, time::get);
+        UUID owner = UUID.randomUUID();
+        presentation.update(List.of(state(owner, "FLY", 0, 0, 0, 0)));
+        for (int i = 0; i < 10; i++) { presentation.advance(0.01); }
+        assertEquals(1, particles.size());
+        BufferedImage image = new BufferedImage(300, 300, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
         try {
-            int x = 20;
-            for (String key : ExaminatorArt.KEYS) {
-                ExaminatorArt.fallback(g, key, new Rectangle2D.Double(x, 20, 64, 64));
-                assertTrue(hasPixels(canvas, x, 20, 64, 64), key);
-                x += 90;
-            }
-            x = 50;
-            for (String character : List.of("PATASIJUS", "VACIJUS", "JURGELINIS", "GOGIS")) {
-                Rectangle2D standing = new Rectangle2D.Double(x, 200, 42, 64);
-                Rectangle2D prone = CharacterPose.bounds(standing, true);
-                assertEquals(standing.getMaxY(), prone.getMaxY());
-                assertEquals(64, prone.getWidth());
-                assertEquals(42, prone.getHeight());
-                CharacterSkin skin = CharacterSkin.from(CharacterFactories.forCharacter(character));
-                CharacterPose.draw(g, skin.body(), standing, true, true, Color.PINK);
-                assertTrue(hasPixels(canvas, (int) prone.getX(), (int) prone.getY(), 64, 42));
-                CharacterPose.draw(g, skin.body(), new Rectangle2D.Double(x, 330, 42, 64), false, true, Color.PINK);
-                x += 200;
+            for (int i = 0; i < 10; i++) { presentation.draw(g, AssetManager.getInstance()); }
+        } finally { g.dispose(); }
+        assertEquals(1, particles.size());
+        time.addAndGet(900_000_000);
+        presentation.advance(0.1);
+        assertEquals(1, particles.size(), "No continuous effects after the authoritative phase expires");
+        presentation.update(List.of(state(owner, "INSPECT", 0.9, 0, 0, 0)));
+        presentation.advance(0.1);
+        assertEquals(1, particles.size());
+        presentation.clear();
+        particles.update(1);
+        assertFalse(particles.isActive());
+    }
+
+    @Test
+    void classpathArtHasNormalizedTransparentCanvasesAndEveryMissingAssetHasFallback() throws Exception {
+        AssetManager assets = AssetManager.getInstance();
+        BufferedImage canvas = new BufferedImage(1000, 680, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = canvas.createGraphics();
+        g.setColor(new Color(38, 48, 68)); g.fillRect(0, 0, 1000, 680);
+        try {
+            for (int i = 0; i < ExaminatorArt.KEYS.length; i++) {
+                String key = ExaminatorArt.KEYS[i];
+                BufferedImage loaded = (BufferedImage) assets.getImage(key);
+                assertNotNull(loaded, key);
+                if (!key.contains("LASER")) {
+                    assertEquals(128, loaded.getWidth(), key);
+                    assertEquals(128, loaded.getHeight(), key);
+                    assertEquals(0, loaded.getRGB(0, 0) >>> 24, key);
+                }
+                int x = (i % 6) * 160;
+                int y = (i / 6) * 160;
+                ExaminatorArt.draw(g, assets, key, new Rectangle2D.Double(x + 12, y + 24, 112, 112));
+                g.setColor(Color.WHITE);
+                g.drawString(key.replace("EXAMINATOR_", ""), x + 4, y + 16);
+                BufferedImage fallback = new BufferedImage(64, 64, BufferedImage.TYPE_INT_ARGB);
+                Graphics2D fg = fallback.createGraphics();
+                try { ExaminatorArt.fallback(fg, key, new Rectangle2D.Double(0, 0, 64, 64)); }
+                finally { fg.dispose(); }
+                assertTrue(hasPixels(fallback, 0, 0, 64, 64), key);
             }
         } finally { g.dispose(); }
         Files.createDirectories(Path.of("target"));
-        ImageIO.write(canvas, "png", Path.of("target/examinator-assets-prone.png").toFile());
+        ImageIO.write(canvas, "png", Path.of("target/examinator-poses.png").toFile());
+    }
+
+    @Test
+    void eightDirectionsAimLaserAndParticlesRenderOffscreenIncludingZeroLengthShot() throws Exception {
+        BufferedImage canvas = new BufferedImage(1200, 600, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = canvas.createGraphics();
+        try {
+            g.setColor(new Color(38, 48, 68)); g.fillRect(0, 0, 1200, 600);
+            for (int i = 0; i < 8; i++) {
+                double angle = i * Math.PI / 4;
+                double dx = Math.cos(angle) * 110;
+                double dy = Math.sin(angle) * 110;
+                assertEquals(ExaminatorArt.DIRECTIONS[i], ExaminatorArt.direction(dx, dy));
+                Graphics2D cell = (Graphics2D) g.create();
+                cell.translate((i % 4) * 300, (i / 4) * 300);
+                AtomicLong time = new AtomicLong(1_000_000_000);
+                ParticleSystem particles = new ParticleSystem(new java.util.Random(1), 100);
+                ExaminatorPresentation presentation = new ExaminatorPresentation(particles, time::get);
+                UUID owner = UUID.randomUUID();
+                presentation.update(List.of(state(owner, "AIM", 1.6, 0, dx, dy)));
+                presentation.draw(cell, AssetManager.getInstance());
+                presentation.update(List.of(state(owner, "FIRE", 2.1, 1, dx, dy)));
+                presentation.draw(cell, AssetManager.getInstance());
+                particles.update(0.07); particles.draw(cell);
+                cell.setColor(Color.WHITE); cell.drawString(ExaminatorArt.DIRECTIONS[i], 10, 20);
+                cell.dispose();
+            }
+            ExaminatorArt.laser(g, AssetManager.getInstance(), 0, 0, 0, 0);
+            ExaminatorArt.laser(g, AssetManager.getInstance(), 10, 590, 10.01, 590);
+        } finally { g.dispose(); }
+        ImageIO.write(canvas, "png", Path.of("target/examinator-directions.png").toFile());
     }
 
     @Test
@@ -92,19 +171,18 @@ class ExaminatorPresentationTest {
     }
 
     @Test
-    void panelRendersAuthoritativeScanAndFireAndStopsPresentationOnClear() throws Exception {
+    void panelRendersAuthoritativePhasesAndStopsPresentationOnClear() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
             GamePanel panel = new GamePanel();
             panel.setSize(960, 540);
             UUID owner = UUID.randomUUID();
             PlayerSnapshot player = new PlayerSnapshot(owner, 0, "Owner", 100, 384, 42, 64, true,
                     false, 0, 100, 100, 0, "PATASIJUS", false, true);
-            for (String phase : List.of("SCAN", "FIRE", "IDLE")) {
-                double remaining = phase.equals("SCAN") ? 0.5 : phase.equals("FIRE") ? 0.25 : 0;
-                ExaminatorSnapshot ability = new ExaminatorSnapshot(owner, 121, 356, phase, 9.5, remaining,
-                        phase.equals("SCAN") ? 0 : 1, 121, 356,
-                        phase.equals("FIRE") ? List.of(new ShotEndpoint(500, 448)) : List.of());
-                panel.setSnapshot(new WorldSnapshot(30, new ArenaSnapshot("training", 960, 540, List.of()),
+            int tick = 0;
+            for (String phase : List.of("FLY", "INSPECT", "ACQUIRE", "AIM", "FIRE", "IDLE")) {
+                tick++;
+                ExaminatorSnapshot ability = state(owner, phase, tick, phase.equals("FIRE") ? 1 : 0, 350, 200);
+                panel.setSnapshot(new WorldSnapshot(tick, new ArenaSnapshot("training", 960, 540, List.of()),
                         List.of(player), List.of(), List.of(), List.of(), List.of(), List.of(ability)));
                 BufferedImage image = new BufferedImage(960, 540, BufferedImage.TYPE_INT_ARGB);
                 Graphics2D g = image.createGraphics();

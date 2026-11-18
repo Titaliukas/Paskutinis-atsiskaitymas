@@ -1,135 +1,178 @@
 # Iterator and Examinator
 
-The frozen `LD2/Iterator/v2/after-fix.svg` defines the domain roles. Java uses the existing UUID identities and
-real `java.lang.Iterable` / `java.util.Iterator`; there are no parallel target interfaces or entity adapters.
+The frozen `LD2/Iterator/v2/after-fix.svg` defines the unchanged domain roles. Java uses
+`java.lang.Iterable` and `java.util.Iterator`, with no replacement iterator interfaces or target adapters.
 
 | GoF role | Production object | Live storage / traversal |
 | --- | --- | --- |
 | Aggregate | `Iterable<T>` | Standard Java contract |
-| Concrete aggregate | `PlayerTargets` | `GameCharacter[4] slots`, indexed by player slot |
-| Concrete iterator | `PlayerTargetIterator` | Independent index, skips null slots; exhausted `next()` throws `NoSuchElementException` |
-| Concrete aggregate | `NpcTargets` | `LinkedHashMap<Integer, NPC>`; `values().iterator()` |
-| Concrete aggregate | Existing `Projectiles` | `ArrayList<Projectile>`; `active.iterator()` |
-| Client of Iterator | `Examinator` | The same loop consumes all three sources through their interfaces |
-| Polymorphic element | `AutoTarget` | Implemented directly by `GameCharacter`, `NPC`, and `Projectile` |
+| Concrete aggregate | `PlayerTargets` | `GameCharacter[4] slots`, traversed in slot order |
+| Concrete iterator | `PlayerTargetIterator` | Independent cursor, skips holes; exhausted `next()` throws `NoSuchElementException` |
+| Concrete aggregate | `NpcTargets` | `LinkedHashMap<Integer, NPC>`; JDK `values().iterator()` |
+| Concrete aggregate | `Projectiles` | `ArrayList<Projectile>`; JDK `iterator()` |
+| Client of Iterator | `Examinator` | One shared acquisition method across all three sources |
+| Polymorphic element | `AutoTarget` | Directly implemented by `GameCharacter`, `NPC`, `Projectile` |
 
-Each running lobby's `GameSession` owns these three live aggregates and one retained `Examinator` per joined
-character. `PlayerTargets` also owns a UUID lookup index, updated on that same owner thread; the slot array remains
-the actual targeting traversal. Read-only map/collection views keep existing combat APIs intact. Joins, leaves,
-NPC spawns and projectile replacements update the owning aggregate. Nothing is shared between lobbies.
+Each lobby's `GameSession` owns these three aggregates and a retained ability per joined character. The ability
+receives `List<Iterable<? extends AutoTarget>>` referencing those exact live aggregates, in player/NPC/projectile
+order, plus that session's arena. Targets are never flattened into a master list. `PlayerTargets` retains its
+UUID lookup index for existing combat APIs; the slot array remains the targeting traversal.
 
-The ability constructor receives the attacker and `List<Iterable<? extends AutoTarget>>`: references to those
-same aggregates, supplied once. It does not flatten or copy their targets. The shared traversal is:
+## Server sequence
 
-```java
-for (Iterable<? extends AutoTarget> source : targetSources) {
-    fireAtAll(source.iterator());
-}
-// fireAtAll:
-while (iterator.hasNext()) {
-    AutoTarget target = iterator.next();
-    if (target.canBeTargetedBy(attacker)) {
-        fireAt(target);
-    }
-}
-```
+All timing uses simulation time, with named defaults:
 
-Iterators only traverse. Eligibility, aiming and hit behavior belong to `AutoTarget`; the loop does not inspect
-collection or target classes. `fireAt` derives direction independently from each endpoint and records it before
-applying effects. An identity set prevents duplicate hits if a source reference is repeated. Every iterator is
-created and consumed within the firing tick. The original sealed `Attack` hierarchy, `AttackType`, loadouts,
-and Bridge effects remain intact; this separate ability reuses the attacker's ranged effects.
+| Phase / rule | Duration | Behavior |
+| --- | --- | --- |
+| Cooldown | 30 s from acceptance | Accept only when standing, ready, and inactive |
+| FLY | 0.8 s | Interpolate from a captured point near the owner to `(arena.width()/2, arena.height()/2)` |
+| INSPECT | 0.6 s | Look left, then right; no damage |
+| ACQUIRE | 0.2 s | Pause, then choose one eligible candidate |
+| AIM | 0.5 s | Track the locked candidate with a restrained red cue; no damage |
+| FIRE | 0.2 s | Apply ranged effects once at entry, show one laser and impact |
 
-## Rules and tick order
+After FIRE, repeat ACQUIRE/AIM/FIRE for the next target. Exhaustion returns directly to the existing idle/cooldown
+presentation near the owner. The first shot occurs after 2.1 s; subsequent uninterrupted shots are 0.9 s apart.
+Owner movement never drags the captured launch path or central destination. The central emitter is seven units
+right and three units above the head anchor; every shot records that same origin and its exact pre-hit endpoint.
+An update consumes its entire elapsed budget across phase boundaries, including feedback aging; no sleeps or
+asynchronous domain timers are involved.
 
-A press edge accepts an activation when ready and standing, starts a **10 s cooldown immediately**, then scans
-for **0.5 s** before one instant arena-wide volley. Moving and jumping remain available during the scan.
-Holding the activation button never restarts a scan or queues another activation after cooldown. Every character
-has the ability. Players other than its owner can be targeted unless prone; shields still block the entire
-hit's effect list. Living NPCs receive their existing `AttackEffect` overloads. Active NPC projectiles, including
-returning books/diplomas, are neutralized rather than damaged.
+Every target is marked **considered**, including ineligible candidates, using identity bookkeeping for this
+activation. Acquisition creates a fresh short-lived iterator over the current source, skips considered objects,
+and returns at most one eligible target. Exhausted sources advance permanently; later additions to earlier
+sources wait for a future activation. Additions to the current or a later source can still be considered. Duplicate
+source references do not cause duplicate hits, and an already considered player cannot be struck again after
+respawning. No targeting code branches on collection or target classes.
 
-Prone is a grounded posture with unchanged 42x64 collision geometry. It blocks voluntary movement, jump and new
-normal attacks. It protects specifically against Examinator selection, not ordinary damage. Physics, knockback,
-gravity, cooldowns and timed effects continue. Losing support or respawning clears prone. Entering prone or
-respawning cancels a pending scan without refunding the cooldown; explicit posture/respawn counters detect the
-transition even if the character returns to identical coordinates and health. Leaving removes the ability.
-`GameSession.startExaminator(GameCharacter)` rejects a source from another session; application commands route
-by the server-assigned player UUID instead of accepting a client-supplied domain object.
+No map/list iterator survives a call or tick. A locked target is revalidated with another fresh iterator, identity
+membership, eligibility, and `AutoTarget.targetLifetime()` before firing (and on each update while aiming).
+`GameCharacter` exposes its existing respawn counter through that small polymorphic lifetime hook. Removal,
+replacement, death, prone, or respawn invalidates the lock and resumes acquisition. A replacement projectile is a
+new object; the old aimed object cannot receive a stale hit. Iteration has returned before effects can structurally
+change a source; `ConcurrentModificationException` is never normal control flow.
 
-`MatchController` first captures retained movement/posture intent for every player and applies **all** postures,
-then consumes attack/Examinator press edges. `GameSession` applies posture for direct domain callers too, moves
-platforms/characters, updates abilities, and removes neutralized projectiles before further flight/collision.
-Dead NPC removal happens after traversal. Projectile flight replaces the current list element via `ListIterator`;
-a returned clone consumes only the remaining tick travel and is never advanced again as a new list element.
-WebSocket callbacks still only validate and queue commands. The simulation remains 60 Hz and snapshots 20 Hz.
+A **120 s maximum active duration** makes passes finite under continuous arrivals. The usual bounded arena has
+at most three other players, two NPCs, and eight active projectiles, requiring about 13 s for a fixed set; the limit
+leaves ample margin. Entities arriving after the cap or after their source was exhausted wait for the next pass.
+
+The attacker's existing ranged `AttackEffect`s and loadouts remain authoritative. Prone players and the owner
+are excluded; shields block the entire player effect list. NPCs receive their existing polymorphic effects.
+Active outbound and returning NPC projectiles are neutralized, without spawning damaging laser projectiles.
+
+Entering prone or respawning cancels **any active phase**, clears locks/feedback, and keeps the remaining
+cooldown. Existing posture/respawn counters detect transitions even if the owner stands again or returns to
+identical coordinates. Departure removes the ability. Foreign-session character objects are rejected.
+`MatchController` applies every player's posture before consuming attack edges. Session ticks update abilities
+before projectile flight, remove neutralized projectiles safely, and clean dead NPCs after traversal. The existing
+60 Hz simulation, 20 Hz snapshots, lobby Mediator, and queued WebSocket commands remain intact.
 
 ## Input and authoritative presentation
 
-Keyboard: **L** activates on a press edge; hold **S** or **Down** for prone, release to stand. Existing A/D/arrows,
-Space/W/Up, J and K remain unchanged. Xbox/PlayStation/8BitDo use SDL's top face button (**Y/Triangle**) and held
-**D-pad Down**. `GamepadReading` copies `ControllerState.y` and `dpadDown` from the installed Jamepad API.
-Complete input follows the existing client, protocol, mediator, queued `InputCommand` and controller path;
-sequence rejection, reset and pre-game suppression still apply.
+Press **L** / controller **Y or Triangle** to activate; holding never queues or repeats an activation. Hold
+**S / Down / D-pad Down** to go prone when grounded. Prone blocks voluntary movement, jump and new attacks,
+while physics, knockback, ordinary damage and timed effects continue. Releasing stands up; respawn or loss of
+support clears prone. Existing input/reset/controller mappings and admission rules are unchanged.
 
-`PlayerSnapshot.prone` and `WorldSnapshot.examinators` carry detached immutable DTOs. Each ability state includes
-owner UUID, drone position, explicit IDLE/SCAN/FIRE phase, remaining cooldown/phase time, monotonically increasing
-volley sequence, recorded origin and endpoints. FIRE feedback survives **0.25 s**, even when the hit NPC or
-projectile has disappeared or a player has respawned. All clients draw those same points; they never infer
-hits/damage/targets. Strict JSON requires the new fields, so deploy matching client and server builds.
+`ExaminatorState`, `ExaminatorSnapshot` and `ExaminatorShotSnapshot` carry detached data: owner, phase, position,
+remaining times, per-owner simulation time, emitter/aim point, monotonic shot sequence, and bounded recorded shot
+feedback. Every individual shot has its own sequence; feedback contains its pre-hit origin/endpoint and remaining
+0.2 s lifetime, even after a killed NPC or intercepted projectile disappears. At the normal 20 Hz cadence a shot
+spans four snapshot intervals. Phase-boundary overshoot ages the feedback correctly; a large update can consume
+older shots' entire windows, which are then intentionally absent. No unbounded event history is transmitted.
+Strict JSON validation checks all fields, phases, finite numbers, timings, feedback bounds/order, and the 30 s
+cooldown. Deploy matching client/server builds; this changes the wire shape. Full production snapshots still fit
+the existing message-size limit.
 
-The EDT-owned presentation deduplicates by owner and volley sequence and never extends/replays a shot for repeated
-snapshots. It reuses `GamePanel`'s existing presentation timer; expiry, disconnect and `clearGame` stop animation
-work. The drone shows scan/fire poses and cooldown feedback. Cosmetic papers and impact marks do not simulate
-new damaging projectiles. One central rotation of existing character sprites preserves their proportions and
-feet anchor for all four prone poses. Existing Flyweight particle accounting and HUD Composite remain intact.
+The EDT presentation accepts increasing per-owner simulation times and deduplicates by **owner + shot sequence**.
+Repeated/stale snapshots never replay bursts or extend an observed beam. A previously unseen late shot uses
+only its received remaining lifetime; there is no synchronized wall-clock latency compensation. Older world ticks
+are ignored. Cancellation, disconnect, and game reset clear locks/emitters/deduplication; finite emitted particles
+expire normally (game reset clears the whole existing particle system). A stalled snapshot stream cannot keep
+continuous thrusters or beams alive. Rendering never selects targets or applies damage.
 
-Optional resources, loaded once through `AssetManager`, are:
-`EXAMINATOR_IDLE.png`, `EXAMINATOR_SCAN.png`, `EXAMINATOR_FIRE.png`, `EXAMINATOR_ICON.png`,
-`EXAMINATOR_EXAM_PAPER.png`, `EXAMINATOR_RED_PEN.png`, `EXAMINATOR_IMPACT.png` under
-`game-client/src/main/resources/assets/`. Drone canvases are logical 64x64, other canvases 32x32; integer
-magnification is allowed. Rendering preserves aspect ratio and uses world-space sizes (44-unit drone, 16-unit
-paper), independently of exported pixel dimensions. Missing resources use small coherent procedural pixel-style
-fallbacks; no generated PNGs, additional art dependencies, or changes to old assets are needed.
+Flight emits sparse gray/red thruster pixels from the existing presentation timer. AIM emits a small eye charge;
+each shot emits a single muzzle/impact burst through the existing `ParticleSystem`, `ParticleKind`, and
+`ParticleTypeFactory`. The angle overload preserves ordinary callers, the particle cap, shared flyweights and
+allocation accounting. Painting emits no particles.
+
+## Approved artwork
+
+The exact approved idle v7, movement/scan sheet, eight-direction attack sheet and standalone laser exports are
+bundled under `game-client/src/main/resources/assets/EXAMINATOR_...`. The originals are retained alongside
+prepared frames. `AssetManager` loads the frames/laser strips once from the classpath, including in the runnable
+client JAR. There are no runtime absolute paths, image-processing dependencies, crops, or reloads during painting.
+
+Preparation is reproducible with Pillow as an **offline tool only**:
+
+```sh
+python3 scripts/prepare-examinator-assets.py /path/to/approved/imagegen
+```
+
+The script uses measured per-frame bounds, transparent 128×128 canvases, a common head anchor and 112-pixel
+apparent head height, nearest-neighbor resampling, and retained alpha. The source sheets have unequal head
+bounds and low-alpha margin noise, so equal atlas cells are not used as head bounds. Attack discharges cross
+faces: preparation removes only exterior beam pixels using the opaque head silhouette and preserves internal
+red/white head/flash pixels. AIM uses clean left/right scan heads to avoid premature discharge. FIRE selects the
+nearest of eight directional head/flash poses using the exact authoritative shot vector. The original facial
+appearance and mechanical side remain intact; short discharge pixels inside the head remain part of the approved
+flash. The separate laser rotates to the exact vector; its flare and tip stay fixed in thickness, and only its
+middle stretches. Zero-length shots draw no beam. Missing art has procedural cyborg/laser fallbacks.
 
 ## Deterministic demonstration
 
-With standalone JDK 25, from the repository root:
+With standalone JDK 25 and the Maven Wrapper:
 
 ```sh
 ./mvnw -B -ntp clean verify
 java -cp game-domain/target/game-domain.jar lt.ktu.paskutinisatsiskaitymas.domain.IteratorExaminatorDemo
 ```
 
-This drives the same production aggregates, character loadout and ability without sleeps, network or substitute
-combat logic. Expected output:
+The production demo uses the real aggregates, loadout and sequential ability, without sleeps or substitute logic.
+Expected output:
 
 ```text
-Accepted=true, phase=SCAN
+Accepted=true, phase=FLY
+Arrived=Position[x=480.0, y=270.0], phase=INSPECT
+Selected=Position[x=421.0, y=448.0], phase=AIM
+Shot=1, endpoint=Position[x=421.0, y=448.0]
+Shot=2, endpoint=Position[x=521.0, y=448.0]
+Shot=3, endpoint=Position[x=521.0, y=448.0]
 PlayerTargets / GameCharacter[4]: owner=100, standing=70, prone=100
 NpcTargets / LinkedHashMap<Integer,NPC>: health=20
 Projectiles / ArrayList<Projectile>: active=0
-Volley=1, endpoints=3, phase=FIRE, cooldown=9.5
+Shots=3, feedback=1, phase=FIRE, cooldown=26.1
 ```
 
-## Two-client manual scenario
+## Verification and two-client scenario
 
-1. Build and start Training: `java -Dgame.arena=training -jar game-server/target/game-server.jar`.
-2. In two other terminals at the root, run the client JAR as Alice and Bob. Choose VACIJUS for Alice, create her
-   lobby, then have Bob select a character and join its code **before** Alice starts the game.
-3. Leave Bob standing and press L once on Alice: scan for 0.5 s, then Bob loses 30 health and both clients see the
-   same instant volley. Alice's 10 s cooldown started on the accepted press. Holding L must not fire again.
-4. Release L, wait for ready, then hold S/Down on Bob before Alice presses L. Bob's sprite lies down, he cannot
-   walk/jump/attack, and the volley has no line to Bob and does not change his health. Release to stand.
-5. While Alice scans, enter prone on Alice: the scan cancels and cooldown continues. Check ordinary J/K attacks
-   still damage prone Bob; prone is not global immunity. Repeat with top face/D-pad Down on a controller.
-6. On Combat, repeat with NPCs and active/returning books or diplomas: eligible projectiles disappear immediately,
-   and the recorded endpoint flashes remain visible. A shield blocks player effects. With a second independent
-   lobby, verify no drone state, damage or feedback crosses lobby boundaries.
-7. Close the clients and stop the server with Ctrl+C. Host departure must still close only its own lobby.
+Automated tests cover the slot iterator contract; live additions/removals/replacements between ticks; source
+progress and skipped-candidate bookkeeping; respawn lifetime checks; cancellation in every phase; cooldown and
+active guards; both arena recipes and a differently sized arena; no premature damage; sequential effects and
+all loadouts/shields; multidirectional/zero-length coordinates; detached feedback; large-step overshoot;
+input edges/posture ordering; strict protocol round trips/invalid input and full snapshot size; presentation
+expiry/deduplication/cancellation/reset; time-based particles, cap and orientation; classpath frames and fallbacks.
+The existing real WebSocket integration scenario connects four peers across two lobbies and checks shared shot
+coordinates, prone protection, health changes, held-input suppression and isolation, with all peers/servers closed.
 
-Automated verification covers slot iterator contracts, live sources, duplicate-hit prevention, shields/loadouts,
-respawn/posture cancellation, returning-projectile interception, simultaneous prone/attack ordering, held/stale
-input, strict DTO validation, full snapshots, real multi-client/lobby WebSocket routing, presentation expiry and
-deduplication, controller/reset mappings, all missing-art fallbacks and offscreen prone rendering. The generated
-`game-client/target/examinator-assets-prone.png` is a verification artifact, not a bundled game asset.
+A live headless smoke check also ran two production `GameClientFacade` clients against the packaged server,
+rendering both real snapshots through `GamePanel`. Both observed FLY/INSPECT/ACQUIRE/AIM/FIRE, the central
+(480,270) position, (487,267) emitter, identical shot coordinates, and guest health 70. Both clients and the server
+were closed. This checks networking and Swing rendering without interactive desktop/controller input.
+
+Client tests produce offscreen verification artifacts in `game-client/target/`: `examinator-poses.png`,
+`examinator-directions.png`, and `examinator-{fly,inspect,acquire,aim,fire,idle}.png`. These are not bundled assets.
+For a desktop check:
+
+1. Start Training with `java -Dgame.arena=training -jar game-server/target/game-server.jar`.
+2. Open two clients, select characters, create/join the same code, then have the host start.
+3. Press L once: both clients see flight to center, inspection, acquisition, half-second aim, then one laser at
+   the standing guest. A VACIJUS owner deals 30 damage. Cooldown starts at 30 s on acceptance; holding L does not repeat.
+4. On a later activation, make the guest prone during AIM. Its lock is abandoned and it receives no hit. Try
+   the owner entering prone during flight, inspection, aim or firing: the sequence cancels without refund.
+5. Repeat in Combat with NPCs and projectiles, checking individual sequential shots and detached impacts.
+   Check ordinary attacks still damage prone players, shields still work, and another lobby remains isolated.
+6. Close clients and stop the server. Host departure still closes only that host's lobby.
+
+Remaining presentation limits: snapshots are rendered directly without movement interpolation or network latency
+compensation; directional head poses are quantized to eight sectors, while the laser uses the exact vector.
