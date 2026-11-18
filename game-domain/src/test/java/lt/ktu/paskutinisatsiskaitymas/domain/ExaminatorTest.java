@@ -122,18 +122,26 @@ class ExaminatorTest {
     }
 
     @Test
-    void flightCapturesLaunchAndActualArenaCenterWithoutPrematureDamageOrOwnerDragging() {
+    void flightEntersFromAboveActualArenaAndNeverFollowsOwnerEvenWhileIdle() {
         for (Arena arena : List.of(new ArenaDirector().construct(new TrainingArenaBuilder()),
                 new ArenaDirector().construct(new CombatArenaBuilder()),
                 TestArenas.geometry("Wide", 1200, 700, List.of()))) {
             GameCharacter owner = player(0, 100, CharacterType.PATASIJUS);
             GameCharacter victim = player(1, 800, CharacterType.GOGIS);
             Examinator ability = new Examinator(owner, List.of(List.of(victim)), arena);
-            ability.activate();
-            Position launch = ability.state().position();
+            Position launch = new Position(arena.width() / 2, -Examinator.OFFSCREEN_MARGIN);
+            assertEquals("IDLE", ability.state().phase());
+            assertEquals(launch, ability.state().position());
+            owner.moveWithPlatform(100, 0);
+            ability.update(0.1);
+            assertEquals(launch, ability.state().position(), "Idle data never follows the owner");
+            assertTrue(ability.activate());
+            assertEquals(launch, ability.state().position());
+            assertTrue(launch.y() + 22 < 0, "The complete head starts above the arena");
             owner.moveWithPlatform(100, 0);
             ability.update(0.4);
-            assertEquals((launch.x() + arena.width() / 2) / 2, ability.state().position().x());
+            assertEquals(arena.width() / 2, ability.state().position().x());
+            assertEquals((launch.y() + arena.height() / 2) / 2, ability.state().position().y());
             ability.update(0.4);
             assertEquals(new Position(arena.width() / 2, arena.height() / 2), ability.state().position());
             assertEquals("INSPECT", ability.state().phase());
@@ -142,6 +150,16 @@ class ExaminatorTest {
             ability.update(0.01);
             assertEquals(88, victim.state().health());
             assertEquals("FIRE", ability.state().phase());
+            ability.update(0.4);
+            assertEquals("IDLE", ability.state().phase());
+            Position idle = ability.state().position();
+            owner.moveWithPlatform(80, 0);
+            ability.update(0.1);
+            assertEquals(idle, ability.state().position());
+            assertTrue(ability.state().cooldownRemaining() > 0, "Idle snapshots retain cooldown");
+            ability.update(30);
+            assertTrue(ability.activate());
+            assertEquals(launch, ability.state().position(), "Each activation starts outside again");
         }
     }
 
@@ -152,6 +170,7 @@ class ExaminatorTest {
                 GameCharacter owner = player(0, 100, CharacterType.PATASIJUS);
                 Examinator ability = ability(owner, List.of(List.of(player(1, 800, CharacterType.GOGIS))));
                 ability.activate(); ability.update(elapsed);
+                Position beforeCancel = ability.state().position();
                 if (respawn) { owner.takeDamage(100); }
                 else { owner.setProne(true); owner.setProne(false); }
                 ability.update(0.1);
@@ -159,6 +178,10 @@ class ExaminatorTest {
                 assertTrue(ability.state().shots().isEmpty());
                 assertEquals(30 - elapsed - 0.1, ability.state().cooldownRemaining(), 1e-8);
                 assertFalse(ability.activate());
+                assertEquals(beforeCancel, ability.state().position());
+                owner.moveWithPlatform(100, 0);
+                ability.update(0.1);
+                assertEquals(beforeCancel, ability.state().position());
             }
         }
     }

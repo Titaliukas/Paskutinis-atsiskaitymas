@@ -12,6 +12,7 @@ import java.util.Set;
 public final class Examinator {
     public static final double COOLDOWN_SECONDS = 30;
     public static final double FLIGHT_SECONDS = 0.8;
+    public static final double OFFSCREEN_MARGIN = 64;
     public static final double INSPECTION_SECONDS = 0.6;
     public static final double ACQUIRE_SECONDS = 0.2;
     public static final double AIM_SECONDS = 0.5;
@@ -36,7 +37,7 @@ public final class Examinator {
     private int sourceIndex;
     private AutoTarget locked;
     private long lockedLifetime;
-    private Position launch;
+    private final Position launch;
     private Position drone;
     private Position aim;
 
@@ -45,7 +46,8 @@ public final class Examinator {
         this.targetSources = List.copyOf(targetSources);
         destination = new Position(arena.width() / 2, arena.height() / 2);
         effects = attacker.characterType().loadout().effectsFor(AttackType.RANGED);
-        drone = ownerPosition();
+        launch = new Position(arena.width() / 2, -OFFSCREEN_MARGIN);
+        drone = launch;
         aim = emitter();
     }
 
@@ -56,7 +58,6 @@ public final class Examinator {
         cooldownRemaining = COOLDOWN_SECONDS;
         activationRespawn = attacker.respawnSequence();
         activationProne = attacker.proneSequence();
-        launch = ownerPosition();
         drone = launch;
         aim = emitter();
         sourceIndex = 0;
@@ -181,14 +182,11 @@ public final class Examinator {
         shots.clear();
     }
 
-    private Position ownerPosition() { return new Position(attacker.aimPoint().x(), attacker.y() - 28); }
     private Position emitter() { return new Position(drone.x() + 7, drone.y() - 3); }
 
     public ExaminatorState state() {
-        Position position = phase == Phase.IDLE ? ownerPosition() : drone;
-        return new ExaminatorState(attacker.playerId(), position, phase.name(), cooldownRemaining,
-                phaseRemaining, simulationTime, shotSequence,
-                new Position(position.x() + 7, position.y() - 3), aim, shots);
+        return new ExaminatorState(attacker.playerId(), drone, phase.name(), cooldownRemaining,
+                phaseRemaining, simulationTime, shotSequence, emitter(), aim, shots);
     }
 
     private static double remaining(double value, double seconds) {

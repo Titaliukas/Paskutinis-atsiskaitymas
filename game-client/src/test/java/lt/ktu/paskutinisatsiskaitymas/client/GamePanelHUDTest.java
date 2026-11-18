@@ -13,6 +13,7 @@ import javax.imageio.ImageIO;
 import javax.swing.SwingUtilities;
 import lt.ktu.paskutinisatsiskaitymas.protocol.ArenaSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.CreateLobby;
+import lt.ktu.paskutinisatsiskaitymas.protocol.ExaminatorSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.NPCSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.PlatformSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.PlayerSnapshot;
@@ -67,6 +68,87 @@ class GamePanelHUDTest {
         } catch (Exception exception) {
             throw new AssertionError(exception);
         }
+    }
+
+    private WorldSnapshot arenaWorld(String type, List<ExaminatorSnapshot> abilities, long tick) {
+        double ground = type.equals("training") ? 448 : 421;
+        List<PlayerSnapshot> roster = new ArrayList<>();
+        for (int slot = 0; slot < 4; slot++) {
+            roster.add(new PlayerSnapshot(ids[slot], slot, slot == 0 ? "Long Inspector Nickname" : "Player " + (slot + 1),
+                    120 + slot * 220, ground - 64, 42, 64, true, false, 0, 100, 100,
+                    slot * 23.5, CreateLobby.CHARACTERS.get(slot), false));
+        }
+        return new WorldSnapshot(tick, new ArenaSnapshot(type, 960, 540,
+                List.of(new PlatformSnapshot(0, ground, 960, 540 - ground))), roster, List.of(), List.of(),
+                List.of(), List.of(), abilities);
+    }
+
+    private ExaminatorSnapshot arriving(double y, double simulationTime) {
+        return new ExaminatorSnapshot(ids[0], 480, y, "FLY", 30, 0.8, simulationTime, 0,
+                487, y - 3, 487, y - 3, List.of());
+    }
+
+    @Test
+    void fourStatusRowsAndOffscreenEntryFitBothArenasAtNormalSmallAndLetterboxedSizes() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            for (String arena : List.of("training", "combat")) {
+                for (int[] size : new int[][]{{960, 540}, {640, 360}, {640, 400}}) {
+                    GamePanel panel = new GamePanel();
+                    panel.setSize(size[0], size[1]);
+                    String suffix = arena + "-" + size[0] + "x" + size[1];
+                    try {
+                        panel.setLocalPlayerId(ids[2]);
+                        var idle = List.of(HudCompositeTest.ability(ids[0], "IDLE", 0),
+                                HudCompositeTest.ability(ids[1], "IDLE", 23.01),
+                                HudCompositeTest.ability(ids[2], "IDLE", 8),
+                                HudCompositeTest.ability(ids[3], "IDLE", 0));
+                        panel.setSnapshot(arenaWorld(arena, idle, 1));
+                        BufferedImage absent = render(panel);
+                        save(absent, "examinator-idle-" + suffix);
+                        panel.clearGame();
+                        panel.setLocalPlayerId(ids[2]);
+                        var offscreen = new ArrayList<>(idle);
+                        offscreen.set(0, arriving(-64, 3));
+                        panel.setSnapshot(arenaWorld(arena, offscreen, 2));
+                        BufferedImage beforeEntry = render(panel);
+                        save(beforeEntry, "examinator-arrival-offscreen-" + suffix);
+                        // The center strip excludes HUD cards, whose authoritative status changes during entry.
+                        assertArrayEquals(absent.getRGB(size[0] / 2 - 25, 0, 50, size[1], null, 0, 50),
+                                beforeEntry.getRGB(size[0] / 2 - 25, 0, 50, size[1], null, 0, 50),
+                                "An offscreen launch cannot paint a head inside the arena or its margins");
+                        offscreen.set(0, arriving(-10, 3.1));
+                        panel.setSnapshot(arenaWorld(arena, offscreen, 3));
+                        BufferedImage entry = render(panel);
+                        save(entry, "examinator-arrival-entry-" + suffix);
+                        double scale = Math.min(size[0] / 960.0, size[1] / 540.0);
+                        int top = (int) Math.floor((size[1] - 540 * scale) / 2);
+                        if (top > 0) {
+                            assertArrayEquals(absent.getRGB(size[0] / 2 - 25, 0, 50, top, null, 0, 50),
+                                    entry.getRGB(size[0] / 2 - 25, 0, 50, top, null, 0, 50),
+                                    "Partial entry must be clipped at the displayed arena boundary");
+                        }
+                        assertFalse(Arrays.equals(absent.getRGB(size[0] / 2 - 25, top, 50, 20, null, 0, 50),
+                                entry.getRGB(size[0] / 2 - 25, top, 50, 20, null, 0, 50)),
+                                "The head becomes visible as it crosses the arena boundary");
+                        var statuses = List.of(HudCompositeTest.ability(ids[3], "INSPECT", 29),
+                                HudCompositeTest.ability(ids[1], "IDLE", 23.01),
+                                HudCompositeTest.ability(ids[0], "IDLE", 0),
+                                HudCompositeTest.ability(ids[2], "AIM", 0));
+                        panel.clearGame();
+                        panel.setLocalPlayerId(ids[2]);
+                        panel.setSnapshot(arenaWorld(arena, statuses, 4));
+                        save(render(panel), "examinator-hud-" + suffix);
+                        assertEquals(0, panel.getComponentCount());
+                        panel.clearGame();
+                        panel.setSnapshot(arenaWorld(arena, List.of(), 0));
+                        save(render(panel), "examinator-hud-missing-" + suffix);
+                    } finally {
+                        panel.clearGame();
+                        panel.removeNotify();
+                    }
+                }
+            }
+        });
     }
 
     @Test

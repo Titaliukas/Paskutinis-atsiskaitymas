@@ -2,6 +2,7 @@ package lt.ktu.paskutinisatsiskaitymas.client;
 
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.awt.Shape;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -88,14 +89,27 @@ final class ParticleSystem {
         }
     }
 
-    void draw(Graphics2D g) {
+    void draw(Graphics2D g) { draw(g, null); }
+
+    /** A scoped clip for ability particles keeps off-arena entry effects out of letterbox margins. */
+    void draw(Graphics2D g, Shape examinatorClip) {
         boolean measure = stats != null && stats.running();
         long startBytes = measure ? ParticleStats.allocatedBytes() : 0;
         long startNanos = measure ? System.nanoTime() : 0;
         Object previous = g.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-        for (Particle particle : particles) {
-            particle.draw(g);
+        Graphics2D ability = examinatorClip == null ? g : (Graphics2D) g.create();
+        try {
+            if (examinatorClip != null) {
+                ability.clip(examinatorClip);
+            }
+            for (Particle particle : particles) {
+                particle.draw(particle.kind().isExaminator() ? ability : g);
+            }
+        } finally {
+            if (ability != g) {
+                ability.dispose();
+            }
         }
         if (previous != null) {
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, previous);

@@ -111,7 +111,10 @@ final class ExaminatorPresentation {
         expire(now);
         for (View view : views.values()) {
             ExaminatorSnapshot state = view.state();
-            String phase = now < view.until() ? state.phase() : "IDLE";
+            if (state.phase().equals("IDLE") || now >= view.until()) {
+                continue;
+            }
+            String phase = state.phase();
             String key = switch (phase) {
                 case "FLY" -> "EXAMINATOR_ARRIVE";
                 case "INSPECT" -> "EXAMINATOR_" + (state.phaseRemaining() > 0.3 ? "LEFT" : "RIGHT");
@@ -120,7 +123,7 @@ final class ExaminatorPresentation {
                         state.aimY() - state.emitterY());
                 case "FIRE" -> "EXAMINATOR_ATTACK_" + ExaminatorArt.direction(state.aimX() - state.emitterX(),
                         state.aimY() - state.emitterY());
-                default -> "EXAMINATOR_IDLE";
+                default -> throw new IllegalStateException("Unknown active Examinator phase");
             };
             ExaminatorArt.draw(g, assets, key, new Rectangle2D.Double(state.x() - 22, state.y() - 22, 44, 44));
             if (phase.equals("AIM")) {
@@ -129,10 +132,7 @@ final class ExaminatorPresentation {
                 g.draw(new Line2D.Double(state.emitterX(), state.emitterY(), state.aimX(), state.aimY()));
                 g.draw(new Rectangle2D.Double(state.aimX() - 4, state.aimY() - 4, 8, 8));
             }
-            g.setColor(Color.WHITE);
-            g.drawString(state.cooldownRemaining() > 0
-                    ? String.format(java.util.Locale.ROOT, "EX %.0fs", Math.ceil(state.cooldownRemaining())) : "EX ready",
-                    (float) state.x() - 21, (float) state.y() - 25);
+
         }
         for (Beam beam : beams.values()) {
             ExaminatorShotSnapshot shot = beam.shot();

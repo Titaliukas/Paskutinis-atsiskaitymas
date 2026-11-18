@@ -222,8 +222,16 @@ final class GamePanel extends JPanel {
             try {
                 effects.translate(offsetX, offsetY);
                 effects.scale(scale, scale);
-                examinatorPresentation.draw(effects, assets);
-                particles.draw(effects);
+                Rectangle2D arenaBounds = new Rectangle2D.Double(0, 0,
+                        snapshot.arena().width(), snapshot.arena().height());
+                Graphics2D ability = (Graphics2D) effects.create();
+                try {
+                    ability.clip(arenaBounds);
+                    examinatorPresentation.draw(ability, assets);
+                } finally {
+                    ability.dispose();
+                }
+                particles.draw(effects, arenaBounds);
             } finally {
                 effects.dispose();
             }

@@ -260,12 +260,13 @@ A mapping for the Ultimate 2C Wireless over Bluetooth on macOS is bundled in `ga
 | Melee      | `K`                      | `B` or `LB`                   | `Circle` or `L1`                 |
 
 Every character has an **Examinator** cyborg drone: one accepted press starts a 30-second cooldown and a
-0.8-second flight to the arena center, followed by 0.6 seconds of inspection. It then acquires targets one at a
+0.8-second entry from above the arena to its center, followed by 0.6 seconds of inspection. It then acquires targets one at a
 time (0.2-second pause, 0.5-second aim, 0.2-second laser feedback), using that character's ranged effects. Holding
 L/top face never repeats it. Hold S/Down (D-pad Down on all controllers, including 8BitDo) to go prone while
 grounded; release to stand. Prone blocks voluntary movement/jump/new attacks and dodges Examinator only.
 Ordinary combat and external impulses still work. Respawning or entering prone cancels any active sequence without
-refunding cooldown. Both clients show server-recorded shots, drone phases and cooldown. See
+refunding cooldown. The drone is hidden while idle; status appears below Stress in each owner's HUD card.
+Both clients show the same server-recorded shots and active drone positions. See
 [Iterator and Examinator](docs/iterator-examinator.md) for GoF roles, the deterministic domain demonstration,
 resource fallbacks, and a two-client verification scenario.
 

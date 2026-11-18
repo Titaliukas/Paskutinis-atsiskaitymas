@@ -46,6 +46,11 @@ enum ParticleKind {
         this.directional = directional;
     }
 
+    /** Only these ability cosmetics are clipped to the arena; ordinary combat particles keep their rendering. */
+    boolean isExaminator() {
+        return this == EXAMINATOR_THRUSTER || this == EXAMINATOR_CHARGE || this == EXAMINATOR_SPARK;
+    }
+
     Color color() {
         return color;
     }

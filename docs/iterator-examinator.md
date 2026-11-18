@@ -25,15 +25,18 @@ All timing uses simulation time, with named defaults:
 | Phase / rule | Duration | Behavior |
 | --- | --- | --- |
 | Cooldown | 30 s from acceptance | Accept only when standing, ready, and inactive |
-| FLY | 0.8 s | Interpolate from a captured point near the owner to `(arena.width()/2, arena.height()/2)` |
+| FLY | 0.8 s | Enter from `(arena.width()/2, -64)` to `(arena.width()/2, arena.height()/2)` |
 | INSPECT | 0.6 s | Look left, then right; no damage |
 | ACQUIRE | 0.2 s | Pause, then choose one eligible candidate |
 | AIM | 0.5 s | Track the locked candidate with a restrained red cue; no damage |
 | FIRE | 0.2 s | Apply ranged effects once at entry, show one laser and impact |
 
-After FIRE, repeat ACQUIRE/AIM/FIRE for the next target. Exhaustion returns directly to the existing idle/cooldown
-presentation near the owner. The first shot occurs after 2.1 s; subsequent uninterrupted shots are 0.9 s apart.
-Owner movement never drags the captured launch path or central destination. The central emitter is seven units
+After FIRE, repeat ACQUIRE/AIM/FIRE for the next target. The drone is invisible before activation and hides
+immediately after exhaustion or cancellation; there is no return flight or owner-following idle head. Each
+accepted activation starts again at the fixed entry point above the arena, with the named 64-unit offscreen
+margin keeping the entire head and initial effects outside the visible world. Idle snapshots retain the owner
+UUID and cooldown, with a harmless position independent of owner movement. The first shot occurs after 2.1 s;
+subsequent uninterrupted shots are 0.9 s apart. Owner movement never affects the flight path or central destination. The central emitter is seven units
 right and three units above the head anchor; every shot records that same origin and its exact pre-hit endpoint.
 An update consumes its entire elapsed budget across phase boundaries, including feedback aging; no sleeps or
 asynchronous domain timers are involved.
@@ -89,7 +92,17 @@ Repeated/stale snapshots never replay bursts or extend an observed beam. A previ
 only its received remaining lifetime; there is no synchronized wall-clock latency compensation. Older world ticks
 are ignored. Cancellation, disconnect, and game reset clear locks/emitters/deduplication; finite emitted particles
 expire normally (game reset clears the whole existing particle system). A stalled snapshot stream cannot keep
-continuous thrusters or beams alive. Rendering never selects targets or applies damage.
+continuous thrusters or beams alive, and expired phase data never falls back to an idle head. The head, aim cue,
+laser and only Examinator particle kinds are clipped to the displayed arena; off-arena entry cannot leak into
+letterbox margins. Ordinary particles retain their existing rendering. Rendering never selects targets or applies damage.
+
+Each owning player's existing fixed HUD card displays the ability status immediately below Stress and above
+Player N / (you), matched by owner UUID regardless of snapshot order. Text is `EX: Ready`, upward-rounded
+cooldown such as `EX: 24s`, or the active phase: Arriving, Scanning (inspection/acquisition), Aiming, Firing.
+Active phases take precedence even when cooldown reaches zero; missing ability data shows `EX: --`. This row
+uses authoritative snapshots without a separate client countdown. Cards retain their 92-unit height, portraits,
+colors, nickname ellipsis and local-player border, with compact text spacing; bottom cards keep `bottomScale()`.
+No Examinator status text is drawn in the world.
 
 Flight emits sparse gray/red thruster pixels from the existing presentation timer. AIM emits a small eye charge;
 each shot emits a single muzzle/impact burst through the existing `ParticleSystem`, `ParticleKind`, and
@@ -151,22 +164,31 @@ progress and skipped-candidate bookkeeping; respawn lifetime checks; cancellatio
 active guards; both arena recipes and a differently sized arena; no premature damage; sequential effects and
 all loadouts/shields; multidirectional/zero-length coordinates; detached feedback; large-step overshoot;
 input edges/posture ordering; strict protocol round trips/invalid input and full snapshot size; presentation
-expiry/deduplication/cancellation/reset; time-based particles, cap and orientation; classpath frames and fallbacks.
+expiry/deduplication/cancellation/reset; offscreen entry and hidden idle/expired views; owner-matched HUD rows,
+missing data and active-phase precedence; time-based particles, scoped clipping, cap and orientation; classpath
+frames and fallbacks.
 The existing real WebSocket integration scenario connects four peers across two lobbies and checks shared shot
 coordinates, prone protection, health changes, held-input suppression and isolation, with all peers/servers closed.
 
-A live headless smoke check also ran two production `GameClientFacade` clients against the packaged server,
+Earlier artwork/sequence verification also ran a live headless smoke check with two production
+`GameClientFacade` clients against the packaged server,
 rendering both real snapshots through `GamePanel`. Both observed FLY/INSPECT/ACQUIRE/AIM/FIRE, the central
 (480,270) position, (487,267) emitter, identical shot coordinates, and guest health 70. Both clients and the server
 were closed. This checks networking and Swing rendering without interactive desktop/controller input.
 
 Client tests produce offscreen verification artifacts in `game-client/target/`: `examinator-poses.png`,
 `examinator-directions.png`, and `examinator-{fly,inspect,acquire,aim,fire,idle}.png`. These are not bundled assets.
+Focused offscreen-entry/HUD tests also save `examinator-hud-{arena}-{size}.png`,
+`examinator-idle-{arena}-{size}.png`, and `examinator-arrival-{offscreen,entry}-{arena}-{size}.png` for both
+Training and Combat at 960×540, 640×360 and letterboxed 640×400. They check that an initial offscreen launch
+paints no head in the world, partial entry is clipped at the arena boundary, and reset/missing data clears status.
+
 For a desktop check:
 
 1. Start Training with `java -Dgame.arena=training -jar game-server/target/game-server.jar`.
 2. Open two clients, select characters, create/join the same code, then have the host start.
-3. Press L once: both clients see flight to center, inspection, acquisition, half-second aim, then one laser at
+3. Before activation, confirm no idle heads are visible and each card shows EX status below Stress. Press L
+   once: both clients see entry from above the arena to center, inspection, acquisition, half-second aim, then one laser at
    the standing guest. A VACIJUS owner deals 30 damage. Cooldown starts at 30 s on acceptance; holding L does not repeat.
 4. On a later activation, make the guest prone during AIM. Its lock is abandoned and it receives no hit. Try
    the owner entering prone during flight, inspection, aim or firing: the sequence cancels without refund.

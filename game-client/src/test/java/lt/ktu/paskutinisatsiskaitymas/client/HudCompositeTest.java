@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import lt.ktu.paskutinisatsiskaitymas.protocol.ArenaSnapshot;
+import lt.ktu.paskutinisatsiskaitymas.protocol.ExaminatorSnapshot;
+import lt.ktu.paskutinisatsiskaitymas.protocol.ExaminatorShotSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.PlatformSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.PlayerSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.WorldSnapshot;
@@ -134,6 +136,70 @@ class HudCompositeTest {
         BufferedImage onlyFirst = render(Hud.create(), world(player(0)), null);
         assertFalse(paints(onlyFirst, WIDTH - 248, 0, 248, 80), "Departed top-right card clears");
         assertFalse(paints(onlyFirst, WIDTH - 248, HEIGHT - 80, 248, 80), "Departed bottom-right card clears");
+    }
+
+    static ExaminatorSnapshot ability(UUID owner, String phase, double cooldown) {
+        return new ExaminatorSnapshot(owner, 480, 270, phase, cooldown,
+                phase.equals("IDLE") ? 0 : 0.1, 2.1, 1, 487, 267, 700, 400,
+                phase.equals("FIRE") ? List.of(new ExaminatorShotSnapshot(1, 487, 267, 700, 400, 0.1)) : List.of());
+    }
+
+    private static WorldSnapshot withAbilities(WorldSnapshot world, List<ExaminatorSnapshot> abilities) {
+        return new WorldSnapshot(world.tick(), world.arena(), world.players(), world.items(), world.npcs(),
+                world.attacks(), world.projectiles(), abilities);
+    }
+
+    @Test
+    void abilityStatusUsesOwnerUuidAndActivePhasePrecedesReadiness() {
+        UUID owner = player(0).playerId();
+        for (String phase : List.of("IDLE", "FLY", "INSPECT", "ACQUIRE", "AIM", "FIRE")) {
+            var snapshot = withAbilities(world(player(0)), List.of(ability(owner, phase, 0)));
+            HudContext context = new HudContext(WIDTH, HEIGHT, snapshot, player(1).playerId(), null,
+                    AssetManager.getInstance());
+            String expected = switch (phase) {
+                case "IDLE" -> "EX: Ready";
+                case "FLY" -> "EX: Arriving";
+                case "INSPECT", "ACQUIRE" -> "EX: Scanning";
+                case "AIM" -> "EX: Aiming";
+                default -> "EX: Firing";
+            };
+            assertEquals(expected, context.examinatorStatus(owner));
+            assertEquals("EX: --", context.examinatorStatus(player(1).playerId()));
+        }
+        HudContext cooling = new HudContext(WIDTH, HEIGHT,
+                withAbilities(world(player(0)), List.of(ability(owner, "IDLE", 23.01))), owner, null,
+                AssetManager.getInstance());
+        assertEquals("EX: 24s", cooling.examinatorStatus(owner));
+    }
+
+    @Test
+    void reorderedAbilitiesKeepAllFourRowsWithTheirOwnerAndOnlyChangeTheRowBelowStress() {
+        var abilities = List.of(ability(player(0).playerId(), "IDLE", 0),
+                ability(player(1).playerId(), "IDLE", 23.01), ability(player(2).playerId(), "AIM", 0),
+                ability(player(3).playerId(), "FLY", 30));
+        var first = withAbilities(world(player(0), player(1), player(2), player(3)), abilities);
+        var reversed = withAbilities(world(player(3), player(2), player(1), player(0)), abilities.reversed());
+        assertArrayEquals(render(Hud.create(), first, null).getRGB(0, 0, WIDTH, HEIGHT, null, 0, WIDTH),
+                render(Hud.create(), reversed, null).getRGB(0, 0, WIDTH, HEIGHT, null, 0, WIDTH));
+        var cooldown = withAbilities(world(player(0)), List.of(ability(player(0).playerId(), "IDLE", 24)));
+        var ready = withAbilities(world(player(0)), List.of(ability(player(0).playerId(), "IDLE", 0)));
+        BufferedImage a = render(new PlayerCardElement(0), cooldown, null);
+        BufferedImage b = render(new PlayerCardElement(0), ready, null);
+        int changed = 0;
+        for (int y = 0; y < HEIGHT; y++) {
+            for (int x = 0; x < WIDTH; x++) {
+                if (a.getRGB(x, y) != b.getRGB(x, y)) {
+                    changed++;
+                    assertTrue(y >= 60 && y <= 74, "EX row stays below Stress and above Player N");
+                    assertTrue(x >= 100 && x < 260, "EX row stays in the existing text column");
+                }
+            }
+        }
+        assertTrue(changed > 0, "Status must visibly update");
+        BufferedImage departed = render(Hud.create(), withAbilities(world(player(0)), List.of(abilities.getFirst())), null);
+        assertFalse(paints(departed, WIDTH - 248, 0, 248, 80), "Departed owner's status row disappears with the card");
+        assertFalse(paints(departed, 0, HEIGHT - 80, 248, 80));
+        assertFalse(paints(render(Hud.create(), world(), null), 0, 0, WIDTH, HEIGHT), "Reset clears every status row");
     }
 
     @Test

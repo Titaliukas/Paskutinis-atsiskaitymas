@@ -61,6 +61,42 @@ class ExaminatorPresentationTest {
         assertFalse(presentation.isActive());
     }
 
+    private static BufferedImage render(ExaminatorPresentation presentation) {
+        BufferedImage image = new BufferedImage(300, 300, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = image.createGraphics();
+        try { presentation.draw(graphics, AssetManager.getInstance()); }
+        finally { graphics.dispose(); }
+        return image;
+    }
+
+    @Test
+    void idleFinishedCancelledAndExpiredViewsNeverPaintAHeadOrWorldStatus() {
+        AtomicLong time = new AtomicLong(1_000_000_000);
+        ExaminatorPresentation presentation = new ExaminatorPresentation(time::get);
+        UUID owner = UUID.randomUUID();
+        presentation.update(List.of(state(owner, "IDLE", 0, 0, 0, 0)));
+        assertFalse(hasPixels(render(presentation), 0, 0, 300, 300), "Absent before first activation");
+        for (String phase : List.of("FLY", "INSPECT", "ACQUIRE", "AIM", "FIRE")) {
+            presentation.clear();
+            presentation.update(List.of(state(owner, phase, 2.1, 1, 100, 100)));
+            BufferedImage active = render(presentation);
+            assertTrue(hasPixels(active, 118, 118, 44, 44), phase);
+            assertFalse(hasPixels(active, 100, 90, 100, 25), "Status text belongs only in the HUD");
+            time.addAndGet(1_000_000_000);
+            assertFalse(hasPixels(render(presentation), 0, 0, 300, 300), "Expired " + phase + " has no idle fallback");
+        }
+        for (String end : List.of("completion", "prone cancellation", "respawn cancellation")) {
+            presentation.clear();
+            presentation.update(List.of(state(owner, "FIRE", 2.1, 1, 100, 100)));
+            presentation.update(List.of(state(owner, "IDLE", 2.11, 1, 0, 0)));
+            assertFalse(hasPixels(render(presentation), 0, 0, 300, 300), end);
+        }
+        presentation.update(List.of());
+        assertFalse(hasPixels(render(presentation), 0, 0, 300, 300));
+        presentation.clear();
+        assertFalse(presentation.isActive());
+    }
+
     @Test
     void thrustersAreTimeBasedStopAtPhaseEndAndPaintNeverEmits() {
         AtomicLong time = new AtomicLong(1_000_000_000);
