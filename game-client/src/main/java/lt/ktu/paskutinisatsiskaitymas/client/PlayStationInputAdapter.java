@@ -19,6 +19,6 @@ final class PlayStationInputAdapter extends GamepadInputAdapter {
         boolean circle = reading.right();
         boolean square = reading.left();
         return new PlayerInput(movesLeft(reading), movesRight(reading),
-                cross, square || reading.rightShoulder(), circle || reading.leftShoulder());
+                cross, square || reading.rightShoulder(), circle || reading.leftShoulder(), reading.top(), reading.dpadDown());
     }
 }

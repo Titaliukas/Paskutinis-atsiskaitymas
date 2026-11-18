@@ -13,8 +13,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public final class GameSession {
     private final UUID id;
     private final Arena arena;
-    private final Map<UUID, GameCharacter> characters = new LinkedHashMap<>();
-    private final Map<Integer, NPC> NPCs = new LinkedHashMap<>();
+    private final PlayerTargets characters = new PlayerTargets();
+    private final NpcTargets NPCs = new NpcTargets();
+    private final Map<UUID, Examinator> examinators = new LinkedHashMap<>();
     private final Map<Integer, NPCBehaviorController> NPCControllers = new LinkedHashMap<>();
     private final Map<Integer, UUID> targetCharacters = new LinkedHashMap<>();
     private final Projectiles projectiles = new Projectiles();
@@ -68,7 +69,7 @@ public final class GameSession {
             throw new IllegalArgumentException("Player slot must be between 0 and 3");
         }
 
-        characters.put(player.id(), new GameCharacter(
+        characters.add(new GameCharacter(
                 UUID.randomUUID(),
                 player,
                 slot,
@@ -78,13 +79,16 @@ public final class GameSession {
                 build
         ));
 
-        targetCharacters.put((int) nextTargetId++, characters.get(player.id()).id());
+        GameCharacter joined = characters.get(player.id());
+        examinators.put(player.id(), new Examinator(joined, List.of(characters, NPCs, projectiles)));
+        targetCharacters.put((int) nextTargetId++, joined.id());
         publish(new PlayerJoinedEvent(player.id(), player.nickname()));
     }
 
     public void removePlayer(UUID playerId) {
         GameCharacter removed = characters.remove(Objects.requireNonNull(playerId, "playerId"));
         if (removed != null) {
+            examinators.remove(playerId);
             Integer targetId = targetCharacters.entrySet().stream()
                     .filter(entry -> entry.getValue().equals(removed.id())).map(Map.Entry::getKey)
                     .findFirst().orElseThrow();
@@ -116,13 +120,16 @@ public final class GameSession {
     public void advance(Map<UUID, MovementInput> inputByPlayer, double seconds) {
         Objects.requireNonNull(inputByPlayer, "inputByPlayer");
         NPCGeometry.positive(seconds, "seconds");
+        applyPostures(inputByPlayer);
         advancePlatforms(inputByPlayer, seconds);
         for (Map.Entry<UUID, GameCharacter> entry : characters.entrySet()) {
             entry.getValue().advance(inputByPlayer.getOrDefault(entry.getKey(), MovementInput.NONE), arena, seconds);
         }
+        examinators.values().forEach(examinator -> examinator.update(seconds));
+        projectiles.removeInactive();
         spawnItemIfDue(seconds, random);
         resolveItemCollisions();
-        activeAttacks.values().removeIf(attack -> attack.update(characters, NPCs.values(), arena, seconds));
+        activeAttacks.values().removeIf(attack -> attack.update(characters.view(), NPCs.values(), arena, seconds));
         // STRATEGY-REPORT R5 BEGIN: The existing owner tick selects, delegates, integrates, and resolves.
         List<NPCTarget> targets = npcTargets();
         for (Map.Entry<Integer, NPC> entry : NPCs.entrySet()) {
@@ -139,16 +146,41 @@ public final class GameSession {
                 resolveNPCThrow(entry.getKey(), action);
             }
         }
-        NPCs.values().removeIf(npc -> !npc.alive());
+        NPCs.removeInactive();
         NPCControllers.keySet().removeIf(id -> !NPCs.containsKey(id));
         // STRATEGY-REPORT R5 END
-        projectiles.advance(arena, NPCs, List.copyOf(characters.values()), seconds);
+        projectiles.advance(arena, NPCs.view(), List.copyOf(characters.values()), seconds);
+    }
+
+    /** Apply every player's current posture before any attack or arena-wide volley is eligible. */
+    public void applyPostures(Map<UUID, MovementInput> inputByPlayer) {
+        for (GameCharacter character : characters) {
+            character.setProne(inputByPlayer.getOrDefault(character.playerId(), MovementInput.NONE).prone());
+        }
+    }
+
+    public boolean startExaminator(GameCharacter source) {
+        Objects.requireNonNull(source, "source");
+        if (characters.get(source.playerId()) != source) {
+            throw new IllegalArgumentException("Source does not belong to this session");
+        }
+        return examinators.get(source.playerId()).activate();
+    }
+
+    public boolean startExaminator(UUID playerId) {
+        GameCharacter source = characters.get(Objects.requireNonNull(playerId, "playerId"));
+        return source != null && startExaminator(source);
+    }
+
+    public List<ExaminatorState> examinators() {
+        return examinators.values().stream().map(Examinator::state).toList();
     }
 
     private void advancePlatforms(Map<UUID, MovementInput> inputByPlayer, double seconds) {
         List<PlatformPassenger> candidates = new ArrayList<>();
         for (Map.Entry<UUID, GameCharacter> entry : characters.entrySet()) {
-            if (!inputByPlayer.getOrDefault(entry.getKey(), MovementInput.NONE).jumpRequested()) {
+            if (entry.getValue().isProne()
+                    || !inputByPlayer.getOrDefault(entry.getKey(), MovementInput.NONE).jumpRequested()) {
                 candidates.add(entry.getValue());
             }
         }

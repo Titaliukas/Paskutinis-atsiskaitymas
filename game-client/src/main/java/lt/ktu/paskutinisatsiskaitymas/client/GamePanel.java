@@ -43,6 +43,7 @@ final class GamePanel extends JPanel {
     private UUID localPlayerId;
     private String notification;
     private long notificationUntil;
+    private final ExaminatorPresentation examinatorPresentation = new ExaminatorPresentation();
     private final NPCPresentation npcPresentation = new NPCPresentation();
     /** Measures one play session: from the first snapshot until the game is cleared (disconnect or window close). */
     private final ParticleStats particleStats = new ParticleStats("gameplay");
@@ -61,7 +62,8 @@ final class GamePanel extends JPanel {
             notification = null;
         }
         advanceParticles(System.nanoTime());
-        if (!notificationActive && !npcPresentation.hasActiveLatch() && !particles.isActive()) {
+        if (!notificationActive && !npcPresentation.hasActiveLatch() && !particles.isActive()
+                && !examinatorPresentation.isActive()) {
             notificationTimer.stop();
         }
         repaint();
@@ -125,11 +127,14 @@ final class GamePanel extends JPanel {
         advanceParticles(now);
         snapshot = value;
         npcPresentation.update(value.npcs());
-        if (npcPresentation.hasActiveLatch() || particles.isActive()) {
+        examinatorPresentation.update(value.examinators());
+        if (npcPresentation.hasActiveLatch() || particles.isActive() || examinatorPresentation.isActive()) {
             notificationTimer.start();
         }
         repaint();
     }
+
+    boolean presentationRunning() { return notificationTimer.isRunning(); }
 
     void clearGame() {
         if (particleStats.running()) {
@@ -138,6 +143,7 @@ final class GamePanel extends JPanel {
         }
         snapshot = null;
         npcPresentation.clear();
+        examinatorPresentation.clear();
         particles.clear();
         particleTriggers.reset();
         lastParticleNanos = 0;
@@ -211,6 +217,7 @@ final class GamePanel extends JPanel {
             try {
                 effects.translate(offsetX, offsetY);
                 effects.scale(scale, scale);
+                examinatorPresentation.draw(effects, assets, snapshot.examinators());
                 particles.draw(effects);
             } finally {
                 effects.dispose();
@@ -240,12 +247,9 @@ final class GamePanel extends JPanel {
             drawContactShadow(g, body);
         }
         CharacterSkin skin = skinFor(player.character());
-        if (skin != null) {
-            skin.body().draw(g, body, facesRight);
-        } else {
-            g.setColor(HudStyle.PLAYER_COLORS[player.slot()]);
-            g.fill(body);
-        }
+        CharacterPose.draw(g, skin == null ? null : skin.body(), body, facesRight, player.prone(),
+                HudStyle.PLAYER_COLORS[player.slot()]);
+        body = CharacterPose.bounds(body, player.prone());
 
         g.setColor(Color.WHITE);
         String label = player.nickname() + (player.playerId().equals(localPlayerId) ? " (you)" : "");

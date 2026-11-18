@@ -255,7 +255,18 @@ A mapping for the Ultimate 2C Wireless over Bluetooth on macOS is bundled in `ga
 | Move right | `D` or `Right`           | Left stick                    | Left stick                       |
 | Jump       | `Space`, `W` or `Up`     | `A`                           | `Cross`                          |
 | Ranged     | `J`                      | `X` or `RB`                   | `Square` or `R1`                 |
+| Examinator | `L` (press) | `Y` | `Triangle` |
+| Prone/dodge | Hold `S` or `Down` | Hold D-pad Down | Hold D-pad Down |
 | Melee      | `K`                      | `B` or `LB`                   | `Circle` or `L1`                 |
+
+Every character has an **Examinator** inspection drone: one accepted press starts a 0.5-second scan and a
+10-second cooldown, followed by one instant arena-wide volley using that character's ranged effects. Holding
+L/top face never repeats it. Hold S/Down (D-pad Down on all controllers, including 8BitDo) to go prone while
+grounded; release to stand. Prone blocks voluntary movement/jump/new attacks and dodges Examinator only.
+Ordinary combat and external impulses still work. Respawning or entering prone cancels a pending scan without
+refunding cooldown. Both clients show server-recorded shots, drone phases and cooldown. See
+[Iterator and Examinator](docs/iterator-examinator.md) for GoF roles, the deterministic domain demonstration,
+resource fallbacks, and a two-client verification scenario.
 
 The client tracks both press and release, so movement does not depend on operating-system key repeat. Click the
 game area if keys do not respond. Releasing every movement key stops the character. Holding both left and right
@@ -396,13 +407,14 @@ The `/game` endpoint accepts JSON text messages with explicit stable types:
 - `LOBBY_STATE`: publishes code, host player ID, `WAITING`/`RUNNING` phase, and member roster to that lobby.
 - `START_GAME`: host-only request to lock entry and start the game.
 - `LOBBY_CLOSED`: explains why the lobby closed; clients disconnect and return to selection.
-- `INPUT`: sends a monotonically sequenced complete left/right/jump/ranged/melee state, never position or velocity.
-- `WORLD_SNAPSHOT`: broadcasts validated `arenaType` (`combat` or `training`), arena/platform geometry, players (including health, character choice, stress and `slowed`), items,
+- `INPUT`: sends a monotonically sequenced complete left/right/jump/ranged/melee/examinator/prone state, never position or velocity.
+- `WORLD_SNAPSHOT`: broadcasts validated `arenaType` (`combat` or `training`), arena/platform geometry, players (including health, character choice, stress and `slowed`/`prone`), items,
   NPC geometry/activity/facing/attack sequences and `stunned`, player `attacks`, and NPC `projectiles`
   at 20 Hz. Each NPC projectile
   carries its UUID, source NPC ID, explicit `projectileType` (`BOOK` or `DIPLOMA`), center, radius,
   velocity and `returning` flag. Client and server must use this same snapshot format; older snapshots
   missing these fields are rejected.
+- `WORLD_SNAPSHOT.examinators`: per-owner drone phase/position/cooldown and sequenced 0.25-second origin/endpoints for instant volley feedback. These are separate from ordinary RANGED/MELEE attacks.
 - `PING`/`PONG`: application-level liveness round trip.
 - `ERROR`: reports malformed input, wrong direction, missing handshake, capacity, or queue pressure.
 

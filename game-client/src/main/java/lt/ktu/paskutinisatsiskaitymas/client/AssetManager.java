@@ -41,6 +41,12 @@ public final class AssetManager {
         cachePortrait(loaded, "VACIJUS", "VACIJUS_PORTRAIT", 0.280, 0.026, 0.391);
         cachePortrait(loaded, "JURGELINIS", "JURGELINIS_PORTRAIT", 0.147, 0, 0.697);
         cachePortrait(loaded, "GOGIS", "GOGIS_PORTRAIT", 0.376, 0, 0.254);
+        for (String key : ExaminatorArt.KEYS) {
+            String resource = "assets/" + key + ".png";
+            if (AssetManager.class.getResource("/" + resource) != null) {
+                load(loaded, key, resource);
+            }
+        }
         images = Map.copyOf(loaded);
     }
 

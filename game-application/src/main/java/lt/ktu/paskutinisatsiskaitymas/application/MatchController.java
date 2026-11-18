@@ -43,15 +43,20 @@ public final class MatchController {
 
     public void advance(double seconds) {
         Map<UUID, MovementInput> current = new HashMap<>();
-        inputByPlayer.forEach((playerId, input) -> {
-            current.put(playerId, input.forTick());
+        inputByPlayer.forEach((playerId, input) -> current.put(playerId, input.forTick()));
+        session.applyPostures(current);
+        for (Map.Entry<UUID, InputTracker> entry : inputByPlayer.entrySet()) {
+            InputTracker input = entry.getValue();
+            if (input.takeExaminatorRequest()) {
+                session.startExaminator(entry.getKey());
+            }
             if (input.takeRangedRequest()) {
-                session.startAttack(playerId, AttackType.RANGED);
+                session.startAttack(entry.getKey(), AttackType.RANGED);
             }
             if (input.takeMeleeRequest()) {
-                session.startAttack(playerId, AttackType.MELEE);
+                session.startAttack(entry.getKey(), AttackType.MELEE);
             }
-        });
+        }
         session.advance(current, seconds);
     }
 
@@ -65,6 +70,9 @@ public final class MatchController {
         private boolean meleeHeld;
         private boolean rangedRequested;
         private boolean meleeRequested;
+        private boolean examinatorHeld;
+        private boolean examinatorRequested;
+        private boolean prone;
 
         void update(InputCommand input) {
             if (input.sequence() <= lastSequence) {
@@ -79,14 +87,23 @@ public final class MatchController {
             rangedHeld = input.ranged();
             meleeRequested |= input.melee() && !meleeHeld;
             meleeHeld = input.melee();
+            examinatorRequested |= input.examinator() && !examinatorHeld;
+            examinatorHeld = input.examinator();
+            prone = input.prone();
         }
 
         MovementInput forTick() {
-            MovementInput result = new MovementInput(left, right, jumpRequested);
+            MovementInput result = new MovementInput(left, right, jumpRequested, prone);
             jumpRequested = false;
             return result;
         }
         
+        boolean takeExaminatorRequest() {
+            boolean result = examinatorRequested;
+            examinatorRequested = false;
+            return result;
+        }
+
         boolean takeRangedRequest() {
             boolean result = rangedRequested;
             rangedRequested = false;

@@ -74,7 +74,9 @@ final class KeyboardInputAdapter implements InputSource, KeyListener {
                 || ControlBindings.RIGHT.contains(keyCode)
                 || ControlBindings.JUMP.contains(keyCode)
                 || ControlBindings.RANGED.contains(keyCode)
-                || ControlBindings.MELEE.contains(keyCode);
+                || ControlBindings.MELEE.contains(keyCode)
+                || ControlBindings.EXAMINATOR.contains(keyCode)
+                || ControlBindings.PRONE.contains(keyCode);
     }
 
     private void publishIfChanged() {
@@ -83,7 +85,9 @@ final class KeyboardInputAdapter implements InputSource, KeyListener {
                 pressed.stream().anyMatch(ControlBindings.RIGHT::contains),
                 pressed.stream().anyMatch(ControlBindings.JUMP::contains),
                 pressed.stream().anyMatch(ControlBindings.RANGED::contains),
-                pressed.stream().anyMatch(ControlBindings.MELEE::contains));
+                pressed.stream().anyMatch(ControlBindings.MELEE::contains),
+                pressed.stream().anyMatch(ControlBindings.EXAMINATOR::contains),
+                pressed.stream().anyMatch(ControlBindings.PRONE::contains));
         if (!current.equals(last)) {
             last = current;
             listener.accept(current);

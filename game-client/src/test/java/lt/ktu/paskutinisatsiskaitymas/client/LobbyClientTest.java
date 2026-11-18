@@ -61,7 +61,7 @@ class LobbyClientTest {
             assertEquals(LobbyState.Phase.WAITING, states.poll(5, TimeUnit.SECONDS).phase());
             SwingUtilities.invokeAndWait(() -> {
                 assertFalse(facade.canUndoSelection());
-                facade.sendInput(new PlayerInput(true, false, true, false, false));
+                facade.sendInput(new PlayerInput(true, false, true, false, false, true, true));
                 facade.startGame();
             });
             assertInstanceOf(StartGame.class, peer.received.poll(5, TimeUnit.SECONDS));

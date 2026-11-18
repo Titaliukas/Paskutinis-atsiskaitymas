@@ -35,6 +35,18 @@ class GamepadInputAdapterTest {
     }
 
     @Test
+    void dpadDownAndTopFaceMapAcrossEveryControllerAndResetClearsBoth() {
+        for (GamepadInputAdapter adapter : adapters()) {
+            adapter.update(new GamepadReading("Controller", 0, false, false, false, true, false, false, true));
+            assertTrue(adapter.currentInput().prone());
+            assertTrue(adapter.currentInput().examinator());
+            adapter.reset();
+            assertEquals(PlayerInput.NONE, adapter.currentInput());
+            adapter.close();
+        }
+    }
+
+    @Test
     void eachAdapterAcceptsOnlyItsOwnControllers() {
         for (String name : List.of("Xbox 360 Controller", "Xbox Series X Controller", "XInput Controller")) {
             assertTrue(xbox.matches(name), name);
@@ -66,7 +78,8 @@ class GamepadInputAdapterTest {
             assertEquals(state(false, false, true, false, false), adapter.map(face(true, false, false, false)));
             assertEquals(state(false, false, false, true, false), adapter.map(face(false, false, true, false)));
             assertEquals(state(false, false, false, false, true), adapter.map(face(false, true, false, false)));
-            assertEquals(PlayerInput.NONE, adapter.map(face(false, false, false, true)), "top button is unused");
+            assertEquals(new PlayerInput(false, false, false, false, false, true, false),
+                    adapter.map(face(false, false, false, true)), "top button activates Examinator");
         }
     }
 
@@ -157,7 +170,7 @@ class GamepadInputAdapterTest {
         assertTrue(InputDevice.EIGHT_BIT_DO.gamepad());
         assertEquals("8BitDo controller", InputDevice.EIGHT_BIT_DO.toString());
         assertEquals("8BitDo: left stick move, bottom face button jump, "
-                + "left face button/right shoulder ranged, right face button/left shoulder melee",
+                + "left face button/right shoulder ranged, right face button/left shoulder melee, top face Examinator, D-pad Down prone",
                 InputDevice.EIGHT_BIT_DO.controlsHint());
     }
 }
