@@ -9,6 +9,8 @@ import lt.ktu.paskutinisatsiskaitymas.protocol.AttackSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.PlatformSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.PlayerSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.WorldSnapshot;
+import lt.ktu.paskutinisatsiskaitymas.protocol.ExaminatorSnapshot;
+import lt.ktu.paskutinisatsiskaitymas.protocol.ExaminatorShotSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.ItemSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.NPCSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.ProjectileSnapshot;
@@ -29,7 +31,7 @@ final class SnapshotMapper {
                         character.x(), character.y(), GameConstants.PLAYER_WIDTH,
                         GameConstants.PLAYER_HEIGHT, character.grounded(), character.shielded(),
                         character.velocityX(), character.health(), character.maxHealth(),
-                        character.stressLevel(), character.characterType().name(), character.slowed()))
+                        character.stressLevel(), character.characterType().name(), character.slowed(), character.prone()))
                 .toList();
         var items = session.activeItems().stream()
                 .map(item -> new ItemSnapshot(item.id(), item.type().name(),
@@ -48,6 +50,12 @@ final class SnapshotMapper {
         var projectiles = session.projectiles().stream().map(state -> new ProjectileSnapshot(state.id(),
                 state.sourceNPCId(), state.type().name(), state.position().x(), state.position().y(),
                 GameConstants.NPC_PROJECTILE_RADIUS, state.velocityX(), state.velocityY(), state.returning())).toList();
-        return new WorldSnapshot(tick, arena, players, items, npcs, attacks, projectiles);
+        var examinators = session.examinators().stream().map(state -> new ExaminatorSnapshot(state.ownerId(),
+                state.position().x(), state.position().y(), state.phase(), state.cooldownRemaining(),
+                state.phaseRemaining(), state.simulationTime(), state.shotSequence(), state.emitter().x(), state.emitter().y(),
+                state.aim().x(), state.aim().y(), state.shots().stream().map(shot -> new ExaminatorShotSnapshot(
+                        shot.sequence(), shot.origin().x(), shot.origin().y(), shot.endpoint().x(), shot.endpoint().y(),
+                        shot.remainingSeconds())).toList())).toList();
+        return new WorldSnapshot(tick, arena, players, items, npcs, attacks, projectiles, examinators);
     }
 }

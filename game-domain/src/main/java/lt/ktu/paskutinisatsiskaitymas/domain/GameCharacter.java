@@ -1,10 +1,11 @@
 package lt.ktu.paskutinisatsiskaitymas.domain;
 
 import java.util.Objects;
+import java.util.List;
 import java.util.UUID;
 
 /** Server-owned mutable character. It accepts input intent and resolves movement inside domain bounds. */
-public final class GameCharacter implements PlatformPassenger {
+public final class GameCharacter implements PlatformPassenger, AutoTarget {
     private static final double COLLISION_EPSILON = 0.000_001;
     private static final double KNOCKBACK_DECAY_PER_SECOND = 6.0;
     private final UUID id;
@@ -23,6 +24,9 @@ public final class GameCharacter implements PlatformPassenger {
     private double stressLevel;
     private double slowRemaining;
     private int health;
+    private boolean prone;
+    private long respawnSequence;
+    private long proneSequence;
     private int facing;
     private double knockbackX;
     private double rangedCooldownRemaining;
@@ -61,14 +65,14 @@ public final class GameCharacter implements PlatformPassenger {
             slowRemaining = 0;
         }
 
-        int direction = (input.right() ? 1 : 0) - (input.left() ? 1 : 0);
+        int direction = prone ? 0 : (input.right() ? 1 : 0) - (input.left() ? 1 : 0);
         if (direction != 0) {
             facing = direction;
         }
 
         velocityX = direction * GameConstants.MOVE_SPEED * build.speedMultiplier() * stats.speedMultiplier()
                 * (slowRemaining > 0 ? GameConstants.PROJECTILE_SLOW_MULTIPLIER : 1.0);
-        if (input.jumpRequested() && grounded) {
+        if (input.jumpRequested() && grounded && !prone) {
             velocityY = -GameConstants.JUMP_SPEED * Math.sqrt(build.jumpHeightMultiplier() * stats.jumpMultiplier());
             grounded = false;
         }
@@ -129,6 +133,9 @@ public final class GameCharacter implements PlatformPassenger {
             grounded = true;
         }
         y = nextY;
+        if (!grounded) {
+            prone = false;
+        }
     }
 
     @Override
@@ -199,10 +206,14 @@ public final class GameCharacter implements PlatformPassenger {
         knockbackX = impulseX;
         velocityY = impulseY;
         grounded = false;
+        prone = false;
     }
 
     /** Starts the cooldown and returns true only if the attack type is ready. */
     boolean tryUseCooldown(AttackType type) {
+        if (prone) {
+            return false;
+        }
         if (type == AttackType.RANGED) {
             if (rangedCooldownRemaining > 0) {
                 return false;
@@ -218,6 +229,8 @@ public final class GameCharacter implements PlatformPassenger {
     }
 
     private void respawn() {
+        respawnSequence++;
+        prone = false;
         health = build.maxHealth();
         x = spawn.x();
         y = spawn.y();
@@ -257,7 +270,38 @@ public final class GameCharacter implements PlatformPassenger {
     GameCharacterState state() {
         return new GameCharacterState(player.id(), slot, player.nickname(), x, y,
                 velocityX, velocityY, grounded, stats.shielded(), health, build.maxHealth(), stressLevel,
-                characterType, slowRemaining > 0);
+                characterType, slowRemaining > 0, prone);
+    }
+
+    public boolean isProne() { return prone; }
+
+    public void setProne(boolean requested) {
+        boolean next = requested && grounded;
+        if (next && !prone) {
+            proneSequence++;
+        }
+        prone = next;
+    }
+
+    long respawnSequence() { return respawnSequence; }
+
+    @Override
+    public long targetLifetime() { return respawnSequence; }
+    long proneSequence() { return proneSequence; }
+
+    @Override
+    public boolean canBeTargetedBy(GameCharacter source) { return this != source && !prone; }
+
+    @Override
+    public Position aimPoint() {
+        return new Position(x + GameConstants.PLAYER_WIDTH / 2, y + GameConstants.PLAYER_HEIGHT / 2);
+    }
+
+    @Override
+    public void receiveHit(List<AttackEffect> effects, int direction) {
+        if (!shielded()) {
+            effects.forEach(effect -> effect.applyTo(this, direction));
+        }
     }
 
     UUID id() {

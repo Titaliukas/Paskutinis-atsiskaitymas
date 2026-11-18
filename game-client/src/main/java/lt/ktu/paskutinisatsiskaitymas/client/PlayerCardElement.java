@@ -62,13 +62,14 @@ final class PlayerCardElement implements HudElement {
         Font original = g.getFont();
         g.setFont(original.deriveFont(Font.BOLD, 13f));
         g.setColor(Color.WHITE);
-        g.drawString(HudStyle.ellipsize(g, player.nickname(), textWidth), textX, 26);
-        g.setFont(original.deriveFont(Font.PLAIN, 13f));
+        g.drawString(HudStyle.ellipsize(g, player.nickname(), textWidth), textX, 23);
+        g.setFont(original.deriveFont(Font.PLAIN, 12f));
         String stress = BigDecimal.valueOf(player.stressLevel()).stripTrailingZeros().toPlainString();
-        g.drawString(HudStyle.ellipsize(g, "Stress: " + stress, textWidth), textX, 49);
+        g.drawString(HudStyle.ellipsize(g, "Stress: " + stress, textWidth), textX, 42);
+        g.drawString(HudStyle.ellipsize(g, context.examinatorStatus(player.playerId()), textWidth), textX, 60);
         g.setColor(local ? Color.WHITE : accent);
         g.setFont(original.deriveFont(Font.PLAIN, 11f));
-        g.drawString("Player " + (player.slot() + 1) + (local ? " (you)" : ""), textX, 72);
+        g.drawString("Player " + (player.slot() + 1) + (local ? " (you)" : ""), textX, 78);
         g.setFont(original);
     }
 

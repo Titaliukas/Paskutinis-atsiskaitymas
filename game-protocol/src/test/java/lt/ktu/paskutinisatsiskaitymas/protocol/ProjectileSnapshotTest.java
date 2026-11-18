@@ -76,7 +76,11 @@ class ProjectileSnapshotTest {
                         new PlatformSnapshot(660, 380, 160, 20), new PlatformSnapshot(0, 480, 960, 60))),
                 players, items, List.of(new NPCSnapshot(1, 350.12345678912345, 416, 42, 64,
                         "CHASE", true, Long.MAX_VALUE, true), new NPCSnapshot(2, 580.12345678912345, 416,
-                        42, 64, "CHASE", false, Long.MAX_VALUE, true)), List.of(), projectiles);
+                        42, 64, "CHASE", false, Long.MAX_VALUE, true)), List.of(), projectiles, players.stream().map(player -> new ExaminatorSnapshot(player.playerId(),
+                        480, 270, "FIRE", 27.512345678912345, 0.112345678912345,
+                        123456.12345678912345, Long.MAX_VALUE, 487, 267, 321.12345678912345, 456.12345678912345,
+                        List.of(new ExaminatorShotSnapshot(Long.MAX_VALUE, 487, 267,
+                                321.12345678912345, 456.12345678912345, 0.112345678912345)))).toList());
         String json = codec.encode(world);
         assertTrue(json.length() <= JsonMessageCodec.MAX_MESSAGE_CHARACTERS, "Full snapshot length: " + json.length());
         assertEquals(world, codec.decode(json));

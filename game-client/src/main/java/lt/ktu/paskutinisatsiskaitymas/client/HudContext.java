@@ -10,6 +10,24 @@ import lt.ktu.paskutinisatsiskaitymas.protocol.WorldSnapshot;
 record HudContext(int width, int height, WorldSnapshot snapshot, UUID localPlayerId, String notification,
         AssetManager assets) {
 
+    /** Snapshot order and the local player's identity never determine another owner's ability status. */
+    String examinatorStatus(UUID ownerId) {
+        var ability = snapshot.examinators().stream().filter(value -> value.ownerId().equals(ownerId))
+                .findFirst().orElse(null);
+        if (ability == null) {
+            return "EX: --";
+        }
+        return switch (ability.phase()) {
+            case "FLY" -> "EX: Arriving";
+            case "INSPECT", "ACQUIRE" -> "EX: Scanning";
+            case "AIM" -> "EX: Aiming";
+            case "FIRE" -> "EX: Firing";
+            case "IDLE" -> ability.cooldownRemaining() > 0
+                    ? "EX: " + (int) Math.ceil(ability.cooldownRemaining()) + "s" : "EX: Ready";
+            default -> "EX: --";
+        };
+    }
+
     /** Uniform scale of the arena inside the panel. */
     double worldScale() {
         return Math.min(width / snapshot.arena().width(), height / snapshot.arena().height());

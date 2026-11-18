@@ -4,16 +4,20 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.fasterxml.jackson.databind.MapperFeature;
 
 /** Thread-safe after construction; serializes transport DTOs only, using a fixed type allowlist. */
 public final class JsonMessageCodec {
     public static final int MAX_MESSAGE_CHARACTERS = 8192;
-    private final ObjectMapper mapper = new ObjectMapper()
-            .findAndRegisterModules()
+    private final ObjectMapper mapper = JsonMapper.builder()
+            .findAndAddModules()
+            .disable(MapperFeature.ALLOW_COERCION_OF_SCALARS)
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
             .enable(DeserializationFeature.FAIL_ON_MISSING_CREATOR_PROPERTIES)
             .enable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
-            .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
+            .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
+            .build();
 
     public String encode(Message message) throws ProtocolException {
         if (message == null) {

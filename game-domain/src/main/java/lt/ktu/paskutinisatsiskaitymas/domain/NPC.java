@@ -1,9 +1,10 @@
 package lt.ktu.paskutinisatsiskaitymas.domain;
 
 import java.util.Objects;
+import java.util.List;
 
 /** Strategy context and precise authoritative body, confined to the session owner thread. */
-public final class NPC implements PlatformPassenger {
+public final class NPC implements PlatformPassenger, AutoTarget {
     private final Integer id;
     private Integer targetID;
     private Integer position_x;
@@ -179,6 +180,19 @@ public final class NPC implements PlatformPassenger {
             retire();
         }
         return true;
+    }
+
+    @Override
+    public boolean canBeTargetedBy(GameCharacter source) { return alive; }
+
+    @Override
+    public Position aimPoint() { return new Position(preciseX + width / 2, preciseY + height / 2); }
+
+    @Override
+    public void receiveHit(List<AttackEffect> effects, int direction) {
+        if (alive) {
+            effects.forEach(effect -> effect.applyTo(this, direction));
+        }
     }
 
     double health() { return health; }

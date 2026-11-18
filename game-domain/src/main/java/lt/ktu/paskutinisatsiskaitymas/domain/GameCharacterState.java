@@ -18,7 +18,8 @@ public record GameCharacterState(
         int maxHealth,
         double stressLevel,
         CharacterType characterType,
-        boolean slowed) {
+        boolean slowed,
+        boolean prone) {
     public GameCharacterState {
         Objects.requireNonNull(playerId, "playerId");
         Objects.requireNonNull(nickname, "nickname");

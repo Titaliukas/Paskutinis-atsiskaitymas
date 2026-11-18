@@ -117,17 +117,22 @@ public final class ClientConnection implements AutoCloseable {
     }
 
     void sendInput(PlayerInput input) {
-        sendInput(input.left(), input.right(), input.jump(), input.ranged(), input.melee());
+        sendInput(input.left(), input.right(), input.jump(), input.ranged(), input.melee(), input.examinator(), input.prone());
     }
 
     public synchronized void sendInput(boolean left, boolean right, boolean jump, boolean ranged, boolean melee) {
+        sendInput(left, right, jump, ranged, melee, false, false);
+    }
+
+    public synchronized void sendInput(boolean left, boolean right, boolean jump, boolean ranged, boolean melee,
+            boolean examinator, boolean prone) {
         if (!playing || socket == null || handshake == null || !handshake.isDone()
                 || handshake.isCompletedExceptionally() || handshake.isCancelled()) {
             return;
         }
         final String json;
         try {
-            json = codec.encode(new InputState(inputSequence++, left, right, jump, ranged, melee));
+            json = codec.encode(new InputState(inputSequence++, left, right, jump, ranged, melee, examinator, prone));
         } catch (ProtocolException exception) {
             fail(generation, "Cannot encode input");
             return;

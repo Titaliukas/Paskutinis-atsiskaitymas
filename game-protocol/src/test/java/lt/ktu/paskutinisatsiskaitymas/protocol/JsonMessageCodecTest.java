@@ -93,7 +93,7 @@ class JsonMessageCodecTest {
     @Test
     void decodesAttackKeysFromInputMessage() throws Exception {
         Message message = codec.decode("{\"type\":\"INPUT\",\"sequence\":3,\"left\":false,"
-                + "\"right\":true,\"jump\":false,\"ranged\":true,\"melee\":false}");
+                + "\"right\":true,\"jump\":false,\"ranged\":true,\"melee\":false,\"examinator\":false,\"prone\":false}");
         assertEquals(new InputState(3, false, true, false, true, false), message);
     }
 

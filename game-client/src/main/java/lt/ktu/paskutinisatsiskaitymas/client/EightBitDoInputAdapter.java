@@ -17,6 +17,6 @@ final class EightBitDoInputAdapter extends GamepadInputAdapter {
     PlayerInput map(GamepadReading reading) {
         return new PlayerInput(movesLeft(reading), movesRight(reading),
                 reading.bottom(), reading.left() || reading.rightShoulder(),
-                reading.right() || reading.leftShoulder());
+                reading.right() || reading.leftShoulder(), reading.top(), reading.dpadDown());
     }
 }

@@ -9,6 +9,8 @@ final class ControlBindings {
     static final Set<Integer> RIGHT = Set.of(KeyEvent.VK_D, KeyEvent.VK_RIGHT);
     static final Set<Integer> JUMP = Set.of(KeyEvent.VK_SPACE, KeyEvent.VK_W, KeyEvent.VK_UP);
     static final Set<Integer> RANGED = Set.of(KeyEvent.VK_J);
+    static final Set<Integer> EXAMINATOR = Set.of(KeyEvent.VK_L);
+    static final Set<Integer> PRONE = Set.of(KeyEvent.VK_S, KeyEvent.VK_DOWN);
     static final Set<Integer> MELEE = Set.of(KeyEvent.VK_K);
  
     private ControlBindings() { }

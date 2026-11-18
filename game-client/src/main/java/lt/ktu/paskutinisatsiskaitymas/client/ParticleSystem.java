@@ -2,6 +2,7 @@ package lt.ktu.paskutinisatsiskaitymas.client;
 
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.awt.Shape;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -40,6 +41,11 @@ final class ParticleSystem {
 
     /** As {@link #emitBurst(ParticleKind, double, double, int, int)}, scattering each spawn point by up to {@code jitter}. */
     void emitBurst(ParticleKind kind, double x, double y, int count, int directionX, double jitter) {
+        emitAngledBurst(kind, x, y, count, directionX >= 0 ? 0 : Math.PI, jitter);
+    }
+
+    /** Vector-oriented emission, using the same flyweights, cap and accounting as ordinary bursts. */
+    void emitAngledBurst(ParticleKind kind, double x, double y, int count, double directionAngle, double jitter) {
         boolean measure = stats != null && stats.running();
         long startBytes = measure ? ParticleStats.allocatedBytes() : 0;
         long startNanos = measure ? System.nanoTime() : 0;
@@ -55,7 +61,7 @@ final class ParticleSystem {
             double spawnX = x + (random.nextDouble() * 2 - 1) * jitter;
             double spawnY = y + (random.nextDouble() * 2 - 1) * jitter;
             double angle = type.directional()
-                    ? (directionX >= 0 ? 0.0 : Math.PI) + (random.nextDouble() - 0.5)
+                    ? directionAngle + (random.nextDouble() - 0.5)
                     : random.nextDouble() * Math.PI * 2;
             double speed = type.speed() * (0.5 + random.nextDouble() * 0.5);
             particles.add(new Particle(type, spawnX, spawnY, Math.cos(angle) * speed, Math.sin(angle) * speed));
@@ -83,14 +89,27 @@ final class ParticleSystem {
         }
     }
 
-    void draw(Graphics2D g) {
+    void draw(Graphics2D g) { draw(g, null); }
+
+    /** A scoped clip for ability particles keeps off-arena entry effects out of letterbox margins. */
+    void draw(Graphics2D g, Shape examinatorClip) {
         boolean measure = stats != null && stats.running();
         long startBytes = measure ? ParticleStats.allocatedBytes() : 0;
         long startNanos = measure ? System.nanoTime() : 0;
         Object previous = g.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-        for (Particle particle : particles) {
-            particle.draw(g);
+        Graphics2D ability = examinatorClip == null ? g : (Graphics2D) g.create();
+        try {
+            if (examinatorClip != null) {
+                ability.clip(examinatorClip);
+            }
+            for (Particle particle : particles) {
+                particle.draw(particle.kind().isExaminator() ? ability : g);
+            }
+        } finally {
+            if (ability != g) {
+                ability.dispose();
+            }
         }
         if (previous != null) {
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, previous);

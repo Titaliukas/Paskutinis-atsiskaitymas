@@ -11,7 +11,14 @@ public record InputCommand(
         boolean right,
         boolean jump,
         boolean ranged,
-        boolean melee) implements GameCommand {
+        boolean melee,
+        boolean examinator,
+        boolean prone) implements GameCommand {
+    public InputCommand(UUID playerId, long sequence, boolean left, boolean right, boolean jump,
+            boolean ranged, boolean melee) {
+        this(playerId, sequence, left, right, jump, ranged, melee, false, false);
+    }
+
     public InputCommand {
         Objects.requireNonNull(playerId, "playerId");
         if (sequence < 0) {
