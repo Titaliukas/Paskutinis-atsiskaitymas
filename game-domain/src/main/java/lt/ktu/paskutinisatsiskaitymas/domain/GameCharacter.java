@@ -8,6 +8,7 @@ import java.util.UUID;
 public final class GameCharacter implements PlatformPassenger, AutoTarget {
     private static final double COLLISION_EPSILON = 0.000_001;
     private static final double KNOCKBACK_DECAY_PER_SECOND = 6.0;
+    private static final DamageHandler DAMAGE_CHAIN = DamageChain.standard();
     private final UUID id;
     private final Player player;
     private final int slot;
@@ -179,22 +180,29 @@ public final class GameCharacter implements PlatformPassenger, AutoTarget {
         return stats;
     }
 
-    /** Single damage entry point: a shield blocks it, otherwise stress grows and health drops. */
+    /** Single damage entry point: the request travels through the damage chain. */
     public boolean takeDamage(double damage) {
-        NPCGeometry.positive(damage, "damage");
-        if (stats.shielded()) {
+        return DamageChain.apply(DAMAGE_CHAIN, this, damage);
+    }
+    
+    /** False, jei streso reikšmė nepasikeitė. */
+    boolean addStress(double amount) {
+        double nextStress = NPCGeometry.finite(stressLevel + amount, "stressLevel");
+        if (nextStress == stressLevel) {
             return false;
         }
-        double nextStress = NPCGeometry.finite(stressLevel + damage, "stressLevel");
-        if (nextStress == stressLevel) {
-            return false; // nothing actually changed
-        }
         stressLevel = nextStress;
-        health -= (int) Math.ceil(damage);
+        return true;
+    }
+
+    void loseHealth(int amount) {
+        health -= amount;
+    }
+
+    void respawnIfDead() {
         if (health <= 0) {
             respawn();
         }
-        return true;
     }
 
     boolean shielded() {

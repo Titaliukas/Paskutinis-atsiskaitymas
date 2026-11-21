@@ -1,0 +1,8 @@
+static DamageHandler standard() {
+    DamageHandler head = new ShieldHandler();
+    head.linkWith(new ProneHandler())
+        .linkWith(new StressHandler())
+        .linkWith(new HealthHandler())
+        .linkWith(new RespawnHandler());
+    return head;
+}
