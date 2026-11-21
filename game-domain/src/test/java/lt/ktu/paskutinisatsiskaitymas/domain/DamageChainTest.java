@@ -85,12 +85,12 @@ class DamageChainTest {
         assertEquals(92, c.state().health());
     }
     @Test
-    void proneHalvesDamageBeforeStressAndHealth() {
+    void proneDamageIsScaledBeforeStressAndHealth() {
         GameCharacter c = character();
         c.setProne(true);
         assertTrue(DamageChain.apply(chain, c, 10));
-        assertEquals(5, c.state().stressLevel(), 1e-9);
-        assertEquals(95, c.state().health());
+        assertEquals(3, c.state().stressLevel(), 1e-9);
+        assertEquals(97, c.state().health());
     }
 
     @Test
@@ -107,8 +107,8 @@ class DamageChainTest {
     void proneDamageRoundsHealthLossUp() {
         GameCharacter c = character();
         c.setProne(true);
-        assertTrue(DamageChain.apply(chain, c, 5));   // 2.5 -> ceil = 3
-        assertEquals(2.5, c.state().stressLevel(), 1e-9);
-        assertEquals(97, c.state().health());
+        assertTrue(DamageChain.apply(chain, c, 5));   // 1.5 -> ceil = 2
+        assertEquals(1.5, c.state().stressLevel(), 1e-9);
+        assertEquals(98, c.state().health());
     }
 }

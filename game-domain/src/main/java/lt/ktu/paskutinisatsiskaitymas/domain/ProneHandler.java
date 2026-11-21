@@ -1,6 +1,6 @@
 package lt.ktu.paskutinisatsiskaitymas.domain;
 
-/** Gulintis žaidėjas gauna perpus mažiau žalos; grandinės nestabdo. */
+/** Gulintis žaidėjas gauna 30 % žalos; grandinės nestabdo. */
 final class ProneHandler extends DamageHandler {
     static final double PRONE_FACTOR = 0.3;
 
