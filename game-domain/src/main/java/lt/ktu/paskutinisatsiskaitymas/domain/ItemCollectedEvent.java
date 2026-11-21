@@ -9,4 +9,8 @@ public record ItemCollectedEvent(UUID playerId, String nickname, ItemType itemTy
         Objects.requireNonNull(nickname, "nickname");
         Objects.requireNonNull(itemType, "itemType");
     }
+    @Override
+    public <R> R accept(GameEventVisitor<R> visitor) {
+        return visitor.visit(this);
+    }
 }

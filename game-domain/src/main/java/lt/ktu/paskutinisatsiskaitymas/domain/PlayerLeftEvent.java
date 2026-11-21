@@ -8,4 +8,9 @@ public record PlayerLeftEvent(UUID playerId, String nickname) implements GameEve
         Objects.requireNonNull(playerId, "playerId");
         Objects.requireNonNull(nickname, "nickname");
     }
+
+    @Override
+    public <R> R accept(GameEventVisitor<R> visitor) {
+        return visitor.visit(this);
+    }
 }

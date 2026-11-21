@@ -8,4 +8,9 @@ public record PlayerJoinedEvent(UUID playerId, String nickname) implements GameE
         Objects.requireNonNull(playerId, "playerId");
         Objects.requireNonNull(nickname, "nickname");
     }
+
+    @Override
+    public <R> R accept(GameEventVisitor<R> visitor) {
+        return visitor.visit(this);
+    }
 }
