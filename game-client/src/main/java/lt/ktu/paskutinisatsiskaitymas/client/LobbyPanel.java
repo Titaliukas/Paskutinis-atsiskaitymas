@@ -21,15 +21,15 @@ import lt.ktu.paskutinisatsiskaitymas.protocol.LobbyState;
 
 /** Waiting-room view; all actions go through the facade to the server mediator. EDT only. */
 final class LobbyPanel extends JPanel {
-    private final JLabel code = new JLabel("Joining lobby...");
     private final JPanel roster = new JPanel(new GridLayout(1, 4, 12, 0));
     private final JButton start = new JButton("Start game");
+    private final JLabel readiness = new JLabel();
+    private boolean canStart;
+    private boolean busy;
 
     LobbyPanel(Runnable startGame) {
         super(new BorderLayout(12, 16));
         setBorder(BorderFactory.createEmptyBorder(24, 24, 24, 24));
-        code.putClientProperty("html.disable", Boolean.TRUE);
-        code.setFont(code.getFont().deriveFont(24f));
         roster.setOpaque(false);
         JPanel players = new JPanel(new GridBagLayout());
         players.setBackground(new Color(17, 23, 34));
@@ -38,10 +38,9 @@ final class LobbyPanel extends JPanel {
         row.weightx = 1;
         row.fill = GridBagConstraints.HORIZONTAL;
         players.add(roster, row);
-        add(code, BorderLayout.NORTH);
         add(players, BorderLayout.CENTER);
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        actions.add(new JLabel("The host starts when everyone has joined."));
+        actions.add(readiness);
         actions.add(start);
         add(actions, BorderLayout.SOUTH);
         start.setEnabled(false);
@@ -49,7 +48,6 @@ final class LobbyPanel extends JPanel {
     }
 
     void showLobby(LobbyState state, UUID localPlayerId) {
-        code.setText("Lobby code: " + state.code() + "   (" + state.members().size() + "/4)");
         roster.removeAll();
         for (int slot = 0; slot < 4; slot++) {
             int playerSlot = slot;
@@ -60,8 +58,16 @@ final class LobbyPanel extends JPanel {
         roster.revalidate();
         roster.repaint();
         boolean host = state.hostId().equals(localPlayerId);
+        boolean allConfirmed = state.members().stream().allMatch(member -> member.character() != null);
         start.setVisible(host);
-        start.setEnabled(host && state.phase() == LobbyState.Phase.WAITING);
+        canStart = host && allConfirmed && state.phase() == LobbyState.Phase.WAITING;
+        readiness.setText(allConfirmed ? "Waiting for the host to start." : "Waiting for all players to choose.");
+        start.setEnabled(canStart && !busy);
+    }
+
+    void setBusy(boolean busy) {
+        this.busy = busy;
+        start.setEnabled(canStart && !busy);
     }
 
     private JPanel playerCard(LobbyMember member, UUID hostId, UUID localPlayerId) {
@@ -77,7 +83,7 @@ final class LobbyPanel extends JPanel {
         portrait.setForeground(Color.LIGHT_GRAY);
         portrait.setFont(portrait.getFont().deriveFont(Font.BOLD, 48f));
         portrait.setPreferredSize(new Dimension(112, 112));
-        if (member != null) {
+        if (member != null && member.character() != null) {
             Image image = AssetManager.getInstance().getImage(member.character() + "_PORTRAIT");
             if (image != null) {
                 portrait.setText(null);
@@ -85,7 +91,7 @@ final class LobbyPanel extends JPanel {
             }
             portrait.getAccessibleContext().setAccessibleName(member.character() + " portrait");
         } else {
-            portrait.getAccessibleContext().setAccessibleName("Empty player slot");
+            portrait.getAccessibleContext().setAccessibleName(member == null ? "Empty player slot" : "Choosing character");
         }
         card.add(portrait, BorderLayout.NORTH);
 
@@ -99,7 +105,11 @@ final class LobbyPanel extends JPanel {
         card.add(nickname, BorderLayout.CENTER);
 
         boolean host = member != null && member.playerId().equals(hostId);
-        JLabel role = new JLabel(host ? local ? "Host · You" : "Host" : local ? "You" : " ", SwingConstants.CENTER);
+        String roleText = host ? local ? "Host \u00B7 You" : "Host" : local ? "You" : "";
+        if (member != null && member.character() == null) {
+            roleText = roleText.isEmpty() ? "Choosing character" : roleText + " \u00B7 Choosing character";
+        }
+        JLabel role = new JLabel(roleText.isEmpty() ? " " : roleText, SwingConstants.CENTER);
         role.setForeground(new Color(109, 186, 255));
         card.add(role, BorderLayout.SOUTH);
         return card;

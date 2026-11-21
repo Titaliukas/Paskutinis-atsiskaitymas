@@ -11,10 +11,12 @@ class LobbyProtocolTest {
     @Test
     void roundTripsEveryLobbyMessageWithExplicitNames() throws Exception {
         UUID host = UUID.randomUUID();
-        List<Message> messages = List.of(new CreateLobby("Host", "GOGIS", new StatAllocation(75, 125, 100)),
+        List<Message> messages = List.of(new CreateLobby("Host"), new SelectCharacter("GOGIS", new StatAllocation(75, 125, 100)),
+                new LeaveLobby(), new ListLobbies(null), new ListLobbies("abc123"),
+                new LobbyList(List.of(new LobbySummary("ABC123", "Host", 1)), false),
                 new JoinLobby("abc123", "Guest"), new StartGame(),
                 new LobbyState("ABC123", host, LobbyState.Phase.WAITING,
-                        List.of(new LobbyMember(host, 0, "Host", "GOGIS"))),
+                        List.of(new LobbyMember(host, 0, "Host", null))),
                 new LobbyState("ABC123", host, LobbyState.Phase.RUNNING,
                         List.of(new LobbyMember(host, 0, "Host", "GOGIS"))),
                 new LobbyClosed("The host left."));
@@ -31,6 +33,12 @@ class LobbyProtocolTest {
     @Test
     void rejectsOldHandshakeAndMalformedLobbyRequests() {
         for (String json : List.of(
+                "{\"type\":\"CREATE_LOBBY\",\"nickname\":\"Host\",\"character\":\"GOGIS\"}",
+                "{\"type\":\"SELECT_CHARACTER\",\"character\":\"GOGIS\"}",
+                "{\"type\":\"SELECT_CHARACTER\",\"character\":\"UNKNOWN\",\"stats\":null}",
+                "{\"type\":\"LIST_LOBBIES\",\"afterCode\":\"bad\"}",
+                "{\"type\":\"LOBBY_LIST\",\"rooms\":[],\"hasMore\":true}",
+                "{\"type\":\"LEAVE_LOBBY\",\"code\":\"ABC123\"}",
                 "{\"type\":\"HELLO\",\"nickname\":\"Old\"}",
                 "{\"type\":\"JOIN_LOBBY\",\"nickname\":\"Guest\"}",
                 "{\"type\":\"JOIN_LOBBY\",\"code\":123456,\"nickname\":\"Guest\"}",

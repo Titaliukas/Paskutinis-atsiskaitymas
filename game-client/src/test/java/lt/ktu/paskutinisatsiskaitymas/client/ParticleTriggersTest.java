@@ -7,7 +7,7 @@ import java.util.Random;
 import java.util.UUID;
 import lt.ktu.paskutinisatsiskaitymas.protocol.ArenaSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.AttackSnapshot;
-import lt.ktu.paskutinisatsiskaitymas.protocol.Hello;
+import lt.ktu.paskutinisatsiskaitymas.protocol.SelectCharacter;
 import lt.ktu.paskutinisatsiskaitymas.protocol.ItemSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.NPCSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.PlatformSnapshot;
@@ -25,7 +25,7 @@ class ParticleTriggersTest {
 
     private PlayerSnapshot player(UUID id, int slot, double x, boolean grounded, double velocityX, int health) {
         return new PlayerSnapshot(id, slot, "P" + slot, x, 400, 42, 64, grounded, false, velocityX, health, 100, 0,
-                Hello.CHARACTERS.get(slot), false);
+                SelectCharacter.CHARACTERS.get(slot), false);
     }
 
     private WorldSnapshot world(List<PlayerSnapshot> players, List<ItemSnapshot> items, List<NPCSnapshot> npcs,
@@ -170,12 +170,12 @@ class ParticleTriggersTest {
 
     private PlayerSnapshot airborne(UUID id, double y) {
         return new PlayerSnapshot(id, 0, "P0", 100, y, 42, 64, false, false, 0, 100, 100, 0,
-                Hello.CHARACTERS.get(0), false);
+                SelectCharacter.CHARACTERS.get(0), false);
     }
 
     private PlayerSnapshot standingAt(UUID id, double y) {
         return new PlayerSnapshot(id, 0, "P0", 100, y, 42, 64, true, false, 0, 100, 100, 0,
-                Hello.CHARACTERS.get(0), false);
+                SelectCharacter.CHARACTERS.get(0), false);
     }
 
     private WorldSnapshot withItems(PlayerSnapshot player, ItemSnapshot... items) {
@@ -255,7 +255,7 @@ class ParticleTriggersTest {
 
     private PlayerSnapshot shielded(UUID id) {
         return new PlayerSnapshot(id, 0, "P0", 100, 400, 42, 64, true, true, 0, 100, 100, 0,
-                Hello.CHARACTERS.get(0), false);
+                SelectCharacter.CHARACTERS.get(0), false);
     }
 
     @Test

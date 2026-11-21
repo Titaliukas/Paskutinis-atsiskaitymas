@@ -2,12 +2,15 @@ package lt.ktu.paskutinisatsiskaitymas.client;
 
 import lt.ktu.paskutinisatsiskaitymas.protocol.Welcome;
 import lt.ktu.paskutinisatsiskaitymas.protocol.LobbyState;
+import lt.ktu.paskutinisatsiskaitymas.protocol.LobbyList;
 import lt.ktu.paskutinisatsiskaitymas.protocol.LobbyClosed;
 import lt.ktu.paskutinisatsiskaitymas.protocol.ErrorMessage;
 import lt.ktu.paskutinisatsiskaitymas.protocol.WorldSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.GameEventMessage;
 
 public interface ClientEvents {
+    default void onLobbyList(LobbyList page) { }
+    default void onRequestPending(boolean pending) { }
     default void onLobbyState(LobbyState state) { }
     default void onLobbyClosed(LobbyClosed closure) { }
     default void onRequestError(ErrorMessage error) { }

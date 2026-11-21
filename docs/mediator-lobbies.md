@@ -1,9 +1,9 @@
 # Mediator and multiplayer lobbies
 
-Character selection comes first. A player creates a lobby and shares its six-character code; others join by
-code. Nicknames are display labels, not accounts. Each lobby holds one host and up to three guests. The host
-can start with one to four players. The waiting room displays four player cards with character portraits,
-nicknames underneath, Host/You indicators, and placeholders for empty slots. There is no ready-up, lobby browser, chat, persistence, or arena switching.
+Players connect to browse waiting rooms with space, create a room, or join by code. Each room holds one host
+and up to three guests. Players choose their builds after admission. The host can copy the room code during
+selection or while waiting, and can start once every member has confirmed. The waiting room shows portraits,
+nicknames, Host/You indicators, and which members are still choosing.
 
 ## Pattern participants
 
@@ -21,6 +21,9 @@ classDiagram
         <<interface>>
         +create(participant, request)
         +join(participant, request)
+        +list(participant, request)
+        +select(participant, request)
+        +leave(participant)
         +start(participant)
         +input(participant, input)
         +disconnected(participant)
@@ -55,21 +58,18 @@ coordination point. This server mediator complements the existing client Facade 
 
 ## Lifecycle and wire flow
 
-1. `CREATE_LOBBY {nickname, character, stats}` creates a waiting room. `JOIN_LOBBY` carries the same fields plus
-   `code`. Codes are unique among live lobbies, uppercase letters/digits; pasted codes are trimmed and uppercased.
-2. `WELCOME` assigns connection/player IDs and a slot. `LOBBY_STATE {code, hostId, phase, members}` follows,
-   with member player IDs, slots, nicknames, and characters. `phase` is `WAITING` or `RUNNING`.
-3. The client completes its eight-second admission timeout on `WELCOME`, clears selection undo history, and
-   waits without a lobby timeout. Selection is locked; input is suppressed. Only the host has an enabled Start button.
-4. `START_GAME {}` derives identity from its connection. The mediator validates the host, closes admission,
-   queues the roster, publishes `RUNNING`, then starts the owner loop. No world runs in a waiting room.
-5. Gameplay uses the existing `INPUT`, `WORLD_SNAPSHOT`, and `GAME_EVENT` messages, delivered only within that
-   lobby. Every lobby uses the server's startup-selected arena recipe, with its own cloned moving platforms,
-   NPCs, items, observers, input, and players.
-6. A guest disconnect updates the waiting roster or queues a gameplay removal. Only waiting slots may be reused.
-   Starting permanently closes admission and reconnects for that lobby.
-7. Host disconnect removes the lobby immediately, sends `LOBBY_CLOSED {reason}` to guests, and schedules runtime
-   cleanup. Clients disconnect, show the reason, and return to selection with the last accepted build preserved.
+1. `LIST_LOBBIES {afterCode}` returns a bounded page of waiting rooms with space. A null cursor starts at
+   the first page. The last code on a page is the exclusive cursor for the next page.
+2. `CREATE_LOBBY {nickname}` and `JOIN_LOBBY {code, nickname}` reserve a slot. The server sends `WELCOME`
+   followed by `LOBBY_STATE`. The member's character is null until confirmed.
+3. `SELECT_CHARACTER {character, stats}` validates and records the build. The next `LOBBY_STATE` with the
+   member's character acknowledges confirmation and clears the client's undo history.
+4. `START_GAME` checks host identity and confirmation for every current member. The mediator locks admission,
+   queues the joins, publishes `RUNNING`, and starts the room's game loop.
+5. Gameplay commands, snapshots, and events stay within the room's runtime. Each runtime uses its own world,
+   built from the arena selected when the server started.
+6. `LEAVE_LOBBY` frees a guest slot and acknowledges departure with `LOBBY_CLOSED`. The host leaving
+   or disconnecting closes the room for all. Connected clients return to the browser on the same socket.
 
 A shared mediator monitor orders admission, start, departure, and broadcast decisions. No world entity is mutated
 in WebSocket callbacks. Game initialization also occurs on the runtime's owner thread. Cleanup runs on a separate
@@ -77,10 +77,11 @@ worker outside the mediator monitor, avoiding joins against a loop that may be p
 all lobbies and waits for cleanup completion. Each runtime retains the existing bounded 512-command queue,
 128-command tick budget, 60 Hz simulation, and 20 Hz snapshots.
 
-Admission errors include `LOBBY_NOT_FOUND`, `LOBBY_FULL`, `LOBBY_STARTED`, `ALREADY_CONNECTED`, and `INVALID_STATS`.
-Unauthorized start returns `HOST_REQUIRED`; early input returns `GAME_NOT_STARTED`. Post-admission request errors
-are shown without disconnecting a valid member. The former `HELLO` entry is unsupported; deploy updated clients
-and server together. No authentication or automatic rejoin is implied by a nickname or lobby code.
+Admission errors include `LOBBY_NOT_FOUND`, `LOBBY_FULL`, `LOBBY_STARTED`, and `ALREADY_CONNECTED`.
+Unauthorized start returns `HOST_REQUIRED`, and an unfinished roster returns `CHARACTERS_PENDING`.
+Invalid builds return `INVALID_STATS`. Early input returns `GAME_NOT_STARTED`. Players stay connected
+when the server rejects a room request. Deploy the updated client and server together because the room
+protocol changed. Nicknames and lobby codes are display and routing identifiers.
 
 ## Verification
 
@@ -89,8 +90,6 @@ Tests cover concurrent admission and start/join races, capacity and waiting-slot
 start, pre-start input, host departure in both phases, independent worlds/events, client EDT delivery and waiting
 states, and worker shutdown. Existing movement/combat/build tests enter through explicit lobbies.
 
-For a desktop check, launch the server and two clients. Select different characters, create a lobby in one client,
-join its code in the other, and verify the roster and host-only Start button. Start, move both players, and leave
-as host. Both clients should return to selection; the guest should see the closure reason. Repeat with a second
-independent lobby and confirm it keeps running when the first closes. The windowless facade demo also creates
-and starts a solo lobby before receiving a world snapshot.
+For a desktop check, connect two clients to one server. Create a room as the host, copy its code, and
+join from the guest's room list. Confirm the host first and verify that Start stays disabled until the
+guest confirms. Start the game, then leave as the host and verify both clients return to the browser.

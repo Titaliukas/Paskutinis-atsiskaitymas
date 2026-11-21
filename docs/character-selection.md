@@ -2,8 +2,7 @@
 
 The Command pattern belongs to the client. `CharacterSelectionPanel` displays portrait cards and sliders and
 reports user requests to `ConnectionWindow`, which delegates to `GameClientFacade`. The facade creates commands
-and invokes `CommandHistory`. The panel never calls history directly. Local undo finishes before joining; the
-server receives only the final build. `GameClientFacadeDemo` is the second facade client, with its own selection,
+and invokes `CommandHistory`. The panel never calls history directly. Local undo is available in the room’s picker. The server receives the build on confirmation. `GameClientFacadeDemo` is the second facade client, with its own selection,
 history and connection; see the [runnable demonstration](../README.md#facade-demonstration-without-a-game-window).
 
 ```mermaid
@@ -62,8 +61,7 @@ classDiagram
         class ClientConnection
     }
     namespace Protocol {
-        class CreateLobby {
-            +nickname : String
+        class SelectCharacter {
             +character : String
             +stats : StatAllocation
         }
@@ -119,12 +117,12 @@ classDiagram
     CharacterSelection ..> SelectionState : snapshot and restore
     CommandHistory o-- UndoableCommand : successful commands in stack
     CharacterSelection --> StatAllocation
-    GameClientFacade --> ClientConnection : final choice on create/join
-    ClientConnection ..> CreateLobby : sends JSON
-    CreateLobby *-- StatAllocation
-    MessageRouter ..> CreateLobby : receives JSON
+    GameClientFacade --> ClientConnection : final choice on confirmation
+    ClientConnection ..> SelectCharacter : sends JSON
+    SelectCharacter *-- StatAllocation
+    MessageRouter ..> SelectCharacter : receives JSON
     MessageRouter --> ServerLobbyMediator : delegates admission
-    ServerLobbyMediator ..> CharacterBuild : validates before reserving slot
+    ServerLobbyMediator ..> CharacterBuild : validates character confirmation
     ServerLobbyMediator ..> JoinPlayerCommand : queues roster when host starts
     JoinPlayerCommand --> CharacterBuild
     MatchController ..> JoinPlayerCommand : handles in game loop
@@ -145,22 +143,19 @@ classDiagram
   100/100/100; undo restores the previous character together with its customized values.
 - History undoes commands in reverse order. Empty undo does nothing; clearing history leaves selection intact.
   Programmatic card and slider synchronization emits no callbacks.
-- Connecting, waiting in a lobby, and playing disable editing. Failures and cancellations retain history. `WELCOME` clears it, retaining the
-  selected build as the new baseline before notifying clients on the EDT. Each facade owns its history until
-  closed; queued events from cancelled/older sessions are discarded.
-
-Character selection comes before lobby creation/joining. `JoinLobby` carries the same selection fields as
-`CreateLobby`, plus the join code. Admission enters a waiting room; only the host starts gameplay.
-Leaving or host departure restores the picker with the accepted build. See [Mediator and lobbies](mediator-lobbies.md).
+- After admission, players can edit until they confirm their build. Server acceptance clears undo history
+  and keeps the build as the new baseline. Failure or cancellation preserves edits and undo history.
+- Leaving or host departure returns to the browser. The host can start when everyone has confirmed.
+  See [Mediator and lobbies](mediator-lobbies.md).
 
 ## Budget and server boundary
 
 Each stat is 50–150% in steps of 5; their total cannot exceed 300. Lower a stat to free points for another;
 unused points are permitted. The panel clamps increases and shows the remaining points.
 
-`CREATE_LOBBY.stats` / `JOIN_LOBBY.stats` contains `healthPercent`, `speedPercent`, and `jumpHeightPercent`; omission means 100/100/100.
+`SELECT_CHARACTER.stats` requires `healthPercent`, `speedPercent`, and `jumpHeightPercent`.
 The protocol checks the complete integer shape, while the domain owns budget and range validation. The server
-rejects invalid builds with `INVALID_STATS` before reserving a slot or queueing a join. The client cannot supply
+rejects invalid builds with `INVALID_STATS` and lets the player retry in their reserved slot. The client cannot supply
 absolute health, velocity, or positions.
 
 The game loop applies the validated build. Maximum health and speed scale directly; jump velocity scales by

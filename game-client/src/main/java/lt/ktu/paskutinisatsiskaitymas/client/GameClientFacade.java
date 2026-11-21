@@ -7,6 +7,7 @@ import lt.ktu.paskutinisatsiskaitymas.protocol.GameEventMessage;
 import lt.ktu.paskutinisatsiskaitymas.protocol.StatAllocation;
 import lt.ktu.paskutinisatsiskaitymas.protocol.Welcome;
 import lt.ktu.paskutinisatsiskaitymas.protocol.LobbyState;
+import lt.ktu.paskutinisatsiskaitymas.protocol.LobbyList;
 import lt.ktu.paskutinisatsiskaitymas.protocol.LobbyClosed;
 import lt.ktu.paskutinisatsiskaitymas.protocol.ErrorMessage;
 import lt.ktu.paskutinisatsiskaitymas.protocol.WorldSnapshot;
@@ -21,8 +22,10 @@ public final class GameClientFacade implements AutoCloseable {
     private final CommandHistory history = new CommandHistory();
     private final ClientConnection connection = new ClientConnection(new ClientEvents() {
         @Override
-        public void onJoined(Welcome welcome) {
-            dispatch(history::clear);
+        public void onConnectionStatus(ConnectionStatus status) {
+            if (status.state() == ConnectionStatus.State.LOBBY) {
+                dispatch(history::clear);
+            }
         }
     });
     // Mutated on the EDT under the connection monitor, captured under that same monitor by callbacks.
@@ -62,20 +65,37 @@ public final class GameClientFacade implements AutoCloseable {
         return history.canUndo();
     }
 
-    public void createLobby(URI address, String nickname) {
+    public void connect(URI address) {
         requireEdt();
         synchronized (connection) {
             generation++;
-            connection.createLobby(address, nickname, selection.selectedCharacter(), selection.stats());
+            connection.connect(address);
         }
     }
 
-    public void joinLobby(URI address, String nickname, String code) {
+    public void listLobbies(String afterCode) {
         requireEdt();
-        synchronized (connection) {
-            generation++;
-            connection.joinLobby(address, nickname, selection.selectedCharacter(), selection.stats(), code);
-        }
+        connection.listLobbies(afterCode);
+    }
+
+    public void createLobby(String nickname) {
+        requireEdt();
+        connection.createLobby(nickname);
+    }
+
+    public void joinLobby(String nickname, String code) {
+        requireEdt();
+        connection.joinLobby(nickname, code);
+    }
+
+    public void confirmCharacter() {
+        requireEdt();
+        connection.selectCharacter(selection.selectedCharacter(), selection.stats());
+    }
+
+    public void leaveLobby() {
+        requireEdt();
+        connection.leaveLobby();
     }
 
     public void startGame() {
@@ -119,6 +139,16 @@ public final class GameClientFacade implements AutoCloseable {
                         observer.onConnectionStatus(status);
                     }
                 });
+            }
+
+            @Override
+            public void onLobbyList(LobbyList page) {
+                dispatch(() -> observer.onLobbyList(page));
+            }
+
+            @Override
+            public void onRequestPending(boolean pending) {
+                dispatch(() -> observer.onRequestPending(pending));
             }
 
             @Override

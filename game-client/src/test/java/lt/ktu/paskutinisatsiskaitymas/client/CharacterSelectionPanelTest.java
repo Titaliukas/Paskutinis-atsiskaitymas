@@ -14,7 +14,7 @@ import javax.swing.JToggleButton;
 import javax.swing.JSlider;
 import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
-import lt.ktu.paskutinisatsiskaitymas.protocol.CreateLobby;
+import lt.ktu.paskutinisatsiskaitymas.protocol.SelectCharacter;
 import lt.ktu.paskutinisatsiskaitymas.protocol.StatAllocation;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
@@ -103,7 +103,7 @@ class CharacterSelectionPanelTest {
             List<JToggleButton> cards = cards(panel);
             List<String> selected = new ArrayList<>();
             panel.setSelectionListener(selected::add);
-            assertEquals(CreateLobby.CHARACTERS, cards.stream().map(JToggleButton::getText).toList());
+            assertEquals(SelectCharacter.CHARACTERS, cards.stream().map(JToggleButton::getText).toList());
             assertEquals("PATASIJUS", selected(cards));
             cards.get(0).doClick(0);
             assertTrue(selected.isEmpty());

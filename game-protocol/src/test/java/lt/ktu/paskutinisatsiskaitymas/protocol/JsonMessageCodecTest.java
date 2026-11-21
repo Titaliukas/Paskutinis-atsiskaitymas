@@ -40,8 +40,7 @@ class JsonMessageCodecTest {
 
     @Test
     void usesStableWireNamesWithoutJavaClassNames() throws Exception {
-        assertEquals("{\"type\":\"CREATE_LOBBY\",\"nickname\":\"Player\",\"character\":\"PATASIJUS\","
-                + "\"stats\":{\"healthPercent\":100,\"speedPercent\":100,\"jumpHeightPercent\":100}}",
+        assertEquals("{\"type\":\"CREATE_LOBBY\",\"nickname\":\"Player\"}",
                 codec.encode(new CreateLobby("Player")));
         assertEquals(new Ping("a"), codec.decode("{\"type\":\"PING\",\"requestId\":\"a\"}"));
         assertTrue(codec.encode(new InputState(0, false, true, false, false, false)).contains("\"type\":\"INPUT\""));
@@ -49,14 +48,10 @@ class JsonMessageCodecTest {
     }
 
     @Test
-    void helloDefaultsOmittedFieldsAndRoundTripsCustomAllocations() throws Exception {
-        assertEquals(new CreateLobby("Player"), codec.decode("{\"type\":\"CREATE_LOBBY\",\"nickname\":\"Player\"}"));
-        assertEquals(new CreateLobby("Player", "GOGIS"),
-                codec.decode("{\"type\":\"CREATE_LOBBY\",\"nickname\":\"Player\",\"character\":\"GOGIS\"}"));
-        CreateLobby custom = new CreateLobby("Player", "GOGIS", new StatAllocation(75, 125, 100));
+    void roundTripsSelectionAndLeavesGameplayBoundsToDomain() throws Exception {
+        var custom = new SelectCharacter("GOGIS", new StatAllocation(75, 125, 100));
         assertEquals(custom, codec.decode(codec.encode(custom)));
-        // Semantic gameplay limits belong to the domain, rather than transport decoding.
-        CreateLobby outOfBudget = new CreateLobby("Player", "GOGIS", new StatAllocation(150, 150, 150));
+        var outOfBudget = new SelectCharacter("GOGIS", new StatAllocation(150, 150, 150));
         assertEquals(outOfBudget, codec.decode(codec.encode(outOfBudget)));
     }
 
@@ -73,7 +68,7 @@ class JsonMessageCodecTest {
         "{\"healthPercent\":100,\"healthPercent\":75,\"speedPercent\":100,\"jumpHeightPercent\":100}"})
     void rejectsIncompleteOrNonIntegerStatFields(String stats) {
         assertThrows(ProtocolException.class, () -> codec.decode(
-                "{\"type\":\"CREATE_LOBBY\",\"nickname\":\"Player\",\"stats\":" + stats + "}"));
+                "{\"type\":\"SELECT_CHARACTER\",\"character\":\"GOGIS\",\"stats\":" + stats + "}"));
     }
 
     @Test

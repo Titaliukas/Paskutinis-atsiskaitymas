@@ -9,8 +9,9 @@ public record LobbyMember(UUID playerId, int slot, String nickname, String chara
         if (slot < 0 || slot > 3) {
             throw new IllegalArgumentException("Invalid lobby slot");
         }
-        CreateLobby selection = new CreateLobby(nickname, character);
-        nickname = selection.nickname();
-        character = selection.character();
+        nickname = WireText.require(nickname, "nickname", 32);
+        if (character != null && !SelectCharacter.CHARACTERS.contains(character)) {
+            throw new IllegalArgumentException("Unknown character");
+        }
     }
 }

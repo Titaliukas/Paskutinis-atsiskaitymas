@@ -8,6 +8,7 @@ import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -33,7 +34,7 @@ class GameWebSocketServerTest {
     @Test
     void customBuildIsAppliedOverTheActualWebSocketJoinAndInputPath() throws Exception {
         Peer peer = connect("/game");
-        admit(peer, new CreateLobby("Custom", "GOGIS", new StatAllocation(125, 125, 50)));
+        admit(peer, new CreateLobby("Custom"), new SelectCharacter("GOGIS", new StatAllocation(125, 125, 50)));
         Welcome welcome = peer.receive(Welcome.class, value -> true);
         startGame();
         WorldSnapshot joined = peer.receive(WorldSnapshot.class, value -> !value.players().isEmpty());
@@ -134,8 +135,8 @@ class GameWebSocketServerTest {
     void playersCanChooseTheSameCharacterAndSnapshotsKeepTheirChoice() throws Exception {
         Peer first = connect("/game");
         Peer second = connect("/game");
-        admit(first, new CreateLobby("First", "VACIJUS"));
-        admit(second, new CreateLobby("Second", "VACIJUS"));
+        admit(first, new CreateLobby("First"), new SelectCharacter("VACIJUS", StatAllocation.DEFAULT));
+        admit(second, new CreateLobby("Second"), new SelectCharacter("VACIJUS", StatAllocation.DEFAULT));
         first.receive(Welcome.class, value -> value.nickname().equals("First"));
         second.receive(Welcome.class, value -> value.nickname().equals("Second"));
 
@@ -221,11 +222,14 @@ class GameWebSocketServerTest {
         Peer fifth = connect("/game");
         fifth.send(new JoinLobby(first.code.get(), "Fifth"));
         assertEquals("LOBBY_FULL", fifth.receive(ErrorMessage.class, value -> true).code());
-        guests.getFirst().socket.sendClose(1000, "leave").get(5, TimeUnit.SECONDS);
-        first.receive(LobbyState.class, value -> value.members().size() == 3);
+        guests.getFirst().send(new LeaveLobby());
+        guests.getFirst().receive(LobbyClosed.class, value -> true);
+        guests.getFirst().send(new ListLobbies(null));
+        assertEquals(3, guests.getFirst().receive(LobbyList.class, value -> true).rooms().getFirst().playerCount());
         fifth.send(new JoinLobby(first.code.get(), "Replacement"));
         Welcome replacement = fifth.receive(Welcome.class, value -> true);
         assertEquals(1, replacement.slot());
+        confirm(fifth, defaultSelection());
         startGame();
         first.receive(WorldSnapshot.class, value -> value.players().size() == 4);
         fifth.socket.sendClose(1000, "leave").get(5, TimeUnit.SECONDS);
@@ -258,7 +262,7 @@ class GameWebSocketServerTest {
     void reassemblesFragmentedJoinAndRejectsWrongPathAndBinary() throws Exception {
         Peer fragmented = connect("/game");
         fragmented.socket.sendText("{\"type\":\"CREATE_LOBBY\",", false).get(5, TimeUnit.SECONDS);
-        fragmented.socket.sendText("\"nickname\":\"Fragmented\",\"character\":\"PATASIJUS\"}", true)
+        fragmented.socket.sendText("\"nickname\":\"Fragmented\"}", true)
                 .get(5, TimeUnit.SECONDS);
         assertEquals("Fragmented", fragmented.receive(Welcome.class, value -> true).nickname());
 
@@ -297,6 +301,9 @@ class GameWebSocketServerTest {
         Welcome beta = secondHost.receive(Welcome.class, value -> true);
         String secondCode = secondHost.code.get(5, TimeUnit.SECONDS);
         assertNotEquals(firstCode, secondCode);
+        confirm(firstHost, defaultSelection());
+        confirm(guest, defaultSelection());
+        confirm(secondHost, defaultSelection());
         firstHost.send(new StartGame());
         secondHost.send(new StartGame());
         WorldSnapshot first = firstHost.receive(WorldSnapshot.class, value -> value.players().size() == 2);
@@ -344,21 +351,36 @@ class GameWebSocketServerTest {
         assertFalse(guest.observed.stream().anyMatch(WorldSnapshot.class::isInstance));
         first.socket.sendClose(1000, "leave").get(5, TimeUnit.SECONDS);
         guest.receive(LobbyClosed.class, value -> true);
+        guest.send(new ListLobbies(null));
+        assertTrue(guest.receive(LobbyList.class, value -> true).rooms().isEmpty());
         guest.send(new JoinLobby(first.code.get(), "Again"));
         assertEquals("LOBBY_NOT_FOUND", guest.receive(ErrorMessage.class, value -> true).code());
         guest.send(new CreateLobby("New host"));
         guest.receive(Welcome.class, value -> value.nickname().equals("New host"));
     }
 
-    private void admit(Peer peer, CreateLobby selection) throws Exception {
+    private void admit(Peer peer, CreateLobby request) throws Exception {
+        admit(peer, request, defaultSelection());
+    }
+
+    private void admit(Peer peer, CreateLobby request, SelectCharacter selection) throws Exception {
         if (host == null) {
             host = peer;
-            peer.send(selection);
+            peer.send(request);
         } else {
-            peer.send(new JoinLobby(host.code.get(5, TimeUnit.SECONDS), selection.nickname(),
-                    selection.character(), selection.stats()));
+            peer.send(new JoinLobby(host.code.get(5, TimeUnit.SECONDS), request.nickname()));
         }
         peer.code.get(5, TimeUnit.SECONDS);
+        confirm(peer, selection);
+    }
+
+    private static SelectCharacter defaultSelection() {
+        return new SelectCharacter(SelectCharacter.DEFAULT_CHARACTER, StatAllocation.DEFAULT);
+    }
+
+    private void confirm(Peer peer, SelectCharacter selection) throws Exception {
+        peer.send(selection);
+        assertEquals(selection.character(), peer.confirmed.get(5, TimeUnit.SECONDS));
     }
 
     private void startGame() throws Exception {
@@ -396,6 +418,8 @@ class GameWebSocketServerTest {
         private final StringBuilder fragments = new StringBuilder();
         private WebSocket socket;
         private final CompletableFuture<String> code = new CompletableFuture<>();
+        private final CompletableFuture<String> confirmed = new CompletableFuture<>();
+        private UUID playerId;
 
         void send(Message message) throws Exception {
             socket.sendText(codec.encode(message), true).get(5, TimeUnit.SECONDS);
@@ -433,8 +457,13 @@ class GameWebSocketServerTest {
                 try {
                     Message decoded = codec.decode(json);
                     observed.add(decoded);
-                    if (decoded instanceof LobbyState state) {
+                    if (decoded instanceof Welcome welcome) {
+                        playerId = welcome.playerId();
+                    } else if (decoded instanceof LobbyState state) {
                         code.complete(state.code());
+                        state.members().stream().filter(member -> member.playerId().equals(playerId))
+                                .map(LobbyMember::character).filter(java.util.Objects::nonNull)
+                                .findFirst().ifPresent(confirmed::complete);
                     }
                 } catch (ProtocolException exception) {
                     code.completeExceptionally(exception);

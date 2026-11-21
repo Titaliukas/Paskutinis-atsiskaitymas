@@ -12,7 +12,7 @@ import java.util.UUID;
 import javax.imageio.ImageIO;
 import javax.swing.SwingUtilities;
 import lt.ktu.paskutinisatsiskaitymas.protocol.ArenaSnapshot;
-import lt.ktu.paskutinisatsiskaitymas.protocol.CreateLobby;
+import lt.ktu.paskutinisatsiskaitymas.protocol.SelectCharacter;
 import lt.ktu.paskutinisatsiskaitymas.protocol.NPCSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.PlatformSnapshot;
 import lt.ktu.paskutinisatsiskaitymas.protocol.PlayerSnapshot;
@@ -30,7 +30,7 @@ class GamePanelHUDTest {
             players.add(new PlayerSnapshot(ids[slot], slot, names[slot],
                     180 + slot * 180 + (moved ? 15 : 0), moved ? 190 : 210,
                     42, 64, false, slot == 1, moved ? 260 : 0, 100, 100,
-                    slot == 0 ? firstStress : slot * 20, CreateLobby.CHARACTERS.get(slot), false));
+                    slot == 0 ? firstStress : slot * 20, SelectCharacter.CHARACTERS.get(slot), false));
         }
         return players;
     }

@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import lt.ktu.paskutinisatsiskaitymas.protocol.CreateLobby;
+import lt.ktu.paskutinisatsiskaitymas.protocol.SelectCharacter;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -23,8 +23,8 @@ class CharacterFactoryTest {
 
     @Test
     void everySelectableCharacterHasAFactory() {
-        assertEquals(Set.copyOf(CreateLobby.CHARACTERS), FAMILIES.keySet());
-        for (String character : CreateLobby.CHARACTERS) {
+        assertEquals(Set.copyOf(SelectCharacter.CHARACTERS), FAMILIES.keySet());
+        for (String character : SelectCharacter.CHARACTERS) {
             assertNotNull(CharacterFactories.forCharacter(character), character);
         }
     }
@@ -43,10 +43,10 @@ class CharacterFactoryTest {
 
     @Test
     void familiesAreDistinct() {
-        Set<Class<?>> projectiles = CreateLobby.CHARACTERS.stream()
+        Set<Class<?>> projectiles = SelectCharacter.CHARACTERS.stream()
                 .map(character -> CharacterFactories.forCharacter(character).createProjectileRenderer().getClass())
                 .collect(Collectors.toSet());
-        assertEquals(CreateLobby.CHARACTERS.size(), projectiles.size());
+        assertEquals(SelectCharacter.CHARACTERS.size(), projectiles.size());
     }
 
     @Test
@@ -59,7 +59,7 @@ class CharacterFactoryTest {
     void everyRendererDrawsHeadlessly() {
         BufferedImage canvas = new BufferedImage(200, 200, BufferedImage.TYPE_INT_ARGB);
         Rectangle2D bounds = new Rectangle2D.Double(40, 40, 42, 64);
-        for (String character : CreateLobby.CHARACTERS) {
+        for (String character : SelectCharacter.CHARACTERS) {
             CharacterSkin skin = CharacterSkin.from(CharacterFactories.forCharacter(character));
             Graphics2D g = canvas.createGraphics();
             try {

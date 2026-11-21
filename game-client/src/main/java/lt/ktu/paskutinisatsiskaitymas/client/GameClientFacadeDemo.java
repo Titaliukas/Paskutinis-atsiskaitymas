@@ -6,6 +6,8 @@ import java.util.concurrent.TimeUnit;
 import javax.swing.SwingUtilities;
 import lt.ktu.paskutinisatsiskaitymas.protocol.Welcome;
 import lt.ktu.paskutinisatsiskaitymas.protocol.LobbyState;
+import lt.ktu.paskutinisatsiskaitymas.protocol.LobbyList;
+import lt.ktu.paskutinisatsiskaitymas.protocol.ErrorMessage;
 import lt.ktu.paskutinisatsiskaitymas.protocol.WorldSnapshot;
 
 /** Second facade client: uses the EDT for local state, with bounded network waits on the main thread. */
@@ -37,7 +39,9 @@ public final class GameClientFacadeDemo {
                         }
                         connecting = status.state() == ConnectionStatus.State.CONNECTING
                                 || status.state() == ConnectionStatus.State.CONNECTED
-                                || status.state() == ConnectionStatus.State.LOBBY;
+                                || status.state() == ConnectionStatus.State.LOBBY
+                                || status.state() == ConnectionStatus.State.SELECTING
+                                || status.state() == ConnectionStatus.State.BROWSING;
                     }
 
                     @Override
@@ -46,9 +50,36 @@ public final class GameClientFacadeDemo {
                     }
 
                     @Override
+                    public void onLobbyList(LobbyList page) {
+                        facade.createLobby(nickname);
+                    }
+
+                    @Override
+                    public void onRequestError(ErrorMessage error) {
+                        snapshot.completeExceptionally(new IllegalStateException(error.message()));
+                    }
+
+                    @Override
                     public void onLobbyState(LobbyState state) {
-                        if (state.phase() == LobbyState.Phase.WAITING) {
+                        SwingUtilities.invokeLater(() -> handleLobbyState(state));
+                    }
+
+                    private void handleLobbyState(LobbyState state) {
+                        if (state.phase() != LobbyState.Phase.WAITING) {
+                            return;
+                        }
+                        if (state.members().getFirst().character() == null) {
                             System.out.println("LOBBY: " + state.code());
+                            facade.selectCharacter("VACIJUS");
+                            facade.changeStat(SelectableStat.HEALTH, 75);
+                            facade.changeStat(SelectableStat.SPEED, 125);
+                            printSelection("Customized", facade);
+                            facade.selectCharacter("GOGIS");
+                            printSelection("Changed character", facade);
+                            facade.undoSelection();
+                            printSelection("Undo restored", facade);
+                            facade.confirmCharacter();
+                        } else if (state.members().stream().allMatch(member -> member.character() != null)) {
                             facade.startGame();
                         }
                     }
@@ -58,15 +89,7 @@ public final class GameClientFacadeDemo {
                         snapshot.complete(update);
                     }
                 });
-                facade.selectCharacter("VACIJUS");
-                facade.changeStat(SelectableStat.HEALTH, 75);
-                facade.changeStat(SelectableStat.SPEED, 125);
-                printSelection("Customized", facade);
-                facade.selectCharacter("GOGIS");
-                printSelection("Changed character", facade);
-                facade.undoSelection();
-                printSelection("Undo restored", facade);
-                facade.createLobby(address, nickname);
+                facade.connect(address);
             });
             CompletableFuture.allOf(joined, snapshot).get(12, TimeUnit.SECONDS);
             Welcome welcome = joined.join();

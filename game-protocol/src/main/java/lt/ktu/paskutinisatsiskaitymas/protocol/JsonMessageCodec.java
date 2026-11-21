@@ -4,6 +4,9 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.cfg.CoercionAction;
+import com.fasterxml.jackson.databind.cfg.CoercionInputShape;
+import com.fasterxml.jackson.databind.type.LogicalType;
 
 /** Thread-safe after construction; serializes transport DTOs only, using a fixed type allowlist. */
 public final class JsonMessageCodec {
@@ -13,7 +16,15 @@ public final class JsonMessageCodec {
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
             .enable(DeserializationFeature.FAIL_ON_MISSING_CREATOR_PROPERTIES)
             .enable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
-            .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
+            .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
+            .disable(DeserializationFeature.ACCEPT_FLOAT_AS_INT);
+
+    public JsonMessageCodec() {
+        var text = mapper.coercionConfigFor(LogicalType.Textual);
+        text.setCoercion(CoercionInputShape.Boolean, CoercionAction.Fail);
+        text.setCoercion(CoercionInputShape.Integer, CoercionAction.Fail);
+        text.setCoercion(CoercionInputShape.Float, CoercionAction.Fail);
+    }
 
     public String encode(Message message) throws ProtocolException {
         if (message == null) {

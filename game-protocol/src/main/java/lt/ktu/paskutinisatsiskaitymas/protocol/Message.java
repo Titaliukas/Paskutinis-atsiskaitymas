@@ -8,6 +8,10 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 @JsonSubTypes({
     @JsonSubTypes.Type(value = CreateLobby.class, name = "CREATE_LOBBY"),
     @JsonSubTypes.Type(value = JoinLobby.class, name = "JOIN_LOBBY"),
+    @JsonSubTypes.Type(value = ListLobbies.class, name = "LIST_LOBBIES"),
+    @JsonSubTypes.Type(value = LobbyList.class, name = "LOBBY_LIST"),
+    @JsonSubTypes.Type(value = SelectCharacter.class, name = "SELECT_CHARACTER"),
+    @JsonSubTypes.Type(value = LeaveLobby.class, name = "LEAVE_LOBBY"),
     @JsonSubTypes.Type(value = StartGame.class, name = "START_GAME"),
     @JsonSubTypes.Type(value = LobbyState.class, name = "LOBBY_STATE"),
     @JsonSubTypes.Type(value = LobbyClosed.class, name = "LOBBY_CLOSED"),
@@ -19,5 +23,5 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
     @JsonSubTypes.Type(value = ErrorMessage.class, name = "ERROR"),
     @JsonSubTypes.Type(value = GameEventMessage.class, name = "GAME_EVENT")
 })
-public sealed interface Message permits CreateLobby, JoinLobby, StartGame, LobbyState, LobbyClosed, Welcome, Ping, Pong, InputState, WorldSnapshot, ErrorMessage, GameEventMessage {
+public sealed interface Message permits CreateLobby, JoinLobby, ListLobbies, LobbyList, SelectCharacter, LeaveLobby, StartGame, LobbyState, LobbyClosed, Welcome, Ping, Pong, InputState, WorldSnapshot, ErrorMessage, GameEventMessage {
 }

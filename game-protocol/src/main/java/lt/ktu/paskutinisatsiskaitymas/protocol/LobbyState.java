@@ -13,6 +13,7 @@ public record LobbyState(String code, UUID hostId, Phase phase, List<LobbyMember
         Objects.requireNonNull(phase, "phase");
         members = List.copyOf(members);
         if (members.isEmpty() || members.size() > 4
+                || phase == Phase.RUNNING && members.stream().anyMatch(member -> member.character() == null)
                 || members.stream().noneMatch(member -> member.playerId().equals(hostId))
                 || members.stream().map(LobbyMember::playerId).distinct().count() != members.size()
                 || members.stream().map(LobbyMember::slot).distinct().count() != members.size()) {

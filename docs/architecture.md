@@ -61,12 +61,11 @@ world. `AuthoritativeGameLoop` is scheduled by one `authoritative-game-loop` exe
 advancing a fixed `1/60` second simulation step. Client sequence numbers discard delayed input, and a jump occurs
 only on a false-to-true input transition while the character is grounded.
 
-Each lobby reserves at most four slots. `CREATE_LOBBY` and `JOIN_LOBBY` validate the build and reserve
-membership; accepted clients receive their server-assigned player UUID and slot in `WELCOME`, followed by
-`LOBBY_STATE`. The mediator retains the validated `JoinPlayerCommand` until the host sends `START_GAME`.
-It queues the roster, publishes `RUNNING`, and starts the runtime. World initialization, joins, input and
-removals execute on that runtime's owner thread. `INPUT` becomes `InputCommand` only while running.
-Clients cannot supply coordinates, velocity, or collision results.
+Each lobby reserves at most four slots. `LIST_LOBBIES` exposes waiting rooms with space. `CREATE_LOBBY`
+and `JOIN_LOBBY` reserve membership and return `WELCOME` followed by `LOBBY_STATE`. Once admitted, a
+client sends `SELECT_CHARACTER` to confirm its build. The mediator retains each validated `JoinPlayerCommand`
+until the host sends `START_GAME` and every member has confirmed. It queues the joins, publishes `RUNNING`,
+and starts the runtime. World initialization, joins, inputs, and removals execute on that runtime's owner thread.
 
 A fifth waiting-room join receives `LOBBY_FULL`. Guest departure frees a waiting slot; replacement gets a fresh
 player UUID. Started lobbies reject every join with `LOBBY_STARTED`, including reconnects. A playing guest's
@@ -183,7 +182,8 @@ complete contract, report markers, transition rules and demo.
 
 ## Protocol and validation
 
-The sealed message vocabulary uses stable names: `CREATE_LOBBY`, `JOIN_LOBBY`, `WELCOME`, `LOBBY_STATE`,
+The sealed message vocabulary uses stable names: `LIST_LOBBIES`, `LOBBY_LIST`, `CREATE_LOBBY`, `JOIN_LOBBY`, `WELCOME`,
+`SELECT_CHARACTER`, `LEAVE_LOBBY`, `LOBBY_STATE`,
 `START_GAME`, `LOBBY_CLOSED`, `INPUT`, `WORLD_SNAPSHOT`, `PING`, `PONG`, `GAME_EVENT`, and `ERROR`. Jackson uses an explicit subtype allowlist rather than Java class names. The codec
 rejects unknown
 types/properties, duplicate keys, trailing JSON, malformed records, null messages, and oversized text.
@@ -198,22 +198,21 @@ DTOs and never expose exceptions or domain objects.
 The client-side Facade is `GameClientFacade`. Its two clients, `ConnectionWindow` and the windowless
 `GameClientFacadeDemo`, each own a separate facade with one `CharacterSelection`, one `CommandHistory`, and one
 `ClientConnection`. No subsystem depends on the facade type or is exposed through a getter. The facade executes
-the existing commands through history, reads selection for `CREATE_LOBBY` / `JOIN_LOBBY`, and delegates transport/input/observer
+the existing commands through history, reads the build for `SELECT_CHARACTER`, and delegates transport/input/observer
 registration to the connection. Rendering, input-device choice, SDL, sizing and focus remain in the window.
 See the [demo commands](../README.md#facade-demonstration-without-a-game-window).
 
 Facade operations and observer delivery use the EDT, including in the windowless demo. Network callbacks only
-enqueue EDT work, without waiting for it. The internal `WELCOME` observer queues history clearing before client
-observers. A facade generation guards every queued event; lifecycle operations advance it under the connection
+enqueue EDT work, without waiting for it. The facade clears history when server confirmation moves the client from the picker to the waiting room. A facade generation guards every queued event; lifecycle operations advance it under the connection
 monitor, so an old callback cannot capture a new generation. This supplements the transport's existing generation
 checks and prevents cancelled/previous sessions from changing history or UI. Client observers update the UI
 directly on the EDT, without a second unguarded dispatch. Repeated identical connection statuses (for example,
 closing after disconnecting) are delivered once per observer.
 
-Character and stat selection before joining use a client-local Command pattern. `UndoableCommand` declares
+Character and stat selection after admission use a client-local Command pattern. `UndoableCommand` declares
 `execute()` and `undo()`; `SelectCharacterCommand` and `ChangeStatCommand` capture an immutable receiver snapshot
-at execution time and restore it on undo. `CharacterSelection` is the receiver, initially `CreateLobby.DEFAULT_CHARACTER`
-with 100/100/100 stats, and accepts only `CreateLobby.CHARACTERS`. Selecting another character resets all three stats;
+at execution time and restore it on undo. `CharacterSelection` is the receiver, initially `SelectCharacter.DEFAULT_CHARACTER`
+with 100/100/100 stats, and accepts only `SelectCharacter.CHARACTERS`. Selecting another character resets all three stats;
 undo restores the exact previous character and allocation. See the [UML class diagram](character-selection.md).
 `CommandHistory` is the invoker: it pushes successfully executed commands onto a stack and undoes them in reverse
 order. Empty-history undo is a no-op; clearing history retains the receiver's current choice.
@@ -226,15 +225,11 @@ clamped to the available budget. Values preview during a drag and commit once on
 also commit. `ConnectionWindow` requests changes through its facade and provides **Undo change**. The panel
 communicates through callbacks and has no dependency on history. Its programmatic setters update cards and
 sliders without emitting actions, so undo does not create commands. The receiver, history and
-UI are owned by the EDT. Selection, sliders, and undo are disabled while connecting, waiting, or playing. Receiving `WELCOME`
-clears history on the EDT and makes the current choice the baseline; validation failures, connection failures and
-cancelled attempts preserve history. Disconnecting allows new changes and undo back to that baseline. History is
-per facade and lives only for that client's lifetime. Create/join reads the receiver's character and stat allocation
-for the lobby admission request. Its optional `stats` object defaults to 100/100/100 when omitted. The protocol requires exactly three
-integer fields; `CharacterBuild` in the domain validates ranges, steps, and budget. The client mirrors these
-constraints for feedback but has no domain dependency. The server translates the DTO before reserving a slot;
-invalid builds return `INVALID_STATS` without queueing a join or consuming a reservation. `JoinPlayerCommand`
-carries the validated build into the single-owner game loop.
+UI are owned by the EDT. The picker accepts edits after admission until the server confirms the build.
+The `SELECT_CHARACTER` payload carries the character and all three stat percentages. `CharacterBuild`
+validates ranges, steps, and budget in the domain. An invalid confirmation returns `INVALID_STATS`
+and lets the player retry in the same slot. Confirmation keeps the selected build as the local baseline.
+A room departure returns to the browser on the same WebSocket.
 
 `GameCharacter` retains the permanent build separately from the timed `CharacterStats` decorator chain. Health
 and speed scale directly; jump velocity uses the square root of the height multiplier. Existing defaults are

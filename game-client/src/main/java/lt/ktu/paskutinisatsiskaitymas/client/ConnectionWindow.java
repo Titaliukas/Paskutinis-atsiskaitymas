@@ -22,6 +22,7 @@ import javax.swing.JPanel;
 import javax.swing.JTextField;
 import lt.ktu.paskutinisatsiskaitymas.protocol.Welcome;
 import lt.ktu.paskutinisatsiskaitymas.protocol.LobbyState;
+import lt.ktu.paskutinisatsiskaitymas.protocol.LobbyList;
 import lt.ktu.paskutinisatsiskaitymas.protocol.ErrorMessage;
 import lt.ktu.paskutinisatsiskaitymas.protocol.WorldSnapshot;
 
@@ -32,13 +33,17 @@ final class ConnectionWindow extends JFrame {
     private final CharacterSelectionPanel characterPicker = new CharacterSelectionPanel();
     private final GameClientFacade facade = new GameClientFacade();
     private final JButton undoSelection = new JButton("Undo change");
-    private final JButton connect = new JButton("Create lobby");
-    private final JButton disconnect = new JButton("Leave");
-    private final JButton join = new JButton("Join lobby");
-    private final JTextField lobbyCode = new JTextField(8);
+    private final JButton confirm = new JButton("Confirm character");
+    private final JButton connect = new JButton("Connect");
+    private final JButton disconnect = new JButton("Disconnect");
+    private final JButton leave = new JButton("Leave room");
+    private final JLabel status = new JLabel("Disconnected");
+    private final RoomHeader roomHeader = new RoomHeader(status::setText);
+    private final RoomBrowserPanel rooms;
     private final LobbyPanel lobbyPanel = new LobbyPanel(facade::startGame);
     private UUID localPlayerId;
-    private final JLabel status = new JLabel("Disconnected");
+    private ConnectionStatus.State phase = ConnectionStatus.State.DISCONNECTED;
+    private boolean busy;
     private final GamePanel gamePanel = new GamePanel(ParticleStatsSink.consoleAndCsv());
     private final CardLayout screenLayout = new CardLayout();
     private final JPanel screens = new JPanel(screenLayout);
@@ -67,12 +72,27 @@ final class ConnectionWindow extends JFrame {
 
             @Override
             public void onLobbyState(LobbyState state) {
+                roomHeader.showRoom(state, localPlayerId);
                 lobbyPanel.showLobby(state, localPlayerId);
+            }
+
+            @Override
+            public void onLobbyList(LobbyList page) {
+                rooms.showPage(page);
+            }
+
+            @Override
+            public void onRequestPending(boolean pending) {
+                busy = pending;
+                updateControls();
             }
 
             @Override
             public void onRequestError(ErrorMessage error) {
                 status.setText(error.message());
+                if (phase == ConnectionStatus.State.BROWSING && error.code().startsWith("LOBBY_")) {
+                    rooms.resetPages();
+                }
             }
 
             @Override
@@ -93,33 +113,50 @@ final class ConnectionWindow extends JFrame {
         facade.addObserver(new NotificationObserver(gamePanel));
         address = new JTextField(initialAddress, 28);
         nickname = new JTextField(initialNickname, 28);
-        JPanel fields = new JPanel(new GridLayout(4, 2, 8, 6));
+        rooms = new RoomBrowserPanel(
+                () -> roomAction(() -> facade.createLobby(nickname.getText())),
+                code -> roomAction(() -> facade.joinLobby(nickname.getText(), code)), facade::listLobbies);
+        JPanel fields = new JPanel(new GridLayout(3, 2, 8, 6));
         fields.add(new JLabel("Server address"));
         fields.add(address);
         fields.add(new JLabel("Player nickname"));
         fields.add(nickname);
         fields.add(new JLabel("Input"));
         fields.add(inputDevice);
-        fields.add(new JLabel("Lobby code (to join)"));
-        fields.add(lobbyCode);
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        buttons.add(undoSelection);
         buttons.add(connect);
-        buttons.add(join);
         buttons.add(disconnect);
+        buttons.add(leave);
         JPanel form = new JPanel(new BorderLayout(8, 4));
         form.add(fields, BorderLayout.CENTER);
         form.add(buttons, BorderLayout.SOUTH);
         JPanel content = new JPanel(new BorderLayout(8, 12));
         content.setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
-        content.add(form, BorderLayout.NORTH);
-        screens.add(characterPicker, "selection");
+        JPanel header = new JPanel(new BorderLayout());
+        header.add(form, BorderLayout.NORTH);
+        header.add(roomHeader, BorderLayout.SOUTH);
+        roomHeader.setVisible(false);
+        content.add(header, BorderLayout.NORTH);
+
+        JPanel connectionScreen = new JPanel(new BorderLayout());
+        JLabel connectionHint = new JLabel("Connect to a server to browse available rooms.", JLabel.CENTER);
+        connectionScreen.add(connectionHint, BorderLayout.CENTER);
+        screens.add(connectionScreen, "connection");
+        screens.add(rooms, "rooms");
+        JPanel selectionScreen = new JPanel(new BorderLayout());
+        selectionScreen.add(characterPicker, BorderLayout.CENTER);
+        JPanel selectionActions = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        selectionActions.add(undoSelection);
+        selectionActions.add(confirm);
+        selectionScreen.add(selectionActions, BorderLayout.SOUTH);
+        screens.add(selectionScreen, "selection");
         screens.add(gamePanel, "game");
         screens.add(lobbyPanel, "lobby");
         content.add(screens, BorderLayout.CENTER);
+        status.putClientProperty("html.disable", Boolean.TRUE);
         content.add(status, BorderLayout.SOUTH);
         setContentPane(content);
-        disconnect.setEnabled(false);
+        updateControls();
         characterPicker.setSelectedCharacter(facade.selectedCharacter());
         undoSelection.setEnabled(false);
         characterPicker.setSelectionListener(selected -> {
@@ -138,24 +175,11 @@ final class ConnectionWindow extends JFrame {
             characterPicker.setStats(facade.stats());
             updateUndoSelection();
         });
-        connect.addActionListener(event -> {
-            try {
-                facade.createLobby(URI.create(address.getText().trim()), nickname.getText().trim());
-            } catch (IllegalArgumentException exception) {
-                showStatus(new ConnectionStatus(ConnectionStatus.State.ERROR, exception.getMessage()));
-            }
-        });
-        join.addActionListener(event -> {
-            try {
-                facade.joinLobby(URI.create(address.getText().trim()), nickname.getText().trim(), lobbyCode.getText());
-            } catch (IllegalArgumentException exception) {
-                showStatus(new ConnectionStatus(ConnectionStatus.State.ERROR, exception.getMessage()));
-            }
-        });
-        disconnect.addActionListener(event -> {
-            input.reset();
-            facade.disconnect();
-        });
+        connect.addActionListener(event ->
+                roomAction(() -> facade.connect(URI.create(address.getText().trim()))));
+        confirm.addActionListener(event -> roomAction(facade::confirmCharacter));
+        disconnect.addActionListener(event -> facade.disconnect());
+        leave.addActionListener(event -> facade.leaveLobby());
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent event) {
@@ -173,33 +197,61 @@ final class ConnectionWindow extends JFrame {
         setLocationByPlatform(true);
     }
 
-    private void showStatus(ConnectionStatus update) {
-        boolean active = update.state() == ConnectionStatus.State.CONNECTING
-                || update.state() == ConnectionStatus.State.CONNECTED
-                || update.state() == ConnectionStatus.State.LOBBY;
-        address.setEnabled(!active);
-        nickname.setEnabled(!active);
-        connect.setEnabled(!active);
-        join.setEnabled(!active);
-        lobbyCode.setEnabled(!active);
-        disconnect.setEnabled(active);
-        characterPicker.setEnabled(!active);
-        screenLayout.show(screens, update.state() == ConnectionStatus.State.CONNECTED ? "game"
-                : update.state() == ConnectionStatus.State.LOBBY ? "lobby" : "selection");
-        updateUndoSelection();
-        // A server-provided nickname must not be interpreted as Swing HTML.
-        status.putClientProperty("html.disable", Boolean.TRUE);
-        status.setText(update.detail());
-        if (!active) {
-            input.reset();
-            localPlayerId = null;
-            gamePanel.clearGame();
-        } else if (update.state() == ConnectionStatus.State.CONNECTED) {
-            if (gameWindowSizing.onStatus(update.state())) {
-                sizeForGame();
-            }
-            gamePanel.requestFocusInWindow();
+    private void roomAction(Runnable action) {
+        try {
+            action.run();
+        } catch (IllegalArgumentException exception) {
+            status.setText(exception.getMessage());
         }
+    }
+
+    private void showStatus(ConnectionStatus update) {
+        phase = update.state();
+        switch (phase) {
+            case BROWSING -> {
+                localPlayerId = null;
+                input.reset();
+                gamePanel.clearGame();
+                rooms.resetPages();
+                screenLayout.show(screens, "rooms");
+            }
+            case SELECTING -> screenLayout.show(screens, "selection");
+            case LOBBY -> screenLayout.show(screens, "lobby");
+            case CONNECTED -> {
+                screenLayout.show(screens, "game");
+                roomHeader.setVisible(false);
+                if (gameWindowSizing.onStatus(phase)) {
+                    sizeForGame();
+                }
+                gamePanel.requestFocusInWindow();
+            }
+            case DISCONNECTED, ERROR, CONNECTING -> {
+                localPlayerId = null;
+                input.reset();
+                gamePanel.clearGame();
+                screenLayout.show(screens, "connection");
+            }
+        }
+        status.setText(update.detail());
+        updateControls();
+    }
+
+    private void updateControls() {
+        boolean offline = phase == ConnectionStatus.State.DISCONNECTED || phase == ConnectionStatus.State.ERROR;
+        boolean choosing = phase == ConnectionStatus.State.SELECTING;
+        boolean inRoom = choosing || phase == ConnectionStatus.State.LOBBY || phase == ConnectionStatus.State.CONNECTED;
+        address.setEnabled(offline);
+        nickname.setEnabled(offline || phase == ConnectionStatus.State.BROWSING && !busy);
+        connect.setVisible(offline);
+        disconnect.setVisible(phase == ConnectionStatus.State.CONNECTING || phase == ConnectionStatus.State.BROWSING);
+        leave.setVisible(inRoom);
+        leave.setEnabled(!busy);
+        roomHeader.setVisible(choosing || phase == ConnectionStatus.State.LOBBY);
+        rooms.setBusy(busy);
+        lobbyPanel.setBusy(busy);
+        characterPicker.setEnabled(choosing && !busy);
+        confirm.setEnabled(choosing && !busy);
+        updateUndoSelection();
     }
 
     private void sizeForGame() {

@@ -59,6 +59,44 @@ class ServerLobbyMediatorTest {
     }
 
     @Test
+    void browserPaginatesOpenRoomsAndOmitsFullAndRunningRooms() {
+        try (var mediator = new ServerLobbyMediator(ArenaSelection.create("training", null))) {
+            List<String> expected = new java.util.ArrayList<>();
+            for (int index = 0; index < LobbyList.PAGE_SIZE + 3; index++) {
+                var host = new Participant();
+                mediator.create(host.session, new CreateLobby("Open " + index));
+                expected.add(host.session.lobbyCode);
+            }
+            expected.sort(String::compareTo);
+            var running = new Participant();
+            mediator.create(running.session, new CreateLobby("Running host"));
+            mediator.select(running.session, new SelectCharacter("GOGIS", StatAllocation.DEFAULT));
+            mediator.start(running.session);
+            var full = new Participant();
+            mediator.create(full.session, new CreateLobby("Full host"));
+            for (int index = 0; index < 3; index++) {
+                mediator.join(new Participant().session, new JoinLobby(full.session.lobbyCode, "Guest"));
+            }
+            var browser = new Participant();
+            mediator.list(browser.session, new ListLobbies(null));
+            LobbyList first = browser.last(LobbyList.class);
+            assertTrue(first.hasMore());
+            assertEquals(expected.subList(0, LobbyList.PAGE_SIZE),
+                    first.rooms().stream().map(LobbySummary::code).toList());
+            assertTrue(first.rooms().stream().allMatch(room -> room.playerCount() == 1));
+            mediator.list(browser.session, new ListLobbies(first.rooms().getLast().code()));
+            LobbyList second = browser.last(LobbyList.class);
+            assertFalse(second.hasMore());
+            assertEquals(expected.subList(LobbyList.PAGE_SIZE, expected.size()),
+                    second.rooms().stream().map(LobbySummary::code).toList());
+            mediator.join(browser.session, new JoinLobby(full.session.lobbyCode, "Too late"));
+            assertEquals("LOBBY_FULL", browser.last(ErrorMessage.class).code());
+            mediator.join(browser.session, new JoinLobby(running.session.lobbyCode, "Too late"));
+            assertEquals("LOBBY_STARTED", browser.last(ErrorMessage.class).code());
+        }
+    }
+
+    @Test
     void simultaneousJoinsNeverOverfillAndStartJoinRaceIsAtomic() throws Exception {
         try (var mediator = new ServerLobbyMediator(ArenaSelection.create("training", null));
                 var workers = Executors.newFixedThreadPool(8)) {
@@ -86,6 +124,7 @@ class ServerLobbyMediatorTest {
                 Participant racingHost = new Participant();
                 Participant racingGuest = new Participant();
                 mediator.create(racingHost.session, new CreateLobby("Host"));
+                mediator.select(racingHost.session, new SelectCharacter("GOGIS", StatAllocation.DEFAULT));
                 String racingCode = racingHost.session.lobbyCode;
                 CountDownLatch race = new CountDownLatch(1);
                 var start = workers.submit(() -> { race.await(); mediator.start(racingHost.session); return null; });
@@ -95,14 +134,15 @@ class ServerLobbyMediatorTest {
                 race.countDown();
                 start.get(5, TimeUnit.SECONDS);
                 join.get(5, TimeUnit.SECONDS);
-                LobbyState running = racingHost.last(LobbyState.class);
-                assertEquals(LobbyState.Phase.RUNNING, running.phase());
+                LobbyState state = racingHost.last(LobbyState.class);
                 if (racingGuest.session.playerId == null) {
-                    assertEquals(1, running.members().size());
+                    assertEquals(LobbyState.Phase.RUNNING, state.phase());
+                    assertEquals(1, state.members().size());
                     assertEquals("LOBBY_STARTED", racingGuest.last(ErrorMessage.class).code());
                 } else {
-                    assertEquals(2, running.members().size());
-                    assertEquals(running, racingGuest.last(LobbyState.class));
+                    assertEquals(LobbyState.Phase.WAITING, state.phase());
+                    assertEquals(2, state.members().size());
+                    assertEquals("CHARACTERS_PENDING", racingHost.last(ErrorMessage.class).code());
                 }
                 mediator.disconnected(racingHost.session);
             }

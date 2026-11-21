@@ -18,18 +18,21 @@ class ClientMessageRouterTest {
         WorldSnapshot snapshot = new WorldSnapshot(1,
                 new ArenaSnapshot("combat", 960, 540, List.of(new PlatformSnapshot(0, 480, 960, 60))), List.of(), List.of(),
                 List.of(new NPCSnapshot(1, 300, 416, 42, 64, "CHASE", true, 0, false)), List.of(), List.of());
-        router.route(welcome, received::add, received::add, received::add, received::add, received::add, received::add);
-        router.route(snapshot, received::add, received::add, received::add, received::add, received::add, received::add);
-        router.route(error, received::add, received::add, received::add, received::add, received::add, received::add);
-        router.route(new Pong("one"), received::add, received::add, received::add, received::add, received::add, received::add);
-        assertEquals(List.of(welcome, snapshot, error), received);
-        assertThrows(ProtocolException.class,
-                () -> router.route(new CreateLobby("wrong"), received::add, received::add, received::add, received::add, received::add, received::add));
-        assertThrows(ProtocolException.class,
-                () -> router.route(new InputState(0L, false, false, false, false, false),
-                        received::add, received::add, received::add, received::add, received::add, received::add));
-        assertThrows(ProtocolException.class,
-                () -> router.route(new Ping("wrong"), received::add, received::add, received::add, received::add, received::add, received::add));
+        ClientEvents observer = new ClientEvents() {
+            @Override public void onJoined(Welcome value) { received.add(value); }
+            @Override public void onSnapshot(WorldSnapshot value) { received.add(value); }
+            @Override public void onRequestError(ErrorMessage value) { received.add(value); }
+            @Override public void onLobbyList(LobbyList value) { received.add(value); }
+        };
+        LobbyList list = new LobbyList(List.of(), false);
+        for (Message message : List.of(welcome, snapshot, error, list, new Pong("one"))) {
+            router.route(message, observer);
+        }
+        assertEquals(List.of(welcome, snapshot, error, list), received);
+        for (Message message : List.of(new CreateLobby("wrong"), new ListLobbies(null), new Ping("wrong"),
+                new InputState(0L, false, false, false, false, false))) {
+            assertThrows(ProtocolException.class, () -> router.route(message, observer));
+        }
     }
 
     @Test
@@ -39,12 +42,9 @@ class ClientMessageRouterTest {
             @Override public void onJoined(Welcome welcome) { }
             @Override public void onSnapshot(WorldSnapshot snapshot) { }
         })) {
-            assertThrows(IllegalArgumentException.class, () -> connection.createLobby(URI.create("http://localhost/game"), "Player"));
-            assertThrows(IllegalArgumentException.class, () -> connection.createLobby(URI.create("ws://localhost/game"), " "));
-            assertThrows(IllegalArgumentException.class,
-                    () -> connection.createLobby(URI.create("ws://localhost/game"), "Player", "UNKNOWN"));
+            assertThrows(IllegalArgumentException.class, () -> connection.connect(URI.create("http://localhost/game")));
             connection.close();
-            assertThrows(IllegalStateException.class, () -> connection.createLobby(URI.create("ws://localhost/game"), "Player"));
+            assertThrows(IllegalStateException.class, () -> connection.connect(URI.create("ws://localhost/game")));
         }
     }
 }

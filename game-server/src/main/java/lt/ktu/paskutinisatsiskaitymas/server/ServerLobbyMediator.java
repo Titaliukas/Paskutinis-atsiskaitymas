@@ -3,6 +3,9 @@ package lt.ktu.paskutinisatsiskaitymas.server;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.NavigableMap;
+import java.util.TreeMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -14,10 +17,15 @@ import lt.ktu.paskutinisatsiskaitymas.application.LeavePlayerCommand;
 import lt.ktu.paskutinisatsiskaitymas.domain.Arena;
 import lt.ktu.paskutinisatsiskaitymas.domain.CharacterBuild;
 import lt.ktu.paskutinisatsiskaitymas.domain.CharacterType;
+import lt.ktu.paskutinisatsiskaitymas.domain.GameConstants;
 import lt.ktu.paskutinisatsiskaitymas.protocol.CreateLobby;
 import lt.ktu.paskutinisatsiskaitymas.protocol.ErrorMessage;
 import lt.ktu.paskutinisatsiskaitymas.protocol.InputState;
 import lt.ktu.paskutinisatsiskaitymas.protocol.JoinLobby;
+import lt.ktu.paskutinisatsiskaitymas.protocol.ListLobbies;
+import lt.ktu.paskutinisatsiskaitymas.protocol.LobbyList;
+import lt.ktu.paskutinisatsiskaitymas.protocol.LobbySummary;
+import lt.ktu.paskutinisatsiskaitymas.protocol.SelectCharacter;
 import lt.ktu.paskutinisatsiskaitymas.protocol.LobbyClosed;
 import lt.ktu.paskutinisatsiskaitymas.protocol.LobbyMember;
 import lt.ktu.paskutinisatsiskaitymas.protocol.LobbyState;
@@ -31,7 +39,7 @@ import lt.ktu.paskutinisatsiskaitymas.protocol.Welcome;
 final class ServerLobbyMediator implements LobbyMediator {
     private static final String CODE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     private final SecureRandom random = new SecureRandom();
-    private final Map<String, Lobby> lobbies = new LinkedHashMap<>();
+    private final NavigableMap<String, Lobby> lobbies = new TreeMap<>();
     private final Arena arena;
     private final ExecutorService cleanup = Executors.newSingleThreadExecutor(runnable ->
             new Thread(runnable, "lobby-cleanup"));
@@ -46,10 +54,6 @@ final class ServerLobbyMediator implements LobbyMediator {
         if (!canEnter(participant)) {
             return;
         }
-        CharacterBuild build = validateBuild(participant, request);
-        if (build == null) {
-            return;
-        }
         String code;
         do {
             StringBuilder candidate = new StringBuilder();
@@ -60,17 +64,12 @@ final class ServerLobbyMediator implements LobbyMediator {
         } while (lobbies.containsKey(code));
         Lobby lobby = new Lobby(code, participant.id);
         lobbies.put(code, lobby);
-        admit(lobby, participant, request, build);
+        admit(lobby, participant, request.nickname());
     }
 
     @Override
     public synchronized void join(ConnectionSession participant, JoinLobby request) {
         if (!canEnter(participant)) {
-            return;
-        }
-        CreateLobby selection = new CreateLobby(request.nickname(), request.character(), request.stats());
-        CharacterBuild build = validateBuild(participant, selection);
-        if (build == null) {
             return;
         }
         Lobby lobby = lobbies.get(request.code());
@@ -79,7 +78,7 @@ final class ServerLobbyMediator implements LobbyMediator {
         } else if (lobby.running) {
             error(participant, "LOBBY_STARTED", "This game has started and no longer accepts players");
         } else {
-            admit(lobby, participant, selection, build);
+            admit(lobby, participant, request.nickname());
         }
     }
 
@@ -94,17 +93,23 @@ final class ServerLobbyMediator implements LobbyMediator {
         return true;
     }
 
-    private CharacterBuild validateBuild(ConnectionSession participant, CreateLobby selection) {
-        try {
-            return new CharacterBuild(selection.stats().healthPercent(), selection.stats().speedPercent(),
-                    selection.stats().jumpHeightPercent());
-        } catch (IllegalArgumentException exception) {
-            error(participant, "INVALID_STATS", exception.getMessage());
-            return null;
+    @Override
+    public synchronized void list(ConnectionSession participant, ListLobbies request) {
+        if (closed || participant.disconnected) {
+            return;
         }
+        var candidates = request.afterCode() == null ? lobbies : lobbies.tailMap(request.afterCode(), false);
+        List<LobbySummary> rooms = candidates.values().stream()
+                .filter(lobby -> !lobby.running && lobby.members.size() < GameConstants.MAX_PLAYERS)
+                .limit(LobbyList.PAGE_SIZE + 1L)
+                .map(lobby -> new LobbySummary(lobby.code, lobby.members.get(lobby.hostConnectionId)
+                        .participant().nickname, lobby.members.size()))
+                .toList();
+        boolean hasMore = rooms.size() > LobbyList.PAGE_SIZE;
+        participant.send(new LobbyList(hasMore ? rooms.subList(0, LobbyList.PAGE_SIZE) : rooms, hasMore));
     }
 
-    private void admit(Lobby lobby, ConnectionSession participant, CreateLobby selection, CharacterBuild build) {
+    private void admit(Lobby lobby, ConnectionSession participant, String nickname) {
         PlayerSlots.Assignment assignment = lobby.slots.reserve(participant.id).orElse(null);
         if (assignment == null) {
             error(participant, "LOBBY_FULL", "The four lobby slots are occupied");
@@ -112,12 +117,38 @@ final class ServerLobbyMediator implements LobbyMediator {
         }
         participant.playerId = assignment.playerId();
         participant.slot = assignment.slot();
-        participant.nickname = selection.nickname();
+        participant.nickname = nickname;
         participant.lobbyCode = lobby.code;
-        JoinPlayerCommand command = new JoinPlayerCommand(assignment.playerId(), assignment.slot(),
-                selection.nickname(), CharacterType.valueOf(selection.character()), build);
-        lobby.members.put(participant.id, new Member(participant, selection.character(), command));
+        lobby.members.put(participant.id, new Member(participant, null));
         participant.send(new Welcome(participant.id, participant.playerId, participant.slot, participant.nickname));
+        publishState(lobby);
+    }
+
+    @Override
+    public synchronized void select(ConnectionSession participant, SelectCharacter request) {
+        Lobby lobby = membership(participant);
+        if (lobby == null) {
+            return;
+        }
+        if (lobby.running) {
+            error(participant, "LOBBY_STARTED", "The game has already started");
+            return;
+        }
+        if (lobby.members.get(participant.id).join() != null) {
+            error(participant, "CHARACTER_CONFIRMED", "Your character is already confirmed");
+            return;
+        }
+        CharacterBuild build;
+        try {
+            build = new CharacterBuild(request.stats().healthPercent(), request.stats().speedPercent(),
+                    request.stats().jumpHeightPercent());
+        } catch (IllegalArgumentException exception) {
+            error(participant, "INVALID_STATS", exception.getMessage());
+            return;
+        }
+        var join = new JoinPlayerCommand(participant.playerId, participant.slot, participant.nickname,
+                CharacterType.valueOf(request.character()), build);
+        lobby.members.put(participant.id, new Member(participant, join));
         publishState(lobby);
     }
 
@@ -131,6 +162,8 @@ final class ServerLobbyMediator implements LobbyMediator {
             error(participant, "HOST_REQUIRED", "Only the host can start the game");
         } else if (lobby.running) {
             error(participant, "LOBBY_STARTED", "The game has already started");
+        } else if (lobby.members.values().stream().anyMatch(member -> member.join() == null)) {
+            error(participant, "CHARACTERS_PENDING", "Everyone must confirm their character before starting");
         } else {
             lobby.runtime = new GameRuntime(snapshot -> publishGame(lobby, snapshot),
                     event -> publishGame(lobby, event), arena);
@@ -164,7 +197,7 @@ final class ServerLobbyMediator implements LobbyMediator {
         if (closed || participant.disconnected) {
             return null;
         }
-        Lobby lobby = lobbies.get(participant.lobbyCode);
+        Lobby lobby = participant.lobbyCode == null ? null : lobbies.get(participant.lobbyCode);
         if (lobby == null) {
             error(participant, "HANDSHAKE_REQUIRED", "Create or join a lobby first");
         }
@@ -176,7 +209,8 @@ final class ServerLobbyMediator implements LobbyMediator {
         LobbyState state = new LobbyState(lobby.code, hostId,
                 lobby.running ? LobbyState.Phase.RUNNING : LobbyState.Phase.WAITING,
                 lobby.members.values().stream().map(member -> new LobbyMember(member.participant().playerId,
-                        member.participant().slot, member.participant().nickname, member.character())).toList());
+                        member.participant().slot, member.participant().nickname,
+                        member.join() == null ? null : member.join().characterType().name())).toList());
         lobby.members.values().forEach(member -> member.participant().send(state));
     }
 
@@ -189,7 +223,18 @@ final class ServerLobbyMediator implements LobbyMediator {
     @Override
     public synchronized void disconnected(ConnectionSession participant) {
         participant.disconnected = true;
-        Lobby lobby = lobbies.get(participant.lobbyCode);
+        removeMembership(participant);
+    }
+
+    @Override
+    public synchronized void leave(ConnectionSession participant) {
+        if (!closed && !participant.disconnected) {
+            removeMembership(participant);
+        }
+    }
+
+    private void removeMembership(ConnectionSession participant) {
+        Lobby lobby = participant.lobbyCode == null ? null : lobbies.get(participant.lobbyCode);
         if (lobby == null) {
             participant.clearMembership();
             return;
@@ -209,6 +254,7 @@ final class ServerLobbyMediator implements LobbyMediator {
             lobby.members.remove(participant.id);
             lobby.slots.release(participant.id);
             participant.clearMembership();
+            participant.send(new LobbyClosed("You left the room."));
             publishState(lobby);
         }
     }
@@ -258,7 +304,7 @@ final class ServerLobbyMediator implements LobbyMediator {
         return cleanup.isTerminated();
     }
 
-    private record Member(ConnectionSession participant, String character, JoinPlayerCommand join) { }
+    private record Member(ConnectionSession participant, JoinPlayerCommand join) { }
 
     private static final class Lobby {
         private final String code;

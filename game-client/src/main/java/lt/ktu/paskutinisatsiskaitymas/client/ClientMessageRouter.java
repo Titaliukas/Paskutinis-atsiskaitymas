@@ -1,11 +1,11 @@
 package lt.ktu.paskutinisatsiskaitymas.client;
 
-import java.util.function.Consumer;
 import lt.ktu.paskutinisatsiskaitymas.protocol.ErrorMessage;
 import lt.ktu.paskutinisatsiskaitymas.protocol.GameEventMessage;
 import lt.ktu.paskutinisatsiskaitymas.protocol.Message;
 import lt.ktu.paskutinisatsiskaitymas.protocol.LobbyState;
 import lt.ktu.paskutinisatsiskaitymas.protocol.LobbyClosed;
+import lt.ktu.paskutinisatsiskaitymas.protocol.LobbyList;
 import lt.ktu.paskutinisatsiskaitymas.protocol.Pong;
 import lt.ktu.paskutinisatsiskaitymas.protocol.ProtocolException;
 import lt.ktu.paskutinisatsiskaitymas.protocol.Welcome;
@@ -13,23 +13,17 @@ import lt.ktu.paskutinisatsiskaitymas.protocol.WorldSnapshot;
 
 /** Server-message dispatch boundary, independent of rendering and input. */
 final class ClientMessageRouter {
-    void route(Message message, Consumer<Welcome> welcome, Consumer<WorldSnapshot> snapshot,
-            Consumer<GameEventMessage> gameEvent, Consumer<LobbyState> lobbyState,
-            Consumer<LobbyClosed> lobbyClosed, Consumer<ErrorMessage> error) throws ProtocolException {
-        if (message instanceof Welcome value) {
-            welcome.accept(value);
-        } else if (message instanceof WorldSnapshot value) {
-            snapshot.accept(value);
-        } else if (message instanceof GameEventMessage value) {
-            gameEvent.accept(value);
-        } else if (message instanceof LobbyState value) {
-            lobbyState.accept(value);
-        } else if (message instanceof LobbyClosed value) {
-            lobbyClosed.accept(value);
-        } else if (message instanceof ErrorMessage value) {
-            error.accept(value);
-        } else if (!(message instanceof Pong)) {
-            throw new ProtocolException("Expected a server message", null);
+    void route(Message message, ClientEvents listener) throws ProtocolException {
+        switch (message) {
+            case Welcome value -> listener.onJoined(value);
+            case WorldSnapshot value -> listener.onSnapshot(value);
+            case GameEventMessage value -> listener.onGameEvent(value);
+            case LobbyState value -> listener.onLobbyState(value);
+            case LobbyClosed value -> listener.onLobbyClosed(value);
+            case LobbyList value -> listener.onLobbyList(value);
+            case ErrorMessage value -> listener.onRequestError(value);
+            case Pong ignored -> { }
+            default -> throw new ProtocolException("Expected a server message", null);
         }
     }
 }

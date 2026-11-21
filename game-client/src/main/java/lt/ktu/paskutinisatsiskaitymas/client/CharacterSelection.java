@@ -1,12 +1,12 @@
 package lt.ktu.paskutinisatsiskaitymas.client;
 
-import lt.ktu.paskutinisatsiskaitymas.protocol.CreateLobby;
+import lt.ktu.paskutinisatsiskaitymas.protocol.SelectCharacter;
 import lt.ktu.paskutinisatsiskaitymas.protocol.StatAllocation;
 import java.util.Objects;
 
-/** Command receiver for the local character choice before joining a server. */
+/** Command receiver for the local character choice before confirming a build. */
 final class CharacterSelection {
-    private String selectedCharacter = CreateLobby.DEFAULT_CHARACTER;
+    private String selectedCharacter = SelectCharacter.DEFAULT_CHARACTER;
     private StatAllocation stats = StatAllocation.DEFAULT;
 
     record State(String character, StatAllocation stats) {
@@ -51,7 +51,7 @@ final class CharacterSelection {
         for (SelectableStat stat : SelectableStat.values()) {
             int value = stat.value(stats);
             if (value < 50 || value > 150 || value % 5 != 0) {
-                throw new IllegalArgumentException("Each stat must be 50–150 in steps of 5");
+                throw new IllegalArgumentException("Each stat must be 50â€“150 in steps of 5");
             }
         }
         if (remainingPoints(stats) < 0) {
@@ -64,7 +64,7 @@ final class CharacterSelection {
     }
 
     private static void validateCharacter(String character) {
-        if (character == null || !CreateLobby.CHARACTERS.contains(character)) {
+        if (character == null || !SelectCharacter.CHARACTERS.contains(character)) {
             throw new IllegalArgumentException("Unknown character");
         }
     }

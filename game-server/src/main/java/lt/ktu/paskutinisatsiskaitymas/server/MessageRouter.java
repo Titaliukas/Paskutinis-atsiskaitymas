@@ -3,6 +3,9 @@ package lt.ktu.paskutinisatsiskaitymas.server;
 import java.util.Objects;
 import lt.ktu.paskutinisatsiskaitymas.protocol.CreateLobby;
 import lt.ktu.paskutinisatsiskaitymas.protocol.JoinLobby;
+import lt.ktu.paskutinisatsiskaitymas.protocol.LeaveLobby;
+import lt.ktu.paskutinisatsiskaitymas.protocol.ListLobbies;
+import lt.ktu.paskutinisatsiskaitymas.protocol.SelectCharacter;
 import lt.ktu.paskutinisatsiskaitymas.protocol.StartGame;
 import lt.ktu.paskutinisatsiskaitymas.protocol.ErrorMessage;
 import lt.ktu.paskutinisatsiskaitymas.protocol.InputState;
@@ -23,6 +26,12 @@ final class MessageRouter {
             mediator.create(session, request);
         } else if (message instanceof JoinLobby request) {
             mediator.join(session, request);
+        } else if (message instanceof ListLobbies request) {
+            mediator.list(session, request);
+        } else if (message instanceof SelectCharacter request) {
+            mediator.select(session, request);
+        } else if (message instanceof LeaveLobby) {
+            mediator.leave(session);
         } else if (message instanceof StartGame) {
             mediator.start(session);
         } else if (message instanceof InputState input) {
