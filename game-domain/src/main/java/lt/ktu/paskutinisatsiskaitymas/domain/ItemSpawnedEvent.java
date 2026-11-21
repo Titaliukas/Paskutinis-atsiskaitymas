@@ -8,4 +8,9 @@ public record ItemSpawnedEvent(UUID itemId, ItemType itemType) implements GameEv
         Objects.requireNonNull(itemId, "itemId");
         Objects.requireNonNull(itemType, "itemType");
     }
+
+    @Override
+    public <R> R accept(GameEventVisitor<R> visitor) {
+        return visitor.visit(this);
+    }
 }

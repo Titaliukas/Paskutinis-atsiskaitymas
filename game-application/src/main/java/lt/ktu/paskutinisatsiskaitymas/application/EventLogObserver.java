@@ -5,9 +5,10 @@ import lt.ktu.paskutinisatsiskaitymas.domain.GameEventListener;
 
 public final class EventLogObserver implements GameEventListener {
     private static final System.Logger LOG = System.getLogger(EventLogObserver.class.getName());
+    private final LogLineVisitor visitor = new LogLineVisitor();
 
     @Override
     public void onEvent(GameEvent event) {
-        LOG.log(System.Logger.Level.INFO, "Game event: {0}", event);
+        LOG.log(System.Logger.Level.INFO, "Game event: {0}", event.accept(visitor));
     }
 }
