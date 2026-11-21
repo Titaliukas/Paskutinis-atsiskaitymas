@@ -1,13 +1,16 @@
 package lt.ktu.paskutinisatsiskaitymas.domain;
 
-import java.util.LinkedHashMap;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.ListIterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Predicate;
 
 /** Flight and collision rules, used exclusively by the authoritative session owner. */
-final class Projectiles {
-    private final Map<UUID, Projectile> active = new LinkedHashMap<>();
+public final class Projectiles implements Iterable<Projectile> {
+    private final ArrayList<Projectile> active = new ArrayList<>();
 
     boolean spawn(NPCState source, NPCTarget target, ProjectileType type) {
         if (active.size() >= GameConstants.PROJECTILE_MAX_ACTIVE) {
@@ -17,30 +20,50 @@ final class Projectiles {
                 new Position(source.preciseX() + source.width() / 2, source.preciseY() + source.height() / 2),
                 0, 0, GameConstants.NPC_PROJECTILE_LIFETIME_SECONDS, false);
         projectile.aimAt(target.x() + target.width() / 2, target.y() + target.height() / 2);
-        active.put(projectile.state().id(), projectile);
+        active.add(projectile);
         return true;
     }
 
-    List<ProjectileState> states() { return active.values().stream().map(Projectile::state).toList(); }
+    List<ProjectileState> states() { return active.stream().map(Projectile::state).toList(); }
 
-    void removeSource(int sourceId) { active.values().removeIf(value -> value.state().sourceNPCId() == sourceId); }
+    void removeSource(int sourceId) { removeMatching(value -> value.state().sourceNPCId() == sourceId); }
 
-    void removeTarget(int targetId) { active.values().removeIf(value -> value.state().targetId() == targetId); }
+    void removeTarget(int targetId) { removeMatching(value -> value.state().targetId() == targetId); }
+
+    private void removeMatching(Predicate<Projectile> predicate) {
+        active.removeIf(projectile -> {
+            if (!predicate.test(projectile)) {
+                return false;
+            }
+            projectile.neutralize();
+            return true;
+        });
+    }
 
     void advance(Arena arena, Map<Integer, NPC> npcs, List<GameCharacter> players, double seconds) {
-        // Iterate original identities only; a return is advanced here rather than again in this tick.
-        for (Projectile projectile : List.copyOf(active.values())) {
-            active.remove(projectile.state().id());
+        removeInactive();
+        // Replacing the current list element never visits the returned clone twice in this tick.
+        ListIterator<Projectile> iterator = active.listIterator();
+        while (iterator.hasNext()) {
+            Projectile projectile = iterator.next();
             NPC source = npcs.get(projectile.state().sourceNPCId());
-            if (source == null || !source.state().alive()) {
-                continue;
+            Projectile survivor = source == null || !source.alive() ? null
+                    : advanceOne(projectile, arena, source, players, seconds);
+            if (survivor != projectile) {
+                projectile.neutralize();
             }
-            Projectile survivor = advanceOne(projectile, arena, source, players, seconds);
-            if (survivor != null) {
-                active.put(survivor.state().id(), survivor);
+            if (survivor == null) {
+                iterator.remove();
+            } else {
+                iterator.set(survivor);
             }
         }
     }
+
+    void removeInactive() { active.removeIf(projectile -> !projectile.isActive()); }
+
+    @Override
+    public Iterator<Projectile> iterator() { return active.iterator(); }
 
     private Projectile advanceOne(Projectile projectile, Arena arena, NPC source,
             List<GameCharacter> players, double seconds) {

@@ -19,6 +19,6 @@ final class XboxInputAdapter extends GamepadInputAdapter {
         boolean buttonB = reading.right();
         boolean buttonX = reading.left();
         return new PlayerInput(movesLeft(reading), movesRight(reading),
-                buttonA, buttonX || reading.rightShoulder(), buttonB || reading.leftShoulder());
+                buttonA, buttonX || reading.rightShoulder(), buttonB || reading.leftShoulder(), reading.top(), reading.dpadDown());
     }
 }

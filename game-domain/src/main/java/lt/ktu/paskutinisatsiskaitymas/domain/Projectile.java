@@ -2,9 +2,10 @@ package lt.ktu.paskutinisatsiskaitymas.domain;
 
 import java.util.UUID;
 import java.util.Objects;
+import java.util.List;
 
 /** Loop-owned moving projectile. Cloning creates a fresh identity and independent flight state. */
-public final class Projectile implements Prototype<Projectile> {
+public final class Projectile implements Prototype<Projectile>, AutoTarget {
     private final UUID id;
     private final int sourceNPCId;
     private final int targetId;
@@ -14,6 +15,7 @@ public final class Projectile implements Prototype<Projectile> {
     private double velocityY;
     private double remainingSeconds;
     private boolean returning;
+    private boolean active = true;
 
     Projectile(UUID id, int sourceNPCId, int targetId, ProjectileType type, Position position,
             double velocityX, double velocityY, double remainingSeconds, boolean returning) {
@@ -53,6 +55,19 @@ public final class Projectile implements Prototype<Projectile> {
         position = new Position(position.x() + velocityX * seconds, position.y() + velocityY * seconds);
         remainingSeconds = Math.max(0, remainingSeconds - seconds);
     }
+
+    public boolean isActive() { return active && remainingSeconds > 0; }
+
+    void neutralize() { active = false; }
+
+    @Override
+    public boolean canBeTargetedBy(GameCharacter source) { return isActive(); }
+
+    @Override
+    public Position aimPoint() { return position; }
+
+    @Override
+    public void receiveHit(List<AttackEffect> effects, int direction) { neutralize(); }
 
     public ProjectileState state() {
         return new ProjectileState(id, sourceNPCId, targetId, type, position, velocityX, velocityY,

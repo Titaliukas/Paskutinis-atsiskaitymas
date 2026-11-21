@@ -19,11 +19,25 @@ public record PlayerSnapshot(
         int maxHealth,
         double stressLevel,
         String character,
-        boolean slowed) {
+        boolean slowed,
+        boolean prone) {
+    public PlayerSnapshot(UUID playerId, int slot, String nickname, double x, double y, double width, double height,
+            boolean grounded, boolean shielded, double velocityX, int health, int maxHealth, double stressLevel,
+            String character, boolean slowed) {
+        this(playerId, slot, nickname, x, y, width, height, grounded, shielded, velocityX, health, maxHealth,
+                stressLevel, character, slowed, false);
+    }
+
     public PlayerSnapshot {
         Objects.requireNonNull(playerId, "playerId");
         if (slot < 0 || slot > 3) {
             throw new IllegalArgumentException("Player slot must be between 0 and 3");
+        }
+        if (prone && !grounded) {
+            throw new IllegalArgumentException("Prone players must be grounded");
+        }
+        if (prone && !grounded) {
+            throw new IllegalArgumentException("A prone player must be grounded");
         }
         nickname = WireText.require(nickname, "nickname", 32);
         WireNumbers.finite(x, "x");

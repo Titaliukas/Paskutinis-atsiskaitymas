@@ -162,9 +162,9 @@ class GameClientFacadeTest {
             edt(() -> {
                 assertEquals(List.of("joined", "CONNECTED", "snapshot", "event"), events.gameplay);
                 assertTrue(events.allOnEdt);
-                facade.sendInput(new PlayerInput(true, false, true, false, true));
+                facade.sendInput(new PlayerInput(true, false, true, false, true, true, true));
             });
-            assertEquals(new InputState(0, true, false, true, false, true), peer.received.poll(5, TimeUnit.SECONDS));
+            assertEquals(new InputState(0, true, false, true, false, true, true, true), peer.received.poll(5, TimeUnit.SECONDS));
             edt(() -> {
                 facade.disconnect();
                 assertEquals("JURGELINIS", facade.selectedCharacter());

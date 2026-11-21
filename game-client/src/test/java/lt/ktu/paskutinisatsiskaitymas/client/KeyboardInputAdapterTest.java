@@ -36,6 +36,26 @@ class KeyboardInputAdapterTest {
     }
 
     @Test
+    void examinatorPressAndHeldProneResetOnFocusLoss() {
+        press(KeyEvent.VK_L);
+        press(KeyEvent.VK_L);
+        assertTrue(input.currentInput().examinator());
+        assertEquals(1, published.size());
+        press(KeyEvent.VK_S);
+        press(KeyEvent.VK_DOWN);
+        release(KeyEvent.VK_S);
+        assertTrue(input.currentInput().prone());
+        release(KeyEvent.VK_DOWN);
+        assertFalse(input.currentInput().prone());
+        press(KeyEvent.VK_S);
+        for (FocusListener listener : source.getFocusListeners()) {
+            listener.focusLost(new FocusEvent(source, FocusEvent.FOCUS_LOST));
+        }
+        assertEquals(PlayerInput.NONE, input.currentInput());
+        input.close();
+    }
+
+    @Test
     void translatesBoundKeysIntoHeldInputState() {
         press(KeyEvent.VK_A);
         assertEquals(state(true, false, false, false, false), input.currentInput());

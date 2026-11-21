@@ -8,10 +8,15 @@ import com.studiohartman.jamepad.ControllerState;
  * left = X / Square, top = Y / Triangle). Mapping works on this record, so it is testable without native SDL.
  */
 record GamepadReading(String name, float leftStickX, boolean bottom, boolean right, boolean left, boolean top,
-        boolean leftShoulder, boolean rightShoulder) {
+        boolean leftShoulder, boolean rightShoulder, boolean dpadDown) {
+
+    GamepadReading(String name, float leftStickX, boolean bottom, boolean right, boolean left, boolean top,
+            boolean leftShoulder, boolean rightShoulder) {
+        this(name, leftStickX, bottom, right, left, top, leftShoulder, rightShoulder, false);
+    }
 
     static GamepadReading from(ControllerState state) {
         return new GamepadReading(state.controllerType, state.leftStickX, state.a, state.b, state.x, state.y,
-                state.lb, state.rb);
+                state.lb, state.rb, state.dpadDown);
     }
 }

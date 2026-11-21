@@ -188,7 +188,7 @@ final class ServerLobbyMediator implements LobbyMediator {
         if (!lobby.running) {
             error(participant, "GAME_NOT_STARTED", "Wait for the host to start the game");
         } else if (!lobby.runtime.commands().offer(new InputCommand(participant.playerId, input.sequence(),
-                input.left(), input.right(), input.jump(), input.ranged(), input.melee()))) {
+                input.left(), input.right(), input.jump(), input.ranged(), input.melee(), input.examinator(), input.prone()))) {
             error(participant, "SERVER_BUSY", "The command queue is full");
         }
     }

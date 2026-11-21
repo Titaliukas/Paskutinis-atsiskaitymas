@@ -3,6 +3,7 @@ package lt.ktu.paskutinisatsiskaitymas.client;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import javax.swing.SwingUtilities;
@@ -20,7 +21,7 @@ class LobbyClientTest {
         BlockingQueue<LobbyState> states = new LinkedBlockingQueue<>();
         BlockingQueue<ErrorMessage> errors = new LinkedBlockingQueue<>();
         BlockingQueue<LobbyClosed> closures = new LinkedBlockingQueue<>();
-        BlockingQueue<ConnectionStatus> statuses = new LinkedBlockingQueue<>();
+        CompletableFuture<ConnectionStatus> returnedToBrowser = new CompletableFuture<>();
         try (FacadeWebSocketPeer peer = new FacadeWebSocketPeer()) {
             SwingUtilities.invokeAndWait(() -> {
                 facade.selectCharacter("GOGIS");
@@ -39,7 +40,13 @@ class LobbyClientTest {
                         assertTrue(SwingUtilities.isEventDispatchThread());
                         closures.add(closure);
                     }
-                    @Override public void onConnectionStatus(ConnectionStatus status) { statuses.add(status); }
+                    @Override public void onConnectionStatus(ConnectionStatus status) {
+                        assertTrue(SwingUtilities.isEventDispatchThread());
+                        if (status.state() == ConnectionStatus.State.BROWSING
+                                && status.detail().contains("host left")) {
+                            returnedToBrowser.complete(status);
+                        }
+                    }
                 });
                 facade.connect(peer.address());
             });
@@ -65,7 +72,7 @@ class LobbyClientTest {
             assertEquals(choosing, states.poll(5, TimeUnit.SECONDS).members());
             SwingUtilities.invokeAndWait(() -> {
                 assertTrue(facade.canUndoSelection());
-                facade.sendInput(new PlayerInput(true, false, true, false, false));
+                facade.sendInput(new PlayerInput(true, false, true, false, false, true, true));
                 facade.confirmCharacter();
                 facade.confirmCharacter();
             });
@@ -86,20 +93,21 @@ class LobbyClientTest {
             SwingUtilities.invokeAndWait(() -> assertFalse(facade.canUndoSelection()));
             peer.send(new LobbyState("ABC123", host, LobbyState.Phase.RUNNING, members));
             assertEquals(LobbyState.Phase.RUNNING, states.poll(5, TimeUnit.SECONDS).phase());
-            SwingUtilities.invokeAndWait(() -> facade.sendInput(PlayerInput.NONE));
-            assertInstanceOf(InputState.class, peer.received.poll(5, TimeUnit.SECONDS));
+            SwingUtilities.invokeAndWait(() ->
+                    facade.sendInput(new PlayerInput(false, false, false, false, false, true, true)));
+            assertEquals(new InputState(0, false, false, false, false, false, true, true),
+                    peer.received.poll(5, TimeUnit.SECONDS));
             peer.send(new LobbyClosed("The host left. The lobby has closed."));
             assertNotNull(closures.poll(5, TimeUnit.SECONDS));
             assertEquals(new ListLobbies(null), peer.received.poll(5, TimeUnit.SECONDS));
             peer.send(new LobbyList(List.of(), false));
             assertNotNull(pages.poll(5, TimeUnit.SECONDS));
             assertFalse(peer.clientClosed.isDone());
+            assertNotNull(returnedToBrowser.get(5, TimeUnit.SECONDS));
             SwingUtilities.invokeAndWait(() -> {
                 assertEquals("GOGIS", facade.selectedCharacter());
                 assertEquals(request.stats(), facade.stats());
                 facade.sendInput(PlayerInput.NONE);
-                assertTrue(statuses.stream().anyMatch(status -> status.state() == ConnectionStatus.State.BROWSING
-                        && status.detail().contains("host left")));
             });
         } finally {
             SwingUtilities.invokeAndWait(facade::close);

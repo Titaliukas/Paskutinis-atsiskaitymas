@@ -77,50 +77,74 @@ lobby isolation, admission, and shutdown tests, then produces:
 - `game-server/target/game-server.jar`
 - `game-client/target/game-client.jar`
 
-## Start a local game directly
+Client tests run in headless mode and render Swing/Java2D components offscreen; the packaged desktop client
+still opens its normal window. The optional particle performance benchmark is enabled with
+`-Dparticles.benchmark=true`; all other tests run in the standard build.
 
-Open five terminals in the repository root after building.
+## Start a local game directly (macOS)
 
-Terminal 1 — choose one server configuration:
+Install a standalone JDK 25 first. Replace `/path/to/Paskutinis-atsiskaitymas` below with your clone's root
+directory (the folder containing `mvnw`, `pom.xml`, and all five modules). Run these steps in order.
+
+Terminal 1 — select JDK 25, build the whole project, and check both runnable JARs:
 
 ```sh
-# Combat (also the default without -Dgame.arena)
-java -Dgame.arena=combat -jar game-server/target/game-server.jar
-# Or Training
-java -Dgame.arena=training -jar game-server/target/game-server.jar
+export JAVA_HOME="$(/usr/libexec/java_home -v 25)"
+export PATH="$JAVA_HOME/bin:$PATH"
+java --version
+javac --version
+cd /path/to/Paskutinis-atsiskaitymas
+./mvnw -version
+./mvnw -B -ntp clean verify
 ```
 
-Alternatively use `GAME_ARENA=training java -jar game-server/target/game-server.jar`. The `game.arena` JVM
-property overrides `GAME_ARENA`; only `combat` and `training` are accepted. An invalid value fails startup.
-Stop the current server before starting the other arena on the same port.
-
-Terminal 2 — first client:
+All Java version checks, including the Maven Wrapper's Java version, must report 25. Wait for the build to finish
+with **BUILD SUCCESS** before continuing. From the same root, confirm that both files exist:
 
 ```sh
+ls -lh game-server/target/game-server.jar game-client/target/game-client.jar
+```
+
+Both JARs include their runtime dependencies. A working server alone does not prove that the client was packaged:
+the reactor builds the server before the client, and `clean` deletes previous build outputs. If the build fails,
+fix the reported error and rerun the full command before launching. Test skipping is not required.
+
+Terminal 1 — start the default Combat server and leave it running:
+
+```sh
+java -jar game-server/target/game-server.jar
+```
+
+Wait for `Listening on 0.0.0.0:8080/game`.
+
+Terminal 2 — open a new terminal, select the same JDK, and enter the project root again before starting Alice:
+
+```sh
+export JAVA_HOME="$(/usr/libexec/java_home -v 25)"
+export PATH="$JAVA_HOME/bin:$PATH"
+cd /path/to/Paskutinis-atsiskaitymas
 java -jar game-client/target/game-client.jar ws://localhost:8080/game Alice
 ```
 
-Terminal 3 — second client:
+On Alice's client, click **Connect** to open **Available rooms**, then click **Create room**.
+The host can click **Copy code** beside the room code while choosing or in the waiting room.
+
+Terminal 3 — an optional second player, **before Alice clicks Start game**:
 
 ```sh
+export JAVA_HOME="$(/usr/libexec/java_home -v 25)"
+export PATH="$JAVA_HOME/bin:$PATH"
+cd /path/to/Paskutinis-atsiskaitymas
 java -jar game-client/target/game-client.jar ws://localhost:8080/game Bob
 ```
 
-Terminal 4 — third client:
+On Bob's client, click **Connect**, select Alice's room and click **Join selected**, or paste the room code
+and click **Join by code**. Repeat in additional terminals with other nicknames for up to four players total.
 
-```sh
-java -jar game-client/target/game-client.jar ws://localhost:8080/game Charlie
-```
-
-Terminal 5 — fourth client:
-
-```sh
-java -jar game-client/target/game-client.jar ws://localhost:8080/game Dora
-```
-
-Click **Connect** to open **Available rooms**. Alice clicks **Create room**. Bob, Charlie and Dora select
-Alice’s room and click **Join selected**, or paste its six-character code and click **Join by code**.
-The host can click **Copy code** beside the room code while choosing or in the waiting room.
+To use Training, start the server with `java -Dgame.arena=training -jar game-server/target/game-server.jar`
+instead. Alternatively use `GAME_ARENA=training java -jar game-server/target/game-server.jar`. The `game.arena` JVM
+property overrides `GAME_ARENA`; only `combat` and `training` are accepted. An invalid value fails startup.
+Stop the current server before starting the other arena on the same port.
 
 After entering a room, choose a character, adjust its stats, and click **Confirm character**. The waiting
 room shows confirmed portraits and marks members who are still choosing. The host can click **Start game**
@@ -232,7 +256,20 @@ A mapping for the Ultimate 2C Wireless over Bluetooth on macOS is bundled in `ga
 | Move right | `D` or `Right`           | Left stick                    | Left stick                       |
 | Jump       | `Space`, `W` or `Up`     | `A`                           | `Cross`                          |
 | Ranged     | `J`                      | `X` or `RB`                   | `Square` or `R1`                 |
+| Examinator | `L` (press) | `Y` | `Triangle` |
+| Prone/dodge | Hold `S` or `Down` | Hold D-pad Down | Hold D-pad Down |
 | Melee      | `K`                      | `B` or `LB`                   | `Circle` or `L1`                 |
+
+Every character has an **Examinator** cyborg drone: one accepted press starts a 30-second cooldown and a
+0.8-second entry from above the arena to its center, followed by 0.6 seconds of inspection. It then acquires targets one at a
+time (0.2-second pause, 0.5-second aim, 0.2-second laser feedback), using that character's ranged effects. Holding
+L/top face never repeats it. Hold S/Down (D-pad Down on all controllers, including 8BitDo) to go prone while
+grounded; release to stand. Prone blocks voluntary movement/jump/new attacks and dodges Examinator only.
+Ordinary combat and external impulses still work. Respawning or entering prone cancels any active sequence without
+refunding cooldown. The drone is hidden while idle; status appears below Stress in each owner's HUD card.
+Both clients show the same server-recorded shots and active drone positions. See
+[Iterator and Examinator](docs/iterator-examinator.md) for GoF roles, the deterministic domain demonstration,
+resource fallbacks, and a two-client verification scenario.
 
 The client tracks both press and release, so movement does not depend on operating-system key repeat. Click the
 game area if keys do not respond. Releasing every movement key stops the character. Holding both left and right
@@ -372,13 +409,14 @@ The `/game` endpoint accepts JSON text messages with explicit stable types:
 - `LOBBY_STATE`: publishes code, host ID, game phase, and roster. A null character means the member is still choosing.
 - `START_GAME`: starts the game and locks admission once the host and every guest have confirmed.
 - `LEAVE_LOBBY` / `LOBBY_CLOSED`: leave or acknowledge closure and return to the browser over the same connection.
-- `INPUT`: sends a monotonically sequenced complete left/right/jump/ranged/melee state, never position or velocity.
-- `WORLD_SNAPSHOT`: broadcasts validated `arenaType` (`combat` or `training`), arena/platform geometry, players (including health, character choice, stress and `slowed`), items,
+- `INPUT`: sends a monotonically sequenced complete left/right/jump/ranged/melee/examinator/prone state, never position or velocity.
+- `WORLD_SNAPSHOT`: broadcasts validated `arenaType` (`combat` or `training`), arena/platform geometry, players (including health, character choice, stress and `slowed`/`prone`), items,
   NPC geometry/activity/facing/attack sequences and `stunned`, player `attacks`, and NPC `projectiles`
   at 20 Hz. Each NPC projectile
   carries its UUID, source NPC ID, explicit `projectileType` (`BOOK` or `DIPLOMA`), center, radius,
   velocity and `returning` flag. Client and server must use this same snapshot format; older snapshots
   missing these fields are rejected.
+- `WORLD_SNAPSHOT.examinators`: per-owner drone phase/position/emitter/aim/cooldown, simulation time, and individually sequenced 0.2-second pre-hit laser feedback. These are separate from ordinary RANGED/MELEE attacks.
 - `PING`/`PONG`: application-level liveness round trip.
 - `ERROR`: reports malformed input, wrong direction, missing handshake, capacity, or queue pressure.
 
@@ -389,6 +427,10 @@ authenticated identities.
 
 ## Troubleshooting
 
+- **Unable to access jarfile:** Java cannot read the JAR at the supplied path. Run `pwd` to check that this terminal
+  is in the project root, then `ls -lh game-server/target/game-server.jar game-client/target/game-client.jar`.
+  If a file is missing, run `./mvnw -B -ntp clean verify` from that root and wait for **BUILD SUCCESS**. Check both
+  files again before launching; compilation or successful server startup alone does not confirm client packaging.
 - **Wrong Java:** ensure `java --version`, `javac --version`, and `./mvnw -version` all report Java 25. In VS Code,
   select the same JDK with **Java: Configure Java Runtime**.
 - **Port occupied:** stop the other listener or configure another port. Use that same port in every client URL.

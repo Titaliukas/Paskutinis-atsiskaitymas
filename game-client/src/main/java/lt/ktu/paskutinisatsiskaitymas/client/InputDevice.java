@@ -35,11 +35,11 @@ enum InputDevice {
     /** Button guide for the device, shown when it is selected. */
     String controlsHint() {
         return switch (this) {
-            case KEYBOARD -> "Keyboard: A/D or arrows move, Space/W/Up jump, J ranged, K melee";
-            case XBOX -> "Xbox: left stick move, A jump, X ranged, B melee";
-            case PLAYSTATION -> "PlayStation: left stick move, Cross jump, Square ranged, Circle melee";
+            case KEYBOARD -> "Keyboard: A/D or arrows move, Space/W/Up jump, J ranged, K melee, L Examinator, S/Down prone";
+            case XBOX -> "Xbox: left stick move, A jump, X ranged, B melee, Y Examinator, D-pad Down prone";
+            case PLAYSTATION -> "PlayStation: left stick move, Cross jump, Square ranged, Circle melee, Triangle Examinator, D-pad Down prone";
             case EIGHT_BIT_DO -> "8BitDo: left stick move, bottom face button jump, "
-                    + "left face button/right shoulder ranged, right face button/left shoulder melee";
+                    + "left face button/right shoulder ranged, right face button/left shoulder melee, top face Examinator, D-pad Down prone";
         };
     }
 

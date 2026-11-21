@@ -7,17 +7,21 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.cfg.CoercionAction;
 import com.fasterxml.jackson.databind.cfg.CoercionInputShape;
 import com.fasterxml.jackson.databind.type.LogicalType;
+import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.fasterxml.jackson.databind.MapperFeature;
 
 /** Thread-safe after construction; serializes transport DTOs only, using a fixed type allowlist. */
 public final class JsonMessageCodec {
     public static final int MAX_MESSAGE_CHARACTERS = 8192;
-    private final ObjectMapper mapper = new ObjectMapper()
-            .findAndRegisterModules()
+    private final ObjectMapper mapper = JsonMapper.builder()
+            .findAndAddModules()
+            .disable(MapperFeature.ALLOW_COERCION_OF_SCALARS)
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
             .enable(DeserializationFeature.FAIL_ON_MISSING_CREATOR_PROPERTIES)
             .enable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
             .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
-            .disable(DeserializationFeature.ACCEPT_FLOAT_AS_INT);
+            .disable(DeserializationFeature.ACCEPT_FLOAT_AS_INT)
+            .build();
 
     public JsonMessageCodec() {
         var text = mapper.coercionConfigFor(LogicalType.Textual);
